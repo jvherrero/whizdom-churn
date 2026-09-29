@@ -1,0 +1,1015 @@
+{
+  "catalog_version": "2.0",
+  "last_updated": "2026-08-10",
+  "description": "Catálogo ejecutable de modelos: cada entrada en 'models' es instanciable dinámicamente (import_path + params) para poder entrenar y comparar varios modelos en paralelo con un runner genérico. 'interfaces' define cómo llamar fit/predict según el tipo de API. 'tooling' cubre librerías de soporte (tuning, interpretabilidad, tracking) que no son modelos y no compiten en la comparación.",
+  "interfaces": {
+    "sklearn_estimator": {
+      "instantiate": "cls(**default_params)",
+      "fit": "estimator.fit(X_train, y_train)",
+      "predict": "estimator.predict(X_test)",
+      "predict_proba": "estimator.predict_proba(X_test)  # si supports_predict_proba",
+      "parallel_safe": true,
+      "notes": "API uniforme de scikit-learn; también la implementan xgboost, lightgbm, catboost y surprise en modo wrapper sklearn"
+    },
+    "statsmodels_timeseries": {
+      "instantiate": "cls(endog, **default_params)",
+      "fit": "fitted = model.fit()",
+      "predict": "fitted.forecast(steps) | fitted.predict(start, end)",
+      "parallel_safe": true,
+      "notes": "constructor recibe la serie directamente, no X/y separados"
+    },
+    "pmdarima_functional": {
+      "instantiate": "n/a (es una función, no una clase)",
+      "fit": "model = pmdarima.auto_arima(y, **default_params)",
+      "predict": "model.predict(n_periods)",
+      "parallel_safe": true
+    },
+    "prophet": {
+      "instantiate": "cls(**default_params)",
+      "fit": "model.fit(df)  # df con columnas 'ds','y'",
+      "predict": "model.predict(future_df)",
+      "parallel_safe": true
+    },
+    "pytorch_custom": {
+      "instantiate": "factory_fn(**default_params) -> nn.Module  (definida en el proyecto, no en el catálogo)",
+      "fit": "training loop propio (no hay .fit() genérico)",
+      "predict": "model(x)",
+      "parallel_safe": false,
+      "notes": "requiere arquitectura de red definida en código; el catálogo solo referencia el 'factory', no basta con import_path + params"
+    },
+    "huggingface_pretrained": {
+      "instantiate": "cls.from_pretrained(pretrained_model_name, **default_params)",
+      "fit": "transformers.Trainer(...).train()",
+      "predict": "model(**inputs)",
+      "parallel_safe": false,
+      "notes": "modelos grandes; correr varios a la vez compite por GPU/RAM, mejor secuencial o con colas"
+    },
+    "stable_baselines3": {
+      "instantiate": "cls('MlpPolicy', env, **default_params)",
+      "fit": "model.learn(total_timesteps)",
+      "predict": "model.predict(obs)",
+      "parallel_safe": false,
+      "notes": "necesita un entorno (env) además de datos; comparar 5-6 algoritmos en paralelo es viable en CPU si el env es liviano"
+    },
+    "pymc_factory": {
+      "instantiate": "factory_fn(data, **default_params) -> pm.Model  (definida en el proyecto)",
+      "fit": "with model: idata = pm.sample()",
+      "predict": "pm.sample_posterior_predictive(idata)",
+      "parallel_safe": false,
+      "notes": "MCMC es costoso; correr varios modelos bayesianos en paralelo puede saturar CPU rápido"
+    }
+  },
+  "models": [
+    {
+      "id": "logistic_regression",
+      "name": "Logistic Regression",
+      "category": "Modelos lineales",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.linear_model.LogisticRegression",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "max_iter": 1000
+      },
+      "param_grid": {
+        "C": [
+          0.01,
+          0.1,
+          1,
+          10
+        ],
+        "class_weight": [
+          null,
+          "balanced"
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "random_forest_classifier",
+      "name": "Random Forest Classifier",
+      "category": "Árboles y ensembles clásicos",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.ensemble.RandomForestClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "max_depth": [
+          null,
+          6,
+          10
+        ],
+        "min_samples_leaf": [
+          1,
+          2,
+          5
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "extra_trees_classifier",
+      "name": "Extra Trees Classifier",
+      "category": "Árboles y ensembles clásicos",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.ensemble.ExtraTreesClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "max_depth": [
+          null,
+          10
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "decision_tree_classifier",
+      "name": "Decision Tree Classifier",
+      "category": "Árboles y ensembles clásicos",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.tree.DecisionTreeClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "random_state": 42
+      },
+      "param_grid": {
+        "max_depth": [
+          3,
+          6,
+          10,
+          null
+        ],
+        "min_samples_leaf": [
+          1,
+          5,
+          10
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "gradient_boosting_classifier",
+      "name": "Gradient Boosting Classifier",
+      "category": "Gradient Boosting",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.ensemble.GradientBoostingClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "learning_rate": [
+          0.05,
+          0.1
+        ],
+        "max_depth": [
+          3,
+          5
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "xgboost_classifier",
+      "name": "XGBoost Classifier",
+      "category": "Gradient Boosting",
+      "task_type": "classification",
+      "library": "XGBoost",
+      "pip_package": "xgboost",
+      "import_path": "xgboost.XGBClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 200,
+        "eval_metric": "logloss",
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "max_depth": [
+          3,
+          6
+        ],
+        "learning_rate": [
+          0.05,
+          0.1
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "lightgbm_classifier",
+      "name": "LightGBM Classifier",
+      "category": "Gradient Boosting",
+      "task_type": "classification",
+      "library": "LightGBM",
+      "pip_package": "lightgbm",
+      "import_path": "lightgbm.LGBMClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 200,
+        "random_state": 42,
+        "verbose": -1
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "num_leaves": [
+          31,
+          63
+        ],
+        "learning_rate": [
+          0.05,
+          0.1
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "catboost_classifier",
+      "name": "CatBoost Classifier",
+      "category": "Gradient Boosting",
+      "task_type": "classification",
+      "library": "CatBoost",
+      "pip_package": "catboost",
+      "import_path": "catboost.CatBoostClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "iterations": 200,
+        "random_state": 42,
+        "verbose": false
+      },
+      "param_grid": {
+        "iterations": [
+          100,
+          200
+        ],
+        "depth": [
+          4,
+          6
+        ],
+        "learning_rate": [
+          0.05,
+          0.1
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "svc",
+      "name": "Support Vector Classifier",
+      "category": "Modelos de margen máximo",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.svm.SVC",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "probability": true,
+        "random_state": 42
+      },
+      "param_grid": {
+        "C": [
+          0.1,
+          1,
+          10
+        ],
+        "kernel": [
+          "rbf",
+          "linear"
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "knn_classifier",
+      "name": "K-Nearest Neighbors Classifier",
+      "category": "Modelos basados en distancia",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.neighbors.KNeighborsClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_neighbors": 5
+      },
+      "param_grid": {
+        "n_neighbors": [
+          3,
+          5,
+          10,
+          20
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": true,
+      "parallelizable": true,
+      "notes": "mlflow.sklearn.log_model() puede rechazar el modelo entrenado ('untrusted types': KDTree/EuclideanDistance64 del backend de skops) salvo que pases skops_trusted_types explícitamente al loguearlo"
+    },
+    {
+      "id": "mlp_classifier",
+      "name": "MLP Classifier (red neuronal simple)",
+      "category": "Deep Learning ligero (sklearn)",
+      "task_type": "classification",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.neural_network.MLPClassifier",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "hidden_layer_sizes": [
+          64,
+          32
+        ],
+        "max_iter": 500,
+        "random_state": 42
+      },
+      "param_grid": {
+        "hidden_layer_sizes": [
+          [
+            32
+          ],
+          [
+            64,
+            32
+          ]
+        ],
+        "alpha": [
+          0.0001,
+          0.001
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": true,
+      "parallelizable": true,
+      "notes": "mlflow.sklearn.log_model() puede rechazar el modelo ('untrusted types': AdamOptimizer del optimizador interno) salvo que pases skops_trusted_types explícitamente al loguearlo"
+    },
+    {
+      "id": "linear_regression",
+      "name": "Linear Regression",
+      "category": "Modelos lineales",
+      "task_type": "regression",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.linear_model.LinearRegression",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {},
+      "param_grid": {},
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "ridge_regression",
+      "name": "Ridge Regression",
+      "category": "Modelos lineales",
+      "task_type": "regression",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.linear_model.Ridge",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "random_state": 42
+      },
+      "param_grid": {
+        "alpha": [
+          0.1,
+          1.0,
+          10.0
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "random_forest_regressor",
+      "name": "Random Forest Regressor",
+      "category": "Árboles y ensembles clásicos",
+      "task_type": "regression",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.ensemble.RandomForestRegressor",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "max_depth": [
+          null,
+          6,
+          10
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "xgboost_regressor",
+      "name": "XGBoost Regressor",
+      "category": "Gradient Boosting",
+      "task_type": "regression",
+      "library": "XGBoost",
+      "pip_package": "xgboost",
+      "import_path": "xgboost.XGBRegressor",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 200,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "max_depth": [
+          3,
+          6
+        ],
+        "learning_rate": [
+          0.05,
+          0.1
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "lightgbm_regressor",
+      "name": "LightGBM Regressor",
+      "category": "Gradient Boosting",
+      "task_type": "regression",
+      "library": "LightGBM",
+      "pip_package": "lightgbm",
+      "import_path": "lightgbm.LGBMRegressor",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 200,
+        "random_state": 42,
+        "verbose": -1
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "num_leaves": [
+          31,
+          63
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "kmeans",
+      "name": "K-Means",
+      "category": "Clustering",
+      "task_type": "clustering",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.cluster.KMeans",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_clusters": 3,
+        "n_init": "auto",
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_clusters": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "dbscan",
+      "name": "DBSCAN",
+      "category": "Clustering",
+      "task_type": "clustering",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.cluster.DBSCAN",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "eps": 0.5,
+        "min_samples": 5
+      },
+      "param_grid": {
+        "eps": [
+          0.3,
+          0.5,
+          0.8
+        ],
+        "min_samples": [
+          5,
+          10
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "gaussian_mixture",
+      "name": "Gaussian Mixture",
+      "category": "Clustering",
+      "task_type": "clustering",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.mixture.GaussianMixture",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_components": 3,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_components": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": true,
+      "parallelizable": true
+    },
+    {
+      "id": "pca",
+      "name": "PCA",
+      "category": "Reducción de dimensionalidad",
+      "task_type": "dimensionality_reduction",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.decomposition.PCA",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_components": 2,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_components": [
+          2,
+          3,
+          5
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "umap",
+      "name": "UMAP",
+      "category": "Reducción de dimensionalidad",
+      "task_type": "dimensionality_reduction",
+      "library": "umap-learn",
+      "pip_package": "umap-learn",
+      "import_path": "umap.UMAP",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_components": 2,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_neighbors": [
+          10,
+          15,
+          30
+        ],
+        "min_dist": [
+          0.1,
+          0.5
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "isolation_forest",
+      "name": "Isolation Forest",
+      "category": "Detección de anomalías",
+      "task_type": "anomaly_detection",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.ensemble.IsolationForest",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_estimators": [
+          100,
+          200
+        ],
+        "contamination": [
+          "auto",
+          0.05,
+          0.1
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "one_class_svm",
+      "name": "One-Class SVM",
+      "category": "Detección de anomalías",
+      "task_type": "anomaly_detection",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.svm.OneClassSVM",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "nu": 0.1,
+        "kernel": "rbf"
+      },
+      "param_grid": {
+        "nu": [
+          0.05,
+          0.1,
+          0.2
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "arima",
+      "name": "ARIMA",
+      "category": "Series temporales",
+      "task_type": "time_series_forecasting",
+      "library": "statsmodels",
+      "pip_package": "statsmodels",
+      "import_path": "statsmodels.tsa.arima.model.ARIMA",
+      "interface": "statsmodels_timeseries",
+      "instantiation": "direct",
+      "default_params": {
+        "order": [
+          1,
+          1,
+          1
+        ]
+      },
+      "param_grid": {
+        "order": [
+          [
+            1,
+            1,
+            1
+          ],
+          [
+            2,
+            1,
+            2
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "exponential_smoothing",
+      "name": "Exponential Smoothing (Holt-Winters)",
+      "category": "Series temporales",
+      "task_type": "time_series_forecasting",
+      "library": "statsmodels",
+      "pip_package": "statsmodels",
+      "import_path": "statsmodels.tsa.holtwinters.ExponentialSmoothing",
+      "interface": "statsmodels_timeseries",
+      "instantiation": "direct",
+      "default_params": {
+        "trend": "add",
+        "seasonal": "add",
+        "seasonal_periods": 7
+      },
+      "param_grid": {
+        "trend": [
+          "add",
+          "mul"
+        ],
+        "seasonal": [
+          "add",
+          "mul"
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "auto_arima",
+      "name": "Auto ARIMA",
+      "category": "Series temporales",
+      "task_type": "time_series_forecasting",
+      "library": "pmdarima",
+      "pip_package": "pmdarima",
+      "import_path": "pmdarima.auto_arima",
+      "interface": "pmdarima_functional",
+      "instantiation": "direct",
+      "default_params": {
+        "seasonal": false
+      },
+      "param_grid": {},
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "prophet",
+      "name": "Prophet",
+      "category": "Series temporales",
+      "task_type": "time_series_forecasting",
+      "library": "Prophet",
+      "pip_package": "prophet",
+      "import_path": "prophet.Prophet",
+      "interface": "prophet",
+      "instantiation": "direct",
+      "default_params": {
+        "yearly_seasonality": "auto",
+        "weekly_seasonality": "auto"
+      },
+      "param_grid": {
+        "changepoint_prior_scale": [
+          0.01,
+          0.1,
+          0.5
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "bayesian_ridge",
+      "name": "Bayesian Ridge Regression",
+      "category": "Modelos probabilísticos / Bayesianos",
+      "task_type": "regression",
+      "library": "scikit-learn",
+      "pip_package": "scikit-learn",
+      "import_path": "sklearn.linear_model.BayesianRidge",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {},
+      "param_grid": {
+        "alpha_1": [
+          1e-06,
+          1e-05
+        ],
+        "lambda_1": [
+          1e-06,
+          1e-05
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true
+    },
+    {
+      "id": "mlp_pytorch",
+      "name": "MLP (PyTorch)",
+      "category": "Deep Learning",
+      "task_type": "classification",
+      "library": "PyTorch",
+      "pip_package": "torch",
+      "import_path": "project.models.build_mlp",
+      "interface": "pytorch_custom",
+      "instantiation": "factory",
+      "default_params": {
+        "hidden_sizes": [
+          64,
+          32
+        ],
+        "epochs": 20,
+        "lr": 0.001
+      },
+      "param_grid": {},
+      "requires_scaling": true,
+      "supports_predict_proba": true,
+      "parallelizable": false,
+      "notes": "import_path es un placeholder: apunta a una factory function que el proyecto debe implementar, no a una clase instanciable del catálogo"
+    },
+    {
+      "id": "lstm_pytorch",
+      "name": "LSTM (PyTorch)",
+      "category": "Series temporales (Deep Learning)",
+      "task_type": "time_series_forecasting",
+      "library": "PyTorch",
+      "pip_package": "torch",
+      "import_path": "project.models.build_lstm",
+      "interface": "pytorch_custom",
+      "instantiation": "factory",
+      "default_params": {
+        "hidden_size": 32,
+        "num_layers": 1,
+        "epochs": 20,
+        "lr": 0.001
+      },
+      "param_grid": {},
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": false,
+      "notes": "import_path es un placeholder: requiere factory function propia del proyecto"
+    },
+    {
+      "id": "transformer_text_classifier",
+      "name": "Transformer fine-tuning (texto)",
+      "category": "NLP / Texto",
+      "task_type": "nlp_text_classification",
+      "library": "Hugging Face Transformers",
+      "pip_package": "transformers",
+      "import_path": "transformers.AutoModelForSequenceClassification",
+      "interface": "huggingface_pretrained",
+      "instantiation": "pretrained",
+      "default_params": {
+        "pretrained_model_name": "distilbert-base-uncased",
+        "num_labels": 2
+      },
+      "param_grid": {},
+      "requires_scaling": false,
+      "supports_predict_proba": true,
+      "parallelizable": false
+    },
+    {
+      "id": "svd_surprise",
+      "name": "SVD (Collaborative Filtering)",
+      "category": "Sistemas de recomendación",
+      "task_type": "recommendation",
+      "library": "Surprise",
+      "pip_package": "scikit-surprise",
+      "import_path": "surprise.SVD",
+      "interface": "sklearn_estimator",
+      "instantiation": "direct",
+      "default_params": {
+        "n_factors": 100,
+        "random_state": 42
+      },
+      "param_grid": {
+        "n_factors": [
+          50,
+          100
+        ],
+        "n_epochs": [
+          20,
+          40
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": true,
+      "notes": "usa fit(trainset)/test(testset) en vez de fit(X, y); no es 100% idéntico al resto de sklearn_estimator"
+    },
+    {
+      "id": "ppo_sb3",
+      "name": "PPO",
+      "category": "Reinforcement Learning",
+      "task_type": "reinforcement_learning",
+      "library": "Stable-Baselines3",
+      "pip_package": "stable-baselines3",
+      "import_path": "stable_baselines3.PPO",
+      "interface": "stable_baselines3",
+      "instantiation": "direct",
+      "default_params": {
+        "policy": "MlpPolicy"
+      },
+      "param_grid": {
+        "learning_rate": [
+          0.0003,
+          0.001
+        ],
+        "gamma": [
+          0.95,
+          0.99
+        ]
+      },
+      "requires_scaling": false,
+      "supports_predict_proba": false,
+      "parallelizable": false
+    }
+  ],
+  "tooling": [
+    {
+      "purpose": "Optimización de hiperparámetros",
+      "primary_library": "Optuna",
+      "pip_package": "optuna",
+      "alternative_libraries": [
+        "scikit-learn (GridSearchCV/RandomizedSearchCV)",
+        "Hyperopt"
+      ]
+    },
+    {
+      "purpose": "Interpretabilidad / Explainability",
+      "primary_library": "SHAP",
+      "pip_package": "shap",
+      "alternative_libraries": [
+        "LIME",
+        "eli5"
+      ]
+    },
+    {
+      "purpose": "Tracking de experimentos / MLOps",
+      "primary_library": "MLflow",
+      "pip_package": "mlflow",
+      "alternative_libraries": [
+        "Weights & Biases (wandb)",
+        "DVC"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>transaction — Data quality report</title>
+<style>
+body {font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+color:#252525;background:#fff;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+table {width:100%;border-collapse:collapse;margin-bottom:1.5rem}
+th,td {border:1px solid #ccc;padding:.6rem;text-align:left;overflow-wrap:anywhere}
+th {background:#eee} h2 {margin-top:2rem}
+</style></head>
+<body><header><h1>transaction</h1>
+<p>One row per payment status-change event, not one row per payment; paymentId repeats.</p></header>
+<main><h2>Summary</h2><table><thead><tr><th scope="col">Row count</th><th scope="col">Date range</th><th scope="col">Gap count</th></tr></thead><tbody><tr><td>742284</td><td>2026-06-18 to 2026-09-29</td><td>0</td></tr></tbody></table>
+<h2>Null rates</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Null percentage</th></tr></thead><tbody><tr><td>requestedAmount</td><td>98.2752%</td></tr><tr><td>processDate</td><td>59.1485%</td></tr><tr><td>paymentId</td><td>0%</td></tr><tr><td>partyId</td><td>0%</td></tr><tr><td>userId</td><td>0%</td></tr><tr><td>brandId</td><td>0%</td></tr><tr><td>transactionType</td><td>0%</td></tr><tr><td>transactionMethod</td><td>0%</td></tr><tr><td>accountNumber</td><td>0%</td></tr><tr><td>processedAmount</td><td>0%</td></tr><tr><td>fee</td><td>0%</td></tr><tr><td>status</td><td>0%</td></tr><tr><td>requestDate</td><td>0%</td></tr><tr><td>currency</td><td>0%</td></tr><tr><td>operator</td><td>0%</td></tr></tbody></table>
+<h2>Key uniqueness</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Rows</th><th scope="col">Distinct values</th><th scope="col">Unique</th></tr></thead><tbody><tr><td>paymentId</td><td>742284</td><td>399244</td><td>FAIL</td></tr><tr><td>partyId</td><td>742284</td><td>61095</td><td>FAIL</td></tr></tbody></table>
+<h2>Validation issues</h2><p>PASS — no issues found.</p>
+<h2>Notes</h2><ul><li>Schema captured from the current data on 2026-09-29; nullability reflects what was observed, so this run validates cleanly by construction -- the point of the baseline is to catch drift on future runs, not to fail today.</li><li>row_count, null %, and key uniqueness reflect the 2026-09-23 to 2026-09-29 window (both operators combined), not the full history -- kept consistent with the window used elsewhere in this project&#x27;s profiling. Date range and gap detection above cover the complete observed history instead, since that check is cheap.</li></ul></main></body></html>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bet — Data quality report</title>
+<style>
+body {font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+color:#252525;background:#fff;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+table {width:100%;border-collapse:collapse;margin-bottom:1.5rem}
+th,td {border:1px solid #ccc;padding:.6rem;text-align:left;overflow-wrap:anywhere}
+th {background:#eee} h2 {margin-top:2rem}
+</style></head>
+<body><header><h1>bet</h1>
+<p>One row per bet/transaction event; transactionId is unique.</p></header>
+<main><h2>Summary</h2><table><thead><tr><th scope="col">Row count</th><th scope="col">Date range</th><th scope="col">Gap count</th></tr></thead><tbody><tr><td>22381408</td><td>2026-06-18 to 2026-09-29</td><td>0</td></tr></tbody></table>
+<h2>Null rates</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Null percentage</th></tr></thead><tbody><tr><td>rollbackTranId</td><td>99.951%</td></tr><tr><td>address</td><td>8.994%</td></tr><tr><td>firstname</td><td>0.2783%</td></tr><tr><td>lastname</td><td>0.2783%</td></tr><tr><td>platformTranId</td><td>0.0372%</td></tr><tr><td>gameId</td><td>0.0352%</td></tr><tr><td>gameTranId</td><td>0.029%</td></tr><tr><td>nickname</td><td>0.0124%</td></tr><tr><td>uuid</td><td>0%</td></tr><tr><td>transactionId</td><td>0%</td></tr><tr><td>platformId</td><td>0%</td></tr><tr><td>accountId</td><td>0%</td></tr><tr><td>partyId</td><td>0%</td></tr><tr><td>email</td><td>0%</td></tr><tr><td>ip</td><td>0%</td></tr><tr><td>mobile</td><td>0%</td></tr><tr><td>os</td><td>0%</td></tr><tr><td>ua</td><td>0%</td></tr><tr><td>device</td><td>0%</td></tr><tr><td>brandId</td><td>0%</td></tr><tr><td>dateTime</td><td>0%</td></tr><tr><td>tranType</td><td>0%</td></tr><tr><td>currency</td><td>0%</td></tr><tr><td>amountReal</td><td>0%</td></tr><tr><td>amountReleasedBonus</td><td>0%</td></tr><tr><td>amountPlayableBonus</td><td>0%</td></tr><tr><td>amountRawLoyalty</td><td>0%</td></tr><tr><td>balanceRawLoyalty</td><td>0%</td></tr><tr><td>balanceReal</td><td>0%</td></tr><tr><td>balanceReleasedBonus</td><td>0%</td></tr><tr><td>balancePlayableBonus</td><td>0%</td></tr><tr><td>rolledBack</td><td>0%</td></tr></tbody></table>
+<h2>Key uniqueness</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Rows</th><th scope="col">Distinct values</th><th scope="col">Unique</th></tr></thead><tbody><tr><td>transactionId [primus]</td><td>13872583</td><td>13872583</td><td>PASS</td></tr><tr><td>partyId [primus]</td><td>13872583</td><td>16862</td><td>FAIL</td></tr><tr><td>transactionId [secundus]</td><td>8508825</td><td>8508825</td><td>PASS</td></tr><tr><td>partyId [secundus]</td><td>8508825</td><td>11401</td><td>FAIL</td></tr></tbody></table>
+<h2>Validation issues</h2><p>PASS — no issues found.</p>
+<h2>Notes</h2><ul><li>bet (whizdomai-transactions) is far larger than the other tables (~14M+8.5M rows per day): a full SELECT * for a single operator/day measured ~30GB peak RSS and was OOM-killed, so it is never materialized as a DataFrame.</li><li>row_count, null %, schema and key uniqueness reflect a single day (2026-09-10) via SQL pushdown (DuckDB DESCRIBE/SUMMARIZE/count(DISTINCT ...)), not the full history. Date range and gap detection above DO cover the complete observed history (file-listing only, no data read).</li><li>Key checks are reported per operator (not combined) because combining exact distinct counts across operators without double-counting would need a cross-operator distinct query, not run here to keep this within a single-day scan.</li></ul></main></body></html>

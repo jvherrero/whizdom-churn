@@ -1,0 +1,212 @@
+{
+  "table_name": "bonus",
+  "grain_description": "One row per bonus status-change event; changeId is unique, id (the bonus) repeats.",
+  "row_count": 648283,
+  "date_range_start": "2026-06-18",
+  "date_range_end": "2026-09-29",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "changeId",
+      "dtype": "int64",
+      "nullable": false
+    },
+    {
+      "name": "changeStatusTimestamp",
+      "dtype": "datetime64[us, Europe/Madrid]",
+      "nullable": false
+    },
+    {
+      "name": "id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "partyId",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "bonusPlanId",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "triggerDate",
+      "dtype": "datetime64[us, Europe/Madrid]",
+      "nullable": false
+    },
+    {
+      "name": "expiryDate",
+      "dtype": "datetime64[us, Europe/Madrid]",
+      "nullable": false
+    },
+    {
+      "name": "releaseDate",
+      "dtype": "datetime64[us, Europe/Madrid]",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "dtype": "str",
+      "nullable": false
+    },
+    {
+      "name": "amountWagered",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "wagerRequirement",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "amount",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "releasedBonusWinnings",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "releasedBonus",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "releasedBonusWinningsAmount",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "releasedBonusAmount",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "playableBonusWinnings",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "playableBonus",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "operator",
+      "dtype": "str",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "changeId",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "changeStatusTimestamp",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "partyId",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonusPlanId",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "triggerDate",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "expiryDate",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "releaseDate",
+      "null_percentage": 61.2921
+    },
+    {
+      "name": "status",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "amountWagered",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagerRequirement",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "amount",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "releasedBonusWinnings",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "releasedBonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "releasedBonusWinningsAmount",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "releasedBonusAmount",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "playableBonusWinnings",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "playableBonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "operator",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "changeId",
+      "n_rows": 648283,
+      "n_distinct": 648283,
+      "is_unique": true
+    },
+    {
+      "column": "id",
+      "n_rows": 648283,
+      "n_distinct": 286697,
+      "is_unique": false
+    },
+    {
+      "column": "partyId",
+      "n_rows": 648283,
+      "n_distinct": 73763,
+      "is_unique": false
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "notes": [
+    "Schema captured from the current data on 2026-09-29; nullability reflects what was observed, so this run validates cleanly by construction -- the point of the baseline is to catch drift on future runs, not to fail today.",
+    "row_count, null %, and key uniqueness reflect the 2026-09-23 to 2026-09-29 window (both operators combined), not the full history -- kept consistent with the window used elsewhere in this project's profiling. Date range and gap detection above cover the complete observed history instead, since that check is cheap."
+  ]
+}
