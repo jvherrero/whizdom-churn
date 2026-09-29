@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    container_name: mlflow-tracking
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      # Connection string a Postgres (RDS). Saving metadata: runs, params, metrics, tags.
+      - MLFLOW_BACKEND_STORE_URI=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME}
+      - MLFLOW_ARTIFACTS_DESTINATION=s3://${S3_BUCKET_NAME}/mlflow-artifacts
+      - AWS_DEFAULT_REGION=${AWS_REGION}
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME}
+      --artifacts-destination s3://${S3_BUCKET_NAME}/mlflow-artifacts
+      --host 0.0.0.0
+      --port 5000

@@ -1,0 +1,33 @@
+[project]
+name = "whizdom-churn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Javier", email = "javier.herrero@whizdom.ai.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "black>=26.5.1",
+    "mlflow>=3.16.1",
+    "pre-commit>=4.6.2",
+    "ruff>=0.16.9",
+]
+
+[project.scripts]
+whizdom-churn = "whizdom_churn:main"
+
+[build-system]
+requires = ["uv_build>=0.12.20,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
