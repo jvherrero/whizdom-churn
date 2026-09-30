@@ -1,0 +1,103 @@
+{
+  "table_name": "session",
+  "grain_description": "One row per derived player session (see notes); partyId repeats, (operator, partyId, session_id) is unique.",
+  "row_count": 373675,
+  "date_range_start": "2026-09-23",
+  "date_range_end": "2026-09-30",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "operator",
+      "dtype": "str",
+      "nullable": false
+    },
+    {
+      "name": "partyId",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "session_id",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "session_start",
+      "dtype": "datetime64[us, Europe/Madrid]",
+      "nullable": false
+    },
+    {
+      "name": "session_end",
+      "dtype": "datetime64[us, Europe/Madrid]",
+      "nullable": false
+    },
+    {
+      "name": "n_bets",
+      "dtype": "int64",
+      "nullable": false
+    },
+    {
+      "name": "duration_minutes",
+      "dtype": "float64",
+      "nullable": false
+    },
+    {
+      "name": "session_key",
+      "dtype": "str",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "operator",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "partyId",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "session_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "session_start",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "session_end",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "n_bets",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "duration_minutes",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "session_key",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "session_key (operator+partyId+session_id)",
+      "n_rows": 373675,
+      "n_distinct": 373675,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "notes": [
+    "There is no `session` table under org/10-landing/kafka-sink for either operator (confirmed by listing both operators' prefixes in full). This profile is derived from `bet` (whizdomai-transactions) instead: a new session starts after 30 minutes with no bet event for that player. That threshold was chosen by inspecting the real distribution of gaps between consecutive bets (see 01_profiling.ipynb) -- 99.81% of all such gaps are under 30 minutes, and the distribution has no sharp elbow, so this is a reasonable choice, not a uniquely provable one.",
+    "Unlike the other 4 tables, this profile only covers the 2026-09-23 to 2026-09-29 window, not the full available history -- computing sessions over ~104 days would cost as much as the 7-day version already does (~18 minutes for both operators), scaled up roughly 15x.",
+    "The key is a synthetic composite (operator + partyId + session_id), built for this check only -- dq_lib's KeyCheck covers a single column, and no single raw column identifies a session on its own.",
+    "The date range above goes one day past QUALITY_END (2026-09-29): S3 partitions are by UTC calendar day, but `dateTime` is stored in local time (+02:00). Confirmed directly against S3: the 2026-09-29 partition holds timestamps from 2026-09-29 01:59:59+02:00 to 2026-09-30 01:59:59+02:00 -- about 10.9% of that day's rows (1.5M of 13.8M in primus alone) fall on local date 2026-09-30. This profile's date range reflects the real event timestamp (local time), not the partition folder, unlike the other 4 tables -- which is why it can extend one day beyond the partition window we read."
+  ]
+}
