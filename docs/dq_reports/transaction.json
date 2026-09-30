@@ -19,7 +19,7 @@
     },
     {
       "name": "userId",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -29,12 +29,12 @@
     },
     {
       "name": "transactionType",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "transactionMethod",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -59,7 +59,7 @@
     },
     {
       "name": "status",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -74,12 +74,12 @@
     },
     {
       "name": "currency",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "operator",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     }
   ],

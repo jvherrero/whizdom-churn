@@ -9,7 +9,7 @@
   "columns": [
     {
       "name": "uuid",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -29,7 +29,7 @@
     },
     {
       "name": "lockedStatus",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -49,12 +49,12 @@
     },
     {
       "name": "firstname",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "lastname",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
@@ -69,57 +69,57 @@
     },
     {
       "name": "country",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "city",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "province",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "address",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "postalCode",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "building",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "unit",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "language",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "currency",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "nationalRegNumber",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "birthCountry",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
@@ -129,47 +129,47 @@
     },
     {
       "name": "profession",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "nationality",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "phone",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "email",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "nickname",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "iban",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "documentNumber",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "documentType",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "kycStatus",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -189,7 +189,7 @@
     },
     {
       "name": "lastDepositType",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
@@ -209,7 +209,7 @@
     },
     {
       "name": "operator",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     }
   ],

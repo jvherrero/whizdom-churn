@@ -49,7 +49,7 @@
     },
     {
       "name": "status",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -99,7 +99,7 @@
     },
     {
       "name": "operator",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     }
   ],

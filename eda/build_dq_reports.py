@@ -11,9 +11,11 @@ Execution Strategy:
       Due to scale (~22.5M total rows/day, ~30GB peak RSS), quantitative checks 
       (row count, null %, key uniqueness) execute via SQL pushdown scoped to 
       `SNAPSHOT_DAY`. Full-history gap checks run via S3 file listing (no data reads).
-    * Missing Dataset (`session`):
-      Confirmed absent in `10-landing/kafka-sink` for both operators. Documented 
-      explicitly as 'unavailable' in the Data Card instead of generating dummy reports.
+    * Derived Dataset (`session`):
+      Confirmed absent as a source table in `10-landing/kafka-sink` for both operators.
+      Rebuilt from `bet` instead, as one row per (player, active day): day-level,
+      no arbitrary gap threshold, cheap enough to cover the full history. Reuses a
+      local active-day-gaps cache when present, instead of re-scanning S3.
 
 Outputs:
     HTML and JSON files containing DQ metrics per available table, plus an updated 
@@ -57,10 +59,9 @@ GRAIN_DESCRIPTIONS = {
     "bet": "One row per bet/transaction event; transactionId is unique.",
     "transaction": "One row per payment status-change event, not one row per payment; paymentId repeats.",
     "bonus": "One row per bonus status-change event; changeId is unique, id (the bonus) repeats.",
-    "session": "One row per derived player session (see notes); partyId repeats, (operator, partyId, session_id) is unique.",
+    "session": "One row per (player, active day) (see notes); partyId repeats, (operator, partyId, activity_date) is unique.",
 }
 SMALL_TABLES = ["player", "transaction", "bonus"]  # safe to materialize fully
-SESSION_GAP_MINUTES = 30  # justified against the real gap histogram in 01_profiling.ipynb
 QUALITY_START = dt.date(2026, 9, 23)
 QUALITY_END = dt.date(2026, 9, 29)
 QUALITY_DAYS = [QUALITY_START + dt.timedelta(days=i) for i in range((QUALITY_END - QUALITY_START).days + 1)]
@@ -71,14 +72,15 @@ SNAPSHOT_DAY = ("2026", "09", "10")
 
 OUT_DIR = Path(__file__).parent.parent / "docs" / "dq_reports"
 DATA_CARD_PATH = Path(__file__).parent.parent / "docs" / "data_card.md"
+ACTIVE_DAY_GAPS_CACHE = Path(__file__).parent.parent / "data" / "02_intermediate" / "active_day_gaps.parquet"
 
 
 def s3_duckdb():
     creds = boto3.Session(profile_name="javier-whizdom-prod-ds").get_credentials().get_frozen_credentials()
     con = duckdb.connect()
     con.sql("INSTALL httpfs; LOAD httpfs;")
-    con.sql("SET memory_limit='4GB'")
-    con.sql("SET threads=2")
+    con.sql("SET memory_limit='16GB'")
+    con.sql("SET threads=32")
     con.sql(f"""
         CREATE OR REPLACE SECRET s3_secret (
             TYPE S3, KEY_ID '{creds.access_key}', SECRET '{creds.secret_key}',
@@ -266,60 +268,55 @@ def bet_profile():
     )
 
 
-def build_sessions(operator, gap_minutes=SESSION_GAP_MINUTES):
-    """One row per derived session for `operator`, over QUALITY_DAYS.
+def active_day_gaps(operator, days):
+    """One row per (player, active day): the next active day, and the rank
+    counting back from that player's last active day (1 = last).
 
-    Same LAG/SUM OVER sessionization as 01_profiling.ipynb's `session_gaps`,
-    but grouped down to one row per session (partyId, session_id,
-    session_start, session_end, n_bets, duration_minutes) instead of one row
-    per gap between two sessions -- this is the natural analogue of a
-    `session` table, not the gap-focused view.
+    Same day-level logic as 01_profiling.ipynb. Replaces an earlier 30-minute inter-bet gap definition (LAG/LEAD/SUM OVER
+    over every raw bet event): that needed an arbitrary minute-level cutoff
+    with no sharp elbow in the real data to justify one, and was too slow to
+    run over the full history. Day granularity needs no threshold and is
+    cheap enough to cover the full history instead of a 7-day window.
     """
     landing_table = LANDING_TABLES["bet"]
     view = landing_table.replace("-", "_")
-    paths = landing_paths(operator, landing_table, QUALITY_DAYS)
+    paths = landing_paths(operator, landing_table, days)
     con = s3_duckdb()
     con.sql(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM read_parquet({paths}, union_by_name=True)")
-    query = f"""
-        WITH events AS (
-            SELECT partyId, dateTime
+    result = con.sql(f"""
+        WITH active_days AS (
+            SELECT DISTINCT partyId, CAST(dateTime AS DATE) AS activity_date
             FROM {view}
             WHERE partyId IS NOT NULL AND dateTime IS NOT NULL
-        ),
-        with_gap AS (
-            SELECT partyId, dateTime,
-                   dateTime - LAG(dateTime) OVER (PARTITION BY partyId ORDER BY dateTime) AS gap
-            FROM events
-        ),
-        with_flag AS (
-            SELECT partyId, dateTime,
-                   CASE WHEN gap IS NULL OR gap > INTERVAL '{gap_minutes} minutes' THEN 1 ELSE 0 END AS new_session
-            FROM with_gap
-        ),
-        with_session_id AS (
-            SELECT partyId, dateTime,
-                   SUM(new_session) OVER (PARTITION BY partyId ORDER BY dateTime
-                                           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id
-            FROM with_flag
         )
-        SELECT partyId, session_id,
-               MIN(dateTime) AS session_start, MAX(dateTime) AS session_end,
-               COUNT(*) AS n_bets,
-               epoch(MAX(dateTime) - MIN(dateTime)) / 60.0 AS duration_minutes
-        FROM with_session_id
-        GROUP BY partyId, session_id
-        ORDER BY partyId, session_start
-    """
-    result = con.sql(query).df()
+        SELECT partyId, activity_date,
+               LEAD(activity_date) OVER (PARTITION BY partyId ORDER BY activity_date) AS next_active_date,
+               ROW_NUMBER() OVER (PARTITION BY partyId ORDER BY activity_date DESC) AS rn_from_end
+        FROM active_days
+    """).df()
     con.close()
     result.insert(0, "operator", operator)
     return result
 
 
 def session_profile():
+    """`session` DQ profile: one row per (operator, player, active day).
+
+    Reuses the local active-day-gaps cache when present, instead of
+    re-scanning S3 (full-history day-level scan takes ~14 min; no reason to
+    pay that twice), computed fresh otherwise.
+    """
     business_name = "session"
-    df = pd.concat([build_sessions(operator) for operator in OPERATORS], ignore_index=True)
-    df["session_key"] = df["operator"] + "-" + df["partyId"].astype(str) + "-" + df["session_id"].astype(str)
+    if ACTIVE_DAY_GAPS_CACHE.exists():
+        raw = pd.read_parquet(ACTIVE_DAY_GAPS_CACHE)
+    else:
+        raw = pd.concat([active_day_gaps(operator, HISTORY_DAYS) for operator in OPERATORS], ignore_index=True)
+        ACTIVE_DAY_GAPS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        raw.to_parquet(ACTIVE_DAY_GAPS_CACHE)
+
+    df = raw[["operator", "partyId", "activity_date"]].drop_duplicates().reset_index(drop=True)
+    df["activity_date"] = pd.to_datetime(df["activity_date"]).dt.date
+    df["session_key"] = df["operator"] + "-" + df["partyId"].astype(str) + "-" + df["activity_date"].astype(str)
 
     columns = [
         ColumnSpec(name=col, dtype=str(df[col].dtype), nullable=bool(df[col].isna().any()))
@@ -332,16 +329,19 @@ def session_profile():
     ]
     key_checks = [
         KeyCheck(
-            column="session_key (operator+partyId+session_id)", n_rows=len(df),
+            column="session_key (operator+partyId+activity_date)", n_rows=len(df),
             n_distinct=int(df["session_key"].nunique(dropna=False)),
             is_unique=int(df["session_key"].nunique(dropna=False)) == len(df),
         )
     ]
 
-    session_days = set(df["session_start"].dt.date)
-    date_min = min(session_days) if session_days else None
-    date_max = max(session_days) if session_days else None
-    gap_dates = sorted(str(d) for d in (set(QUALITY_DAYS) - session_days))
+    active_dates = set(df["activity_date"])
+    date_min = min(active_dates) if active_dates else None
+    date_max = max(active_dates) if active_dates else None
+    gap_dates = (
+        sorted(str(d) for d in (set(HISTORY_DAYS) - active_dates) if date_min <= d <= date_max)
+        if active_dates else []
+    )
 
     return TableProfile(
         table_name=business_name,
@@ -356,27 +356,19 @@ def session_profile():
         key_checks=key_checks,
         validation=validation,
         notes=[
-            f"There is no `session` table under org/10-landing/kafka-sink for either operator "
-            f"(confirmed by listing both operators' prefixes in full). This profile is derived "
-            f"from `bet` (whizdomai-transactions) instead: a new session starts after "
-            f"{SESSION_GAP_MINUTES} minutes with no bet event for that player. That threshold "
-            f"was chosen by inspecting the real distribution of gaps between consecutive bets "
-            f"(see 01_profiling.ipynb) -- 99.81% of all such gaps are under 30 minutes, and the "
-            f"distribution has no sharp elbow, so this is a reasonable choice, not a uniquely "
-            f"provable one.",
-            f"Unlike the other 4 tables, this profile only covers the {QUALITY_START} to "
-            f"{QUALITY_END} window, not the full available history -- computing sessions over "
-            f"~104 days would cost as much as the 7-day version already does (~18 minutes for "
-            f"both operators), scaled up roughly 15x.",
-            "The key is a synthetic composite (operator + partyId + session_id), built for this "
-            "check only -- dq_lib's KeyCheck covers a single column, and no single raw column "
-            "identifies a session on its own.",
-            "The date range above can go one day past QUALITY_END: S3 partitions are by UTC "
-            "calendar day, but dateTime is stored in local time (+02:00). Confirmed directly "
-            "against S3: the last day's partition holds timestamps from 01:59:59+02:00 that day "
-            "to 01:59:59+02:00 the next day -- about 10.9% of that day's rows fall on the next "
-            "local date. This profile's date range reflects the real event timestamp (local "
-            "time), not the partition folder, unlike the other 4 tables.",
+            "There is no `session` table under org/10-landing/kafka-sink for either operator "
+            "(confirmed by listing both operators' prefixes in full). This profile is derived "
+            "from `bet` (whizdomai-transactions) instead: one row per (player, calendar day "
+            "with at least one bet). An earlier version used a 30-minute inter-bet gap "
+            "threshold to build minute-level sessions, dropped because the real gap "
+            "distribution has no sharp elbow to justify a specific cutoff (see "
+            "01_profiling.ipynb), and it was too slow to run over the full history.",
+            "Unlike the earlier 30-minute version, this profile covers the full available "
+            "history (2026-06-18 to 2026-09-29), the same window as the other 4 tables' date "
+            "range and gap check: day-level activity is cheap enough for that.",
+            "The key is a synthetic composite (operator + partyId + activity_date), built for "
+            "this check only: dq_lib's KeyCheck covers a single column, and no single raw "
+            "column identifies a player-day on its own.",
         ],
     )
 
@@ -388,7 +380,7 @@ def main():
         profiles.append(small_table_profile(name))
     print(f"profiling bet (SQL pushdown, single day {'-'.join(SNAPSHOT_DAY)})...", flush=True)
     profiles.append(bet_profile())
-    print(f"profiling session (derived from bet, {QUALITY_START} to {QUALITY_END}, both operators)...", flush=True)
+    print("profiling session (derived from bet, day-level, full history, both operators)...", flush=True)
     profiles.append(session_profile())
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
