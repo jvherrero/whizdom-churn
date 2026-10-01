@@ -1,7 +1,7 @@
 {
   "table_name": "player",
   "grain_description": "One row per player change event; partyId repeats, uuid identifies the event and is unique.",
-  "row_count": 174860,
+  "row_count": 194110,
   "date_range_start": "2026-06-18",
   "date_range_end": "2026-09-29",
   "n_gap_days": 0,
@@ -9,7 +9,7 @@
   "columns": [
     {
       "name": "uuid",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -29,7 +29,7 @@
     },
     {
       "name": "lockedStatus",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -49,12 +49,12 @@
     },
     {
       "name": "firstname",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "lastname",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
@@ -69,57 +69,57 @@
     },
     {
       "name": "country",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "city",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "province",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "address",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "postalCode",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "building",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "unit",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "language",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "currency",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
       "name": "nationalRegNumber",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "birthCountry",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
@@ -129,27 +129,27 @@
     },
     {
       "name": "profession",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "nationality",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "phone",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "email",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "nickname",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -159,17 +159,17 @@
     },
     {
       "name": "documentNumber",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "documentType",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
       "name": "kycStatus",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     },
     {
@@ -189,7 +189,7 @@
     },
     {
       "name": "lastDepositType",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": true
     },
     {
@@ -209,7 +209,7 @@
     },
     {
       "name": "operator",
-      "dtype": "str",
+      "dtype": "object",
       "nullable": false
     }
   ],
@@ -236,11 +236,11 @@
     },
     {
       "name": "lockedSince",
-      "null_percentage": 98.2163
+      "null_percentage": 98.1835
     },
     {
       "name": "lockedUntil",
-      "null_percentage": 99.9708
+      "null_percentage": 99.9681
     },
     {
       "name": "loginAttempts",
@@ -248,15 +248,15 @@
     },
     {
       "name": "firstname",
-      "null_percentage": 49.0701
+      "null_percentage": 48.9228
     },
     {
       "name": "lastname",
-      "null_percentage": 49.2228
+      "null_percentage": 49.084
     },
     {
       "name": "birthdate",
-      "null_percentage": 33.4977
+      "null_percentage": 33.2822
     },
     {
       "name": "regdate",
@@ -264,31 +264,31 @@
     },
     {
       "name": "country",
-      "null_percentage": 1.0437
+      "null_percentage": 1.2127
     },
     {
       "name": "city",
-      "null_percentage": 69.7901
+      "null_percentage": 69.6641
     },
     {
       "name": "province",
-      "null_percentage": 92.4797
+      "null_percentage": 92.3997
     },
     {
       "name": "address",
-      "null_percentage": 69.7838
+      "null_percentage": 69.6569
     },
     {
       "name": "postalCode",
-      "null_percentage": 69.9022
+      "null_percentage": 69.7805
     },
     {
       "name": "building",
-      "null_percentage": 99.9199
+      "null_percentage": 99.9217
     },
     {
       "name": "unit",
-      "null_percentage": 99.9451
+      "null_percentage": 99.9459
     },
     {
       "name": "language",
@@ -300,31 +300,31 @@
     },
     {
       "name": "nationalRegNumber",
-      "null_percentage": 93.6767
+      "null_percentage": 93.7845
     },
     {
       "name": "birthCountry",
-      "null_percentage": 98.6406
+      "null_percentage": 98.6647
     },
     {
       "name": "birthCity",
-      "null_percentage": 99.2245
+      "null_percentage": 99.236
     },
     {
       "name": "profession",
-      "null_percentage": 99.9788
+      "null_percentage": 99.9732
     },
     {
       "name": "nationality",
-      "null_percentage": 96.7237
+      "null_percentage": 96.7616
     },
     {
       "name": "phone",
-      "null_percentage": 30.2122
+      "null_percentage": 30.2766
     },
     {
       "name": "email",
-      "null_percentage": 0.0011
+      "null_percentage": 0.001
     },
     {
       "name": "nickname",
@@ -332,15 +332,15 @@
     },
     {
       "name": "iban",
-      "null_percentage": 96.2862
+      "null_percentage": 96.3294
     },
     {
       "name": "documentNumber",
-      "null_percentage": 94.8582
+      "null_percentage": 94.8086
     },
     {
       "name": "documentType",
-      "null_percentage": 94.7592
+      "null_percentage": 94.7061
     },
     {
       "name": "kycStatus",
@@ -348,27 +348,27 @@
     },
     {
       "name": "lastKycRequestedDate",
-      "null_percentage": 99.9806
+      "null_percentage": 99.9799
     },
     {
       "name": "lastDepositDate",
-      "null_percentage": 89.6003
+      "null_percentage": 89.3658
     },
     {
       "name": "lastDepositAmount",
-      "null_percentage": 89.5997
+      "null_percentage": 89.3653
     },
     {
       "name": "lastDepositType",
-      "null_percentage": 89.5997
+      "null_percentage": 89.3653
     },
     {
       "name": "lastWithdrawDate",
-      "null_percentage": 95.4455
+      "null_percentage": 95.3176
     },
     {
       "name": "lastWithdrawAmount",
-      "null_percentage": 95.4455
+      "null_percentage": 95.3176
     },
     {
       "name": "trackingCodes",
@@ -382,14 +382,14 @@
   "key_checks": [
     {
       "column": "uuid",
-      "n_rows": 174860,
-      "n_distinct": 174860,
+      "n_rows": 194110,
+      "n_distinct": 194110,
       "is_unique": true
     },
     {
       "column": "partyId",
-      "n_rows": 174860,
-      "n_distinct": 70408,
+      "n_rows": 194110,
+      "n_distinct": 77804,
       "is_unique": false
     }
   ],
@@ -398,7 +398,7 @@
     "issues": []
   },
   "notes": [
-    "Schema captured from the current data on 2026-09-29; nullability reflects what was observed, so this run validates cleanly by construction -- the point of the baseline is to catch drift on future runs, not to fail today.",
-    "row_count, null %, and key uniqueness reflect the 2026-09-23 to 2026-09-29 window (both operators combined), not the full history -- kept consistent with the window used elsewhere in this project's profiling. Date range and gap detection above cover the complete observed history instead, since that check is cheap."
+    "Schema captured from the current data on 2026-09-30; nullability reflects what was observed, so this run validates cleanly by construction, the point of the baseline is to catch drift on future runs, not to fail today.",
+    "row_count, null %, and key uniqueness reflect the 2026-09-23 to 2026-09-29 window (both operators combined), not the full history, kept consistent with the window used elsewhere in this project's profiling. Date range and gap detection above cover the complete observed history instead, since that check is cheap."
   ]
 }

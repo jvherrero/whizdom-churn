@@ -11,9 +11,11 @@ Execution Strategy:
       Due to scale (~22.5M total rows/day, ~30GB peak RSS), quantitative checks 
       (row count, null %, key uniqueness) execute via SQL pushdown scoped to 
       `SNAPSHOT_DAY`. Full-history gap checks run via S3 file listing (no data reads).
-    * Missing Dataset (`session`):
-      Confirmed absent in `10-landing/kafka-sink` for both operators. Documented 
-      explicitly as 'unavailable' in the Data Card instead of generating dummy reports.
+    * Derived Dataset (`session`):
+      Confirmed absent as a source table in `10-landing/kafka-sink` for both operators.
+      Rebuilt from `bet` instead, as one row per (player, active day): day-level,
+      no arbitrary gap threshold, cheap enough to cover the full history. Reuses a
+      local active-day-gaps cache when present, instead of re-scanning S3.
 
 Outputs:
     HTML and JSON files containing DQ metrics per available table, plus an updated 
@@ -57,6 +59,7 @@ GRAIN_DESCRIPTIONS = {
     "bet": "One row per bet/transaction event; transactionId is unique.",
     "transaction": "One row per payment status-change event, not one row per payment; paymentId repeats.",
     "bonus": "One row per bonus status-change event; changeId is unique, id (the bonus) repeats.",
+    "session": "One row per (player, active day) (see notes); partyId repeats, (operator, partyId, activity_date) is unique.",
 }
 SMALL_TABLES = ["player", "transaction", "bonus"]  # safe to materialize fully
 QUALITY_START = dt.date(2026, 9, 23)
@@ -69,14 +72,15 @@ SNAPSHOT_DAY = ("2026", "09", "10")
 
 OUT_DIR = Path(__file__).parent.parent / "docs" / "dq_reports"
 DATA_CARD_PATH = Path(__file__).parent.parent / "docs" / "data_card.md"
+ACTIVE_DAY_GAPS_CACHE = Path(__file__).parent.parent / "data" / "02_intermediate" / "active_day_gaps.parquet"
 
 
 def s3_duckdb():
     creds = boto3.Session(profile_name="javier-whizdom-prod-ds").get_credentials().get_frozen_credentials()
     con = duckdb.connect()
     con.sql("INSTALL httpfs; LOAD httpfs;")
-    con.sql("SET memory_limit='4GB'")
-    con.sql("SET threads=2")
+    con.sql("SET memory_limit='16GB'")
+    con.sql("SET threads=32")
     con.sql(f"""
         CREATE OR REPLACE SECRET s3_secret (
             TYPE S3, KEY_ID '{creds.access_key}', SECRET '{creds.secret_key}',
@@ -264,6 +268,111 @@ def bet_profile():
     )
 
 
+def active_day_gaps(operator, days):
+    """One row per (player, active day): the next active day, and the rank
+    counting back from that player's last active day (1 = last).
+
+    Same day-level logic as 01_profiling.ipynb. Replaces an earlier 30-minute inter-bet gap definition (LAG/LEAD/SUM OVER
+    over every raw bet event): that needed an arbitrary minute-level cutoff
+    with no sharp elbow in the real data to justify one, and was too slow to
+    run over the full history. Day granularity needs no threshold and is
+    cheap enough to cover the full history instead of a 7-day window.
+    """
+    landing_table = LANDING_TABLES["bet"]
+    view = landing_table.replace("-", "_")
+    paths = landing_paths(operator, landing_table, days)
+    con = s3_duckdb()
+    con.sql(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM read_parquet({paths}, union_by_name=True)")
+    result = con.sql(f"""
+        WITH active_days AS (
+            SELECT DISTINCT partyId, CAST(dateTime AS DATE) AS activity_date
+            FROM {view}
+            WHERE partyId IS NOT NULL AND dateTime IS NOT NULL
+        )
+        SELECT partyId, activity_date,
+               LEAD(activity_date) OVER (PARTITION BY partyId ORDER BY activity_date) AS next_active_date,
+               ROW_NUMBER() OVER (PARTITION BY partyId ORDER BY activity_date DESC) AS rn_from_end
+        FROM active_days
+    """).df()
+    con.close()
+    result.insert(0, "operator", operator)
+    return result
+
+
+def session_profile():
+    """`session` DQ profile: one row per (operator, player, active day).
+
+    Reuses the local active-day-gaps cache when present, instead of
+    re-scanning S3 (full-history day-level scan takes ~14 min; no reason to
+    pay that twice), computed fresh otherwise.
+    """
+    business_name = "session"
+    if ACTIVE_DAY_GAPS_CACHE.exists():
+        raw = pd.read_parquet(ACTIVE_DAY_GAPS_CACHE)
+    else:
+        raw = pd.concat([active_day_gaps(operator, HISTORY_DAYS) for operator in OPERATORS], ignore_index=True)
+        ACTIVE_DAY_GAPS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        raw.to_parquet(ACTIVE_DAY_GAPS_CACHE)
+
+    df = raw[["operator", "partyId", "activity_date"]].drop_duplicates().reset_index(drop=True)
+    df["activity_date"] = pd.to_datetime(df["activity_date"]).dt.date
+    df["session_key"] = df["operator"] + "-" + df["partyId"].astype(str) + "-" + df["activity_date"].astype(str)
+
+    columns = [
+        ColumnSpec(name=col, dtype=str(df[col].dtype), nullable=bool(df[col].isna().any()))
+        for col in df.columns
+    ]
+    validation = validate_dataframe(df, columns)
+    null_stats = [
+        ColumnNullStat(name=col, null_percentage=round(100 * df[col].isna().mean(), 4))
+        for col in df.columns
+    ]
+    key_checks = [
+        KeyCheck(
+            column="session_key (operator+partyId+activity_date)", n_rows=len(df),
+            n_distinct=int(df["session_key"].nunique(dropna=False)),
+            is_unique=int(df["session_key"].nunique(dropna=False)) == len(df),
+        )
+    ]
+
+    active_dates = set(df["activity_date"])
+    date_min = min(active_dates) if active_dates else None
+    date_max = max(active_dates) if active_dates else None
+    gap_dates = (
+        sorted(str(d) for d in (set(HISTORY_DAYS) - active_dates) if date_min <= d <= date_max)
+        if active_dates else []
+    )
+
+    return TableProfile(
+        table_name=business_name,
+        grain_description=GRAIN_DESCRIPTIONS[business_name],
+        row_count=len(df),
+        date_range_start=str(date_min) if date_min else None,
+        date_range_end=str(date_max) if date_max else None,
+        n_gap_days=len(gap_dates),
+        gap_dates=gap_dates,
+        columns=columns,
+        null_stats=null_stats,
+        key_checks=key_checks,
+        validation=validation,
+        notes=[
+            "There is no `session` table under org/10-landing/kafka-sink for either operator "
+            "(confirmed by listing both operators' prefixes in full). This profile is derived "
+            "from `bet` (whizdomai-transactions) instead: one row per (player, calendar day "
+            "with at least one bet). An earlier version used a 30-minute inter-bet gap "
+            "threshold to build minute-level sessions, dropped because the real gap "
+            "distribution has no sharp elbow to justify a specific cutoff (see "
+            "01_profiling.ipynb), and it was too slow to run over the full history.",
+            "Unlike the earlier 30-minute version, this profile covers the full available "
+            "history (2026-06-18 to 2026-09-29), the same window as the other 4 tables' date "
+            "range and gap check: day-level activity is cheap enough for that.",
+            "The key is a synthetic composite (operator + partyId + activity_date), built for "
+            "this check only: dq_lib's KeyCheck covers a single column, and no single raw "
+            "column identifies a player-day on its own.",
+        ],
+    )
+
+
 def main():
     profiles = []
     for name in SMALL_TABLES:
@@ -271,6 +380,8 @@ def main():
         profiles.append(small_table_profile(name))
     print(f"profiling bet (SQL pushdown, single day {'-'.join(SNAPSHOT_DAY)})...", flush=True)
     profiles.append(bet_profile())
+    print("profiling session (derived from bet, day-level, full history, both operators)...", flush=True)
+    profiles.append(session_profile())
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for profile in profiles:
@@ -278,13 +389,6 @@ def main():
         print(f"wrote {OUT_DIR / profile.table_name}.html / .json", flush=True)
 
     register = render_source_table_register(profiles)
-    register += (
-        "\n| session | Not available | N/A | N/A | N/A | N/A |\n"
-        "\n`session` has no source under `org/10-landing/kafka-sink` for either operator "
-        "(`primus`, `secundus`) -- both prefixes were listed in full, this is not a listing "
-        "truncation. No DQ report is generated for it. Pending: confirm with the data team "
-        "whether session/login telemetry is ingested through a different path.\n"
-    )
     DATA_CARD_PATH.parent.mkdir(parents=True, exist_ok=True)
     DATA_CARD_PATH.write_text(register, encoding="utf-8")
     print(f"wrote {DATA_CARD_PATH}", flush=True)
