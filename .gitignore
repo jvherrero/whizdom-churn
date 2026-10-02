@@ -30,6 +30,7 @@ htmlcov/
 # MLflow local tracking
 mlruns/
 mlartifacts/
+mlflow.db
 
 # Terraform
 infra/.terraform/
@@ -48,8 +49,6 @@ Thumbs.db
 *:Zone.Identifier
 ~$*
 
-# Claude Code local state
-.claude/
 
 # Project-specific
 _admin_logs

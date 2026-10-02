@@ -58,11 +58,7 @@ def _s3_duckdb() -> duckdb.DuckDBPyConnection:
     con.sql("INSTALL httpfs; LOAD httpfs;")
     con.sql("SET memory_limit='24GB'")
     con.sql("SET threads=32")
-    # Safety cap: DuckDB spills to a `.tmp` folder in the cwd once memory_limit
-    # is exceeded (decompressing all brands in a day's file before the brandId
-    # filter applies can need more than memory_limit in flight, even though the
-    # filtered result is small). Capped well under the machine's free disk, so
-    # a spill can never again grow unbounded (it hit 40GB once, uncapped).
+
     con.sql("SET max_temp_directory_size='20GB'")
     con.sql(f"""
         CREATE OR REPLACE SECRET s3_secret (
@@ -292,9 +288,6 @@ def _build_single_brand_features(operator: str, brand_id: int, cutoff: dt.date, 
 
     days = _date_range(HISTORY_START, cutoff)
 
-    # One connection and one set of credentials for all four table scans below,
-    # instead of fetching AWS credentials and opening a new DuckDB connection
-    # four separate times per brand.
     con = _s3_duckdb()
     try:
         return _build_single_brand_features_with_con(con, operator, brand_id, cutoff, days, use_cache, cache_path)
