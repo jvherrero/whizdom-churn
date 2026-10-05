@@ -467,8 +467,22 @@ BASELINE_FEATURES = [
 ID_COLUMNS = ["cutoff_date", "operator", "brandId", "partyId", "label_available_60d"]
 
 
+def _unscale(df: pd.DataFrame) -> pd.DataFrame:
+    """Undo the signed log1p on exactly the columns it was applied to."""
+    # The cache stores scaled values; signed log1p is exactly invertible, so the
+    # unscaled view is derived here instead of invalidating every cached snapshot.
+    df = df.copy()
+    for col in [c for c in df.columns if c not in NEVER_SIGN_LOG and df[c].dtype.kind in "if"]:
+        df[col] = (np.sign(df[col]) * np.expm1(np.abs(df[col]))).round(6)
+    return df
+
+
 def build_feature_store(
-    cutoff_date: str | dt.date, brand_id: int | str, use_cache: bool = True, full: bool = False
+    cutoff_date: str | dt.date,
+    brand_id: int | str,
+    use_cache: bool = True,
+    full: bool = False,
+    scaled: bool = True,
 ) -> pd.DataFrame:
     """One row per player, as of `cutoff_date`, for `brand_id` (or every brandId if `brand_id="basel"`)
     """
@@ -487,6 +501,8 @@ def build_feature_store(
     if not frames:
         raise ValueError(f"no data found for brand_id={brand_id!r} as of {cutoff}")
     result = pd.concat(frames, ignore_index=True)
+    if not scaled:
+        result = _unscale(result)
 
     if full:
         return result

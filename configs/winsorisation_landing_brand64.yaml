@@ -1,0 +1,60 @@
+version: 1
+brand_id: 64
+source: landing
+grain: player_day
+applies_to: daily EUR amounts, before any window aggregation
+upper_quantile: 0.995
+lower_quantile_signed_only: 0.005
+computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
+history_start: '2026-06-18'
+history_end: '2026-09-29'
+generated_at_unix: 1791182441
+columns:
+  stake_eur:
+    lower: null
+    upper: 18901.7837
+    n_values: 189927
+    n_above_upper: 950
+    n_below_lower: 0
+    max_observed: 783693.825
+    min_observed: 0.0002
+  win_eur:
+    lower: null
+    upper: 19581.3993
+    n_values: 179971
+    n_above_upper: 900
+    n_below_lower: 0
+    max_observed: 775566.1978
+    min_observed: 0.0002
+  ggr_eur:
+    lower: -1626.0562
+    upper: 1803.2823
+    n_values: 189716
+    n_above_upper: 949
+    n_below_lower: 949
+    max_observed: 29909.1026
+    min_observed: -81554.5948
+  deposit_eur:
+    lower: null
+    upper: 2328.75
+    n_values: 167908
+    n_above_upper: 822
+    n_below_lower: 0
+    max_observed: 26547.75
+    min_observed: 0.0186
+  withdrawal_eur:
+    lower: null
+    upper: 5589.0
+    n_values: 31335
+    n_above_upper: 154
+    n_below_lower: 0
+    max_observed: 43314.75
+    min_observed: 3.726
+  bonus_eur:
+    lower: null
+    upper: 498.3883
+    n_values: 68209
+    n_above_upper: 342
+    n_below_lower: 0
+    max_observed: 19362.7839
+    min_observed: 0.0045
