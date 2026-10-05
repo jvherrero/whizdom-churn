@@ -14,6 +14,19 @@ To set up the environment on a clean machine, run:
 make setup
 ```
 
+## Running the Pipeline
+
+Every step runs from the `Makefile`. `make help` lists all of them.
+
+```bash
+make pipeline AS_OF=2026-10-04                  # everything as of a date: data, models, reports, scores
+make data-pipeline                              # only the training data steps
+make features AS_OF=2026-08-28                  # final feature vector for one date
+make mlflow-ui                                  # see the logged runs
+```
+
+`BRAND` is 64 by default. `BRAND=basel` means every brand.
+
 ## Types of Tasks
 
 All the work involved in this project is divided into the following five main types of tasks:

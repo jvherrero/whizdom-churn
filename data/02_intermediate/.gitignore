@@ -1,1 +1,4 @@
-*.parquet
+# Caches and intermediate tables (feature_cache/, label_cache/, player-day tables...):
+# player-level data, large, and rebuilt by the pipeline.
+*
+!.gitignore

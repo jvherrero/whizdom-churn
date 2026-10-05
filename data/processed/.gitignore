@@ -1,1 +1,4 @@
-*.parquet
+# Training features, labels and datasets: player-level data, rebuilt by `make pipeline`
+# and versioned in MLflow, not in git.
+*
+!.gitignore

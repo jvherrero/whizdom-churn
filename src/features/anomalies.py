@@ -31,12 +31,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (
-    DATA_AVAILABLE_THROUGH, FX_RATES_CSV, HISTORY_START, LANDING_TABLES,
+    DATA_AVAILABLE_THROUGH, FX_RATES_CSV, HISTORY_START, LANDING_TABLES, LOOKBACK_DAYS, WINSOR_CONFIG_PATH,
     _date_range, _landing_paths, _resolve_operators_for_brand, _s3_duckdb,
 )
 from fx_rates import convert_amount_to_eur, load_fx_rates_eur
 
-PLAYER_DAY_CACHE = PROJECT_ROOT / "data/02_intermediate/player_day_brand{brand_id}.parquet"
+PLAYER_DAY_CACHE = PROJECT_ROOT / "data/02_intermediate/player_day_brand{brand_id}_through{end}.parquet"
 
 
 @dataclass(frozen=True)
@@ -473,6 +473,13 @@ FEATURES_SPEC = AnomalySpec(
         )
         + (_bound_rule("negative_tenure", "tenure_days", 0),)
         + tuple(
+            _bound_rule("exceeds_lookback", column, LOOKBACK_DAYS, upper=True)
+            for column in (
+                "days_since_last_active", "days_since_last_deposit", "days_since_last_bonus",
+                "max_prior_gap_days",
+            )
+        )
+        + tuple(
             _bound_rule(
                 "window_exceeds_days", f"{base}_last_{window}d", window, upper=True
             )
@@ -575,6 +582,24 @@ def apply_winsorisation(df, config) -> pd.DataFrame:
                 lower=bounds["lower"], upper=bounds["upper"],
             )
     return result
+
+
+def save_anomaly_outputs(table, flagged, config, source, brand_id) -> dict[str, Path]:
+    """Write the anomaly table, the flagged rows and the winsorisation YAML for one source."""
+    suffix = f"{source}_brand{brand_id}"
+    paths = {
+        "table": PROJECT_ROOT / f"data/03_output/anomaly_table_{suffix}.csv",
+        "flags": PROJECT_ROOT / f"data/02_intermediate/anomaly_flags_{suffix}.parquet",
+        # The features YAML is the one build_feature_store() reads.
+        "config": (Path(str(WINSOR_CONFIG_PATH).format(brand_id=brand_id)) if source == "features"
+                   else PROJECT_ROOT / f"configs/winsorisation_{suffix}.yaml"),
+    }
+    for path in paths.values():
+        path.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(paths["table"], index=False)
+    flagged.to_parquet(paths["flags"], index=False)
+    write_winsorisation_config(config, paths["config"])
+    return paths
 
 
 def build_anomaly_table(rows: list[dict]) -> pd.DataFrame:
@@ -710,7 +735,7 @@ def _extract_operator(con, operator: str, brand_id: int, days: list) -> pd.DataF
 
 def load_player_day(brand_id: int, use_cache: bool = True) -> pd.DataFrame:
     """Player-day table for one brand, from cache when available, else from S3."""
-    cache = Path(str(PLAYER_DAY_CACHE).format(brand_id=brand_id))
+    cache = Path(str(PLAYER_DAY_CACHE).format(brand_id=brand_id, end=DATA_AVAILABLE_THROUGH))
     if use_cache and cache.exists():
         return pd.read_parquet(cache)
     days = _date_range(HISTORY_START, DATA_AVAILABLE_THROUGH)

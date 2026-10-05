@@ -1,6 +1,6 @@
 # Feature Dictionary v0.1
 
-This document lists the columns that `build_feature_store()` returns by default, the 29 features actually used for the first baseline model. 
+This document lists the columns that `build_feature_store()` returns by default, the 30 features actually used for the first baseline model. 
 
 
 
@@ -12,9 +12,15 @@ I call the function like this:
 df = build_feature_store(cutoff_date="2026-08-28", brand_id=64)
 ```
 
-`cutoff_date` works like "today". Every feature below uses only data on or before this date. Nothing after it is ever read. `brand_id` can be one real brand, or the word `"basel"`, which means "every brand found under both operators".
+```
+venv/bin/python src/features/build_features.py --as-of 2026-08-28
 
-One row is one player. The population is every player with at least one bet on or before `cutoff_date`, for that brand.
+```
+
+
+`cutoff_date` works like "today". Every feature below uses only the 30 days that end on this date (the lookback window). Nothing after it is ever read, and nothing before the window either, so a feature means the same thing at every cutoff. The earliest valid cutoff is 2026-07-18. `brand_id` can be one real brand, or the word `"basel"`, which means "every brand found under both operators".
+
+One row is one player. The population is every player with at least one bet in the 30-day window, for that brand. A player who has not bet for 30 days or more is not in it.
 
 ## 1. Columns That Are Not Features
 
@@ -31,11 +37,13 @@ One row is one player. The population is every player with at least one bet on o
 I fill nulls the same way across every feature, by type:
 
 - **Counts and sums** (how many times, how much money): if nothing happened, I fill with 0. This is a real value, not a missing one.
-- **Recency** (`days_since_last_...`): if the event never happened, I add a flag column (`..._missing`, 1 or 0) and fill the days with a number bigger than any real gap can be.
-- **`tenure_days`**: if I cannot find a registration date, I add `tenure_days_missing` and fill with the brand's own median tenure for that cutoff.
+- **Recency** (`days_since_last_...`): real values go from 0 to 29. If the event did not happen in the window, I add a flag column (`..._missing`, 1 or 0) and fill the days with 30, which means "30 days or more". This value is the same at every cutoff.
+- **`tenure_days`**: `player` only stores change events, so about 2 out of 3 players have no registration date in the window. A registration is itself an event, so these players registered before the window. I fill with 30 ("at least 30 days") and add `tenure_days_missing`, which is one of the 30 features, so the model can tell real and filled values apart.
 - **`rtp_last_7d`**: if stake is 0, the ratio has no real value. I add `rtp_last_7d_missing` and fill with the brand's own median rtp for that cutoff.
 
 ## 3. Scaling
+
+Before scaling, I cap the 14 EUR features (amounts and trends) with `configs/winsorisation_features_brand{id}.yaml`: p99.5 at the top, and also p0.5 at the bottom for columns that can be negative. I never delete outliers. `eda/anomalies.py --source features` writes this file.
 
 Every count, EUR amount, and trend/drop goes through a signed log: `sign(x) * log(1 + |x|)`. It keeps the sign but shrinks big outliers, so one very large value cannot dominate a model on its own.
 
@@ -50,7 +58,7 @@ Every money feature is in EUR.
 - `bonus` has no currency column at all, ever. I always fill it with the brand's own main bet currency. This is an assumption, not a value I ever observed.
 - Both fills only checked out as safe for brandId=64, which bets in one currency only (TRY). For a brand that genuinely mixes currencies, filling with "the main currency" would be a guess for the minority currency. Not checked yet for other brands, open question (query_log_2026_10_02 Query_ID: T05-0001).
 
-## 5. The 29 Features, by Category
+## 5. The 30 Features, by Category
 
 ### Recency (3)
 
@@ -96,12 +104,13 @@ Every column here compares the last 7 days to the 7 days just before that.
 | `bonus_amount_trend_7` | Same idea, for bonus amount. |
 | `already_dormant_7` | 1 if the player had zero active days and zero stake in both windows being compared, 0 otherwise. On its own this is not a behavior signal. A drop or trend of exactly 0 can mean two very different things: a player who already stopped playing a while ago, or a player who is simply steady. This flag tells the two apart.  |
 
-### Tenure (2)
+### Tenure (3)
 
 | Feature | Meaning |
 |---|---|
-| `tenure_days` | Days since the player's registration date. |
-| `max_prior_gap_days` | The longest gap, in days, between two active days before `cutoff_date`, counting only gaps where both days are already in the past. |
+| `tenure_days` | Days since the player's registration date. 30 when the date is not known (see Section 2). |
+| `tenure_days_missing` | 1 if the registration date is not known, 0 otherwise. |
+| `max_prior_gap_days` | The longest gap, in days, between two active days inside the window, counting only gaps where both days are on or before `cutoff_date`. |
 
 ### Mix (1)
 
@@ -110,6 +119,8 @@ Every column here compares the last 7 days to the 7 days just before that.
 | `rtp_last_7d` | `win / stake` in the last 7 days. Only defined when stake is more than 0. |
 
 ## 6. Known Limits
+
+- **`bonus` has no `brandId`**, so I match bonus events to the brand by `partyId`, using the players in the snapshot. I checked that one `partyId` never bets under two brands (one day of `primus`, 2026-07-20).
 
 - **`bonus_amount` is new and not yet checked on real data.** Every other feature here is one of the 14 signals already tested with lift, Cox, and Kaplan-Meier in `03_signal_explorer.ipynb`. `bonus_amount` is not. I added it because a separate prior study (`eda/churn_patterns.ipynb`, a different company's data) found bonus amount to be one of the strongest early-churn signals there. It is worth testing here, not yet a confirmed signal for our own brands.
 - **`label_available_60d` only checks calendar time**, not whether a player has enough of their own history yet. A brand new player can have plenty of calendar time ahead and still be too new for any label to mean much. That is a different, player-level problem, and needs its own study based on days since each player's first bet, not a shared `cutoff_date`.

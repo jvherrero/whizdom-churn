@@ -38,6 +38,7 @@ COLUMNS = (
     ID_COLUMNS
     + [ColumnSpec(name, "float64", False) for name in _FLOAT_FEATURES]
     + [ColumnSpec("already_dormant_7", "int64", False)]
+    + [ColumnSpec("tenure_days_missing", "int64", False)]
 )
 
 SCHEMA = build_schema(COLUMNS)

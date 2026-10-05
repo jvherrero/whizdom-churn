@@ -7,206 +7,206 @@ upper_quantile: 0.995
 lower_quantile_signed_only: 0.005
 computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
 history_start: '2026-07-18'
-history_end: '2026-07-25'
-generated_at_unix: 1791182459
+history_end: '2026-08-05'
+generated_at_unix: 1791191755
 columns:
   stake_last_7d:
     lower: null
-    upper: 56367.2241
-    n_values: 10340
-    n_above_upper: 52
+    upper: 53863.0014
+    n_values: 15181
+    n_above_upper: 76
     n_below_lower: 0
     max_observed: 456166.8886
     min_observed: 0.0002
   stake_last_14d:
     lower: null
-    upper: 96018.3864
-    n_values: 13595
-    n_above_upper: 68
+    upper: 87490.9024
+    n_values: 20815
+    n_above_upper: 105
     n_below_lower: 0
     max_observed: 780123.678
-    min_observed: 0.0007
+    min_observed: 0.0002
   stake_last_30d:
     lower: null
-    upper: 141241.9113
-    n_values: 17284
-    n_above_upper: 87
+    upper: 133850.6816
+    n_values: 27389
+    n_above_upper: 137
     n_below_lower: 0
     max_observed: 1088853.9199
-    min_observed: 0.0007
+    min_observed: 0.0002
   win_last_7d:
     lower: null
-    upper: 54529.318
-    n_values: 10013
-    n_above_upper: 51
+    upper: 52462.7976
+    n_values: 14697
+    n_above_upper: 74
     n_below_lower: 0
     max_observed: 454817.7843
     min_observed: 0.0002
   win_last_14d:
     lower: null
-    upper: 96327.7657
-    n_values: 13168
-    n_above_upper: 66
+    upper: 89458.6154
+    n_values: 20175
+    n_above_upper: 101
     n_below_lower: 0
     max_observed: 740324.0886
     min_observed: 0.0002
   win_last_30d:
     lower: null
-    upper: 146380.1762
-    n_values: 16750
-    n_above_upper: 84
+    upper: 143552.7431
+    n_values: 26559
+    n_above_upper: 133
     n_below_lower: 0
     max_observed: 1041363.9753
     min_observed: 0.0002
   net_loss_last_7d:
-    lower: -2454.6915
-    upper: 3021.7873
-    n_values: 10322
-    n_above_upper: 52
-    n_below_lower: 52
-    max_observed: 22212.3823
+    lower: -2187.1622
+    upper: 3029.0263
+    n_values: 15161
+    n_above_upper: 76
+    n_below_lower: 76
+    max_observed: 37460.2725
     min_observed: -35519.4572
   net_loss_last_14d:
-    lower: -2703.7259
-    upper: 4340.8769
-    n_values: 13568
-    n_above_upper: 68
-    n_below_lower: 68
-    max_observed: 39799.5894
+    lower: -2479.7848
+    upper: 4371.4576
+    n_values: 20781
+    n_above_upper: 104
+    n_below_lower: 104
+    max_observed: 52925.872
     min_observed: -61220.6751
   net_loss_last_30d:
-    lower: -3144.3401
-    upper: 6328.8578
-    n_values: 17258
-    n_above_upper: 87
-    n_below_lower: 87
-    max_observed: 66592.935
+    lower: -2880.9202
+    upper: 6596.6111
+    n_values: 27353
+    n_above_upper: 137
+    n_below_lower: 137
+    max_observed: 79075.035
     min_observed: -61220.6751
   deposit_amount_last_7d:
     lower: null
-    upper: 5893.4235
-    n_values: 9870
-    n_above_upper: 50
+    upper: 5851.3477
+    n_values: 14460
+    n_above_upper: 73
     n_below_lower: 0
-    max_observed: 48810.6
+    max_observed: 57846.15
     min_observed: 0.0373
   deposit_amount_last_14d:
     lower: null
-    upper: 10440.252
-    n_values: 13041
-    n_above_upper: 66
+    upper: 9671.8204
+    n_values: 19967
+    n_above_upper: 100
     n_below_lower: 0
-    max_observed: 84021.3
+    max_observed: 111593.7
     min_observed: 0.0373
   deposit_amount_last_30d:
     lower: null
-    upper: 15084.5359
-    n_values: 16614
-    n_above_upper: 84
+    upper: 14683.5326
+    n_values: 26383
+    n_above_upper: 132
     n_below_lower: 0
-    max_observed: 145220.85
+    max_observed: 167576.85
     min_observed: 0.0186
   bonus_amount_last_7d:
     lower: null
-    upper: 782.8702
-    n_values: 3218
-    n_above_upper: 17
+    upper: 905.4598
+    n_values: 16975
+    n_above_upper: 85
     n_below_lower: 0
-    max_observed: 5091.6599
-    min_observed: 0.014
+    max_observed: 19798.356
+    min_observed: 0.0121
   bonus_amount_last_14d:
     lower: null
-    upper: 965.4372
-    n_values: 4723
-    n_above_upper: 24
+    upper: 1248.2187
+    n_values: 24977
+    n_above_upper: 125
     n_below_lower: 0
-    max_observed: 9338.1211
-    min_observed: 0.014
+    max_observed: 23570.4301
+    min_observed: 0.0121
   bonus_amount_last_30d:
     lower: null
-    upper: 1237.3465
-    n_values: 6620
-    n_above_upper: 34
+    upper: 1805.3994
+    n_values: 35267
+    n_above_upper: 177
     n_below_lower: 0
-    max_observed: 21303.2386
-    min_observed: 0.014
+    max_observed: 30503.941
+    min_observed: 0.0121
   stake_trend_7:
-    lower: -28306.0999
-    upper: 25370.874
-    n_values: 13598
-    n_above_upper: 68
-    n_below_lower: 68
+    lower: -25661.2834
+    upper: 24367.3699
+    n_values: 20819
+    n_above_upper: 105
+    n_below_lower: 105
     max_observed: 379382.7664
-    min_observed: -410348.8413
+    min_observed: -417406.6138
   stake_trend_14:
-    lower: -31232.2767
-    upper: 44774.7062
-    n_values: 16911
-    n_above_upper: 85
-    n_below_lower: 85
+    lower: -36921.8962
+    upper: 40074.5207
+    n_values: 26850
+    n_above_upper: 135
+    n_below_lower: 135
     max_observed: 474944.3404
-    min_observed: -444988.9853
+    min_observed: -489985.6455
   win_trend_7:
-    lower: -29576.8187
-    upper: 27750.2489
-    n_values: 13168
-    n_above_upper: 66
-    n_below_lower: 66
+    lower: -26374.1171
+    upper: 24314.1568
+    n_values: 20175
+    n_above_upper: 101
+    n_below_lower: 101
     max_observed: 377716.948
-    min_observed: -415833.221
+    min_observed: -418606.1162
   win_trend_14:
-    lower: -31300.0737
-    upper: 46195.5917
-    n_values: 16379
-    n_above_upper: 82
-    n_below_lower: 82
+    lower: -36590.6485
+    upper: 40148.1775
+    n_values: 26025
+    n_above_upper: 131
+    n_below_lower: 131
     max_observed: 446524.7342
-    min_observed: -461425.6133
+    min_observed: -469205.7525
   net_loss_trend_7:
-    lower: -3241.931
-    upper: 3232.3367
-    n_values: 13488
-    n_above_upper: 68
-    n_below_lower: 68
+    lower: -2985.1236
+    upper: 3080.6866
+    n_values: 20665
+    n_above_upper: 104
+    n_below_lower: 104
     max_observed: 61406.9751
-    min_observed: -35519.4572
+    min_observed: -35676.45
   net_loss_trend_14:
-    lower: -4050.7685
-    upper: 4078.3224
-    n_values: 16810
-    n_above_upper: 85
-    n_below_lower: 85
-    max_observed: 61462.8651
+    lower: -3867.2387
+    upper: 4188.7363
+    n_values: 26709
+    n_above_upper: 134
+    n_below_lower: 134
+    max_observed: 61388.3451
     min_observed: -61220.6751
   deposit_amount_trend_7:
-    lower: -2921.9292
-    upper: 2596.6643
-    n_values: 12817
-    n_above_upper: 65
-    n_below_lower: 65
+    lower: -2857.0812
+    upper: 2589.57
+    n_values: 19633
+    n_above_upper: 98
+    n_below_lower: 99
     max_observed: 25150.5
-    min_observed: -20899.134
+    min_observed: -18741.78
   deposit_amount_trend_14:
-    lower: -3931.256
-    upper: 4980.1716
-    n_values: 16016
-    n_above_upper: 81
-    n_below_lower: 81
-    max_observed: 29528.55
-    min_observed: -25429.95
+    lower: -4059.0876
+    upper: 4455.7557
+    n_values: 25495
+    n_above_upper: 128
+    n_below_lower: 128
+    max_observed: 67906.35
+    min_observed: -36319.185
   bonus_amount_trend_7:
-    lower: -372.4595
-    upper: 386.6217
-    n_values: 4714
-    n_above_upper: 24
-    n_below_lower: 24
-    max_observed: 3726.0
-    min_observed: -3726.0
+    lower: -390.4059
+    upper: 377.8576
+    n_values: 24914
+    n_above_upper: 125
+    n_below_lower: 125
+    max_observed: 16026.282
+    min_observed: -15171.0899
   bonus_amount_trend_14:
-    lower: -482.7257
-    upper: 512.3343
-    n_values: 6435
-    n_above_upper: 34
-    n_below_lower: 33
-    max_observed: 3726.0
-    min_observed: -4794.2442
+    lower: -511.3823
+    upper: 523.9909
+    n_values: 34449
+    n_above_upper: 173
+    n_below_lower: 173
+    max_observed: 21242.7282
+    min_observed: -24213.2819
