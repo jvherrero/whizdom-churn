@@ -1,0 +1,5 @@
+# Raw data stays out of git: it comes from S3 (10-landing) or from external sources.
+*
+!.gitignore
+# Small public reference table that the pipeline needs: daily exchange rates to EUR.
+!fx_rates.csv

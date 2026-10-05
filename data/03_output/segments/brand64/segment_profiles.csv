@@ -1,0 +1,3 @@
+segment,name,share,active days (30d),"stake (30d, EUR)","net loss (30d, EUR)",deposit days (30d),"deposits (30d, EUR)",bonus days (7d),"bonus amount (7d, EUR)",days since last bet,churn 60d (training months),churn 60d (test month)
+0,Occasional low-value,0.6507638602154574,1.0,0.0,0.0,0.0,0.0,0.0,0.0,9.0,0.5489992501586203,0.5890356539874864
+1,"Frequent high-value, bonus-heavy",0.3492361397845426,9.0,2347.2138205,168.615938,6.0,383.778,2.0,9.315,1.0,0.059866723989681854,0.07600692940666956

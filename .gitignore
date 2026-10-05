@@ -21,9 +21,16 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
+# DuckDB spill-to-disk temp storage (created in the cwd when a query
+# exceeds memory_limit, can reach tens of GB, safe to delete once the
+# connection that created it is closed)
+.tmp/
+*.duckdb.tmp/
+
 # MLflow local tracking
 mlruns/
 mlartifacts/
+mlflow.db
 
 # Terraform
 infra/.terraform/
@@ -42,8 +49,6 @@ Thumbs.db
 *:Zone.Identifier
 ~$*
 
-# Claude Code local state
-.claude/
 
 # Project-specific
 _admin_logs

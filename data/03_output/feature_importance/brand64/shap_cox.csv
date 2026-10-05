@@ -1,0 +1,5 @@
+feature,family,mean_abs_shap,rank_corr,direction
+n_active_days_last_30d,frequency,0.39541206808750423,-1.0,"higher value, lower churn risk"
+stake_last_30d,monetary,0.30743235714056055,-1.0,"higher value, lower churn risk"
+max_prior_gap_days,tenure,0.3029881234432342,-1.0,"higher value, lower churn risk"
+tenure_days_missing,tenure,0.17059721756225898,-1.0,"higher value, lower churn risk"

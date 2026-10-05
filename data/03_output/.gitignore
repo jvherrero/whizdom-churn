@@ -1,1 +1,7 @@
+# Player-level outputs stay out of git: scores, feature snapshots and anomaly tables
+# (their "top 20 examples" column holds partyIds and amounts).
 *.parquet
+anomaly_table_*.csv
+
+# Figures and aggregated tables (feature_importance/, segments/, *.png) ARE versioned:
+# the documents in docs/ link to them.

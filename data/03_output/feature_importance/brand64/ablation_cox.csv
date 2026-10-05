@@ -1,0 +1,8 @@
+family,features_in_model,valid_delta,test_delta
+recency,,,
+frequency,n_active_days_last_30d,-0.009460491051151876,-0.009100115321511115
+monetary,stake_last_30d,-0.013345217959672362,-0.01358741755004389
+lag_trend,,,
+tenure,"max_prior_gap_days, tenure_days_missing",-0.012477923574878091,-0.020804472179182687
+mix,,,
+segment,,,

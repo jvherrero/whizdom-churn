@@ -1,6 +1,6 @@
 {
-  "catalog_version": "2.0",
-  "last_updated": "2026-08-10",
+  "catalog_version": "2.7",
+  "last_updated": "2026-10-05",
   "description": "Catálogo ejecutable de modelos: cada entrada en 'models' es instanciable dinámicamente (import_path + params) para poder entrenar y comparar varios modelos en paralelo con un runner genérico. 'interfaces' define cómo llamar fit/predict según el tipo de API. 'tooling' cubre librerías de soporte (tuning, interpretabilidad, tracking) que no son modelos y no compiten en la comparación.",
   "interfaces": {
     "sklearn_estimator": {
@@ -9,7 +9,9 @@
       "predict": "estimator.predict(X_test)",
       "predict_proba": "estimator.predict_proba(X_test)  # si supports_predict_proba",
       "parallel_safe": true,
-      "notes": "API uniforme de scikit-learn; también la implementan xgboost, lightgbm, catboost y surprise en modo wrapper sklearn"
+      "notes": "API uniforme de scikit-learn; también la implementan xgboost, lightgbm, catboost y surprise en modo wrapper sklearn",
+      "fit_params_notes": "class_balance = lista de candidatos (none / scale_pos_weight / is_unbalance) -> el runner los compara por log-loss calibrada con cross-fitting sobre validación; fit_params.early_stopping_rounds + eval_metric -> early stopping sobre el conjunto de validación (solo LightGBM)",
+      "brand_notes": "brand_feature='categorical' -> el runner añade brandId como variable categórica (fuera de la selección); solo para modelos que aceptan categóricas (LightGBM)"
     },
     "statsmodels_timeseries": {
       "instantiate": "cls(endog, **default_params)",
@@ -57,6 +59,14 @@
       "predict": "pm.sample_posterior_predictive(idata)",
       "parallel_safe": false,
       "notes": "MCMC es costoso; correr varios modelos bayesianos en paralelo puede saturar CPU rápido"
+    },
+    "lifelines_survival": {
+      "instantiate": "cls(**default_params)",
+      "fit": "fitter.fit(df, duration_col, event_col, cluster_col=None)  # df = features + duración + evento",
+      "predict": "fitter.predict_survival_function(X) | fitter.predict_median(X) | fitter.predict_partial_hazard(X)",
+      "parallel_safe": true,
+      "notes": "modelos de supervivencia: el fit recibe un único DataFrame con la duración y el indicador de evento, no X/y separados; se evalúa con concordance index",
+      "brand_notes": "brand_strata=true -> Cox estratificado por brandId: una curva base por marca y efectos de las variables comunes"
     }
   },
   "models": [
@@ -256,7 +266,9 @@
       "interface": "sklearn_estimator",
       "instantiation": "direct",
       "default_params": {
-        "n_estimators": 200,
+        "objective": "binary",
+        "n_estimators": 2000,
+        "learning_rate": 0.05,
         "random_state": 42,
         "verbose": -1
       },
@@ -276,7 +288,24 @@
       },
       "requires_scaling": false,
       "supports_predict_proba": true,
-      "parallelizable": true
+      "parallelizable": true,
+      "class_balance": [
+        "none",
+        "scale_pos_weight",
+        "is_unbalance"
+      ],
+      "fit_params": {
+        "early_stopping_rounds": 100,
+        "eval_metric": [
+          "auc",
+          "binary_logloss"
+        ]
+      },
+      "notes": "log-loss binaria; se comparan none (log-loss sin pesos), scale_pos_weight = negativos/positivos del train e is_unbalance=true, y se queda la de menor log-loss después de calibrar, no la de mayor AUC (los pesos distorsionan las probabilidades); una opción con pesos solo gana a none si mejora esa log-loss en más de class_balance_min_gain, si no se queda none, la más simple; n_estimators es un máximo, el early stopping sobre validación (AUC y log-loss) elige el número real de árboles; calibración isotónica sobre validación",
+      "calibration": "isotonic",
+      "class_balance_selection": "calibrated_log_loss",
+      "class_balance_min_gain": 0.002,
+      "brand_feature": "categorical"
     },
     {
       "id": "catboost_classifier",
@@ -554,12 +583,17 @@
           2,
           3,
           4,
-          5
+          5,
+          6,
+          7,
+          8
         ]
       },
       "requires_scaling": true,
       "supports_predict_proba": false,
-      "parallelizable": true
+      "parallelizable": true,
+      "k_selection": "silhouette",
+      "notes": "segmentos de jugadores como variable de entrada (nunca el score); k = el de mayor silhouette dentro de param_grid.n_clusters, sobre variables estandarizadas"
     },
     {
       "id": "dbscan",
@@ -860,6 +894,36 @@
       "requires_scaling": true,
       "supports_predict_proba": false,
       "parallelizable": true
+    },
+    {
+      "id": "cox_ph",
+      "name": "Cox Proportional Hazards",
+      "category": "Análisis de supervivencia",
+      "task_type": "survival",
+      "library": "lifelines",
+      "pip_package": "lifelines",
+      "import_path": "lifelines.CoxPHFitter",
+      "interface": "lifelines_survival",
+      "instantiation": "direct",
+      "default_params": {
+        "penalizer": 0.1,
+        "l1_ratio": 0.0
+      },
+      "param_grid": {
+        "penalizer": [
+          0.01,
+          0.1,
+          1.0
+        ],
+        "l1_ratio": [
+          0.0,
+          0.5
+        ]
+      },
+      "requires_scaling": true,
+      "supports_predict_proba": false,
+      "parallelizable": true,
+      "brand_strata": true
     },
     {
       "id": "mlp_pytorch",
