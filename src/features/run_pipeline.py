@@ -38,7 +38,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from anomalies import FEATURES_SPEC, detect_anomalies, save_anomaly_outputs
 from build_features import (
-    DATA_AVAILABLE_THROUGH, LABEL_HORIZON_DAYS, MIN_CUTOFF, build_feature_store, parse_brand_id,
+    DATA_AVAILABLE_THROUGH, HISTORY_START, LABEL_HORIZON_DAYS, MIN_CUTOFF, build_feature_store, parse_brand_id,
 )
 from alerts import benchmark_days, check_expectations, feature_alerts, landing_alerts, load_config, report
 from build_labels import build_training_labels
@@ -128,6 +128,10 @@ def run_pipeline(
     if late:
         raise ValueError(f"the 60-day label of {late} does not fit before AS_OF {as_of}")
     print(f"as of {as_of}: training cutoffs {cutoffs}")
+
+    print(f"[-1] daily tables: S3 landing -> daily per-player tables, only the days not built yet (up to {as_of})")
+    import daily_tables
+    daily_tables.build(HISTORY_START, as_of_date, verbose=False)
 
     if skip_alerts:
         print("[0] landing alerts SKIPPED (--skip-alerts): use only while developing")

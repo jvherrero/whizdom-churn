@@ -8,7 +8,7 @@ lower_quantile_signed_only: 0.005
 computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
 history_start: '2026-07-18'
 history_end: '2026-08-05'
-generated_at_unix: 1791191755
+generated_at_unix: 1791295132
 columns:
   stake_last_7d:
     lower: null

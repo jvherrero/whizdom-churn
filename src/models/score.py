@@ -57,7 +57,6 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
 
     features = build_feature_store(as_of, brand_id)
     scoring_start = time.perf_counter()  # inference only: feature building is timed apart
-    # Each run assigns players to the k-means segments it was trained with.
     lgbm_X, cox_X = features, features
     segment_model = load_segment_model(lgbm["run_id"])
     if segment_model is not None:
@@ -69,8 +68,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
         raise ValueError(f"the feature store has no {missing}: the models were trained on other features")
 
     scores = features[["cutoff_date", "brandId", "partyId"]].copy()
-    # A brand the models never saw: LightGBM treats its brandId as missing and the calibration
-    # falls back to the all-brands one; the stratified Cox has no baseline for it, so no median.
+   
     trained = set(lgbm["brands"] or features[BRAND].unique())
     seen = features[BRAND].isin(trained)
     scores["brand_seen_in_training"] = seen
@@ -79,9 +77,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
               f"({(~seen).sum():,} players): generic probability, no median_survival_days")
     scores["churn_probability_60d"] = churn_probability(lgbm_model, calibrator, lgbm_X, lgbm["features"])
     scores["probability_calibrated"] = calibrator is not None
-    # Threshold and band policy: no threshold is baked into the model. risk_band is the decile of the
-    # churn probability within the day's population of each brand (10 = the riskiest 10%); the CRM
-    # team picks the bands it acts on.
+
     pct = scores.groupby(["cutoff_date", "brandId"])["churn_probability_60d"].rank(pct=True, method="average")
     scores["risk_band"] = np.ceil(pct * 10).clip(1, 10).astype("int64")
     cox_seen = cox_X[BRAND].isin(set(cox["brands"] or cox_X[BRAND].unique()))

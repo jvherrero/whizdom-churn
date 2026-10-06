@@ -62,6 +62,11 @@ FX_RATES_CSV = Path(__file__).resolve().parent.parent.parent / "data/01_raw/fx_r
 
 FEATURE_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data/02_intermediate/feature_cache"
 BRAND_REGISTRY_DIR = Path(__file__).resolve().parent.parent.parent / "data/02_intermediate/brand_registry"
+# Daily tables (src/features/daily_tables.py): one small parquet per (table, operator, landing day) with
+# every brand's per-player daily aggregates. When every day a query needs is there, it reads them
+# instead of S3; otherwise it falls back to S3 (same rows, so same results).
+DAILY_DIR = Path(__file__).resolve().parent.parent.parent / "data/02_intermediate/daily_tables"
+DAILY_VERSION = 1
 BRAND_REGISTRY_VERSION = 1
 # Written by eda/anomalies.py --source features: p99.5 caps (p0.5 too for signed columns) in EUR.
 WINSOR_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "configs/winsorisation_features_brand{brand_id}.yaml"
@@ -98,6 +103,16 @@ def _landing_paths(operator: str, landing_table: str, days: list[dt.date]) -> li
     ]
 
 
+def daily_path(table: str, operator: str, day: dt.date) -> Path:
+    return DAILY_DIR / table / operator / f"{day}_v{DAILY_VERSION}.parquet"
+
+
+def _daily_paths(table: str, operator: str, days: list[dt.date]) -> list[str] | None:
+    """The daily-table files for these landing days, or None if any day is missing (then use S3)."""
+    paths = [daily_path(table, operator, d) for d in days]
+    return [str(p) for p in paths] if all(p.exists() for p in paths) else None
+
+
 def _date_range(start: dt.date, end: dt.date) -> list[dt.date]:
     return [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
 
@@ -119,11 +134,14 @@ def parse_brand_id(value: str | int) -> int | str:
 
 def _resolve_operators_for_brand(brand_id: int, as_of: dt.date) -> list[str]:
     """Which operator(s) a brandId belongs to. First the cheap check (one day of `player`); a
-    small brand can have no profile change that day, so then the bet-based brand registry."""
-    con = _s3_duckdb()
+    small brand can have no profile change that day, so then the bet-based brand registry.
+    When the daily tables have that day, nothing is read from S3 (no AWS session needed)."""
+    local = all(_daily_paths("player", op, [as_of]) for op in OPERATORS)
+    con = duckdb.connect() if local else _s3_duckdb()
     found = []
     for operator in OPERATORS:
-        paths = _landing_paths(operator, LANDING_TABLES["player"], [as_of])
+        paths = (_daily_paths("player", operator, [as_of])
+                 or _landing_paths(operator, LANDING_TABLES["player"], [as_of]))
         n = con.sql(f"""
             SELECT COUNT(*) AS n FROM read_parquet({paths}, union_by_name=True)
             WHERE brandId = {brand_id}
@@ -146,12 +164,14 @@ def _discover_brand_ids(as_of: dt.date, use_cache: bool = True) -> list[tuple[st
     if use_cache and cache.exists():
         return [(r.operator, int(r.brandId)) for r in pd.read_parquet(cache).itertuples()]
     days = _date_range(as_of - dt.timedelta(days=LOOKBACK_DAYS), as_of)
-    con = _s3_duckdb()
+    local = all(_daily_paths("bet", op, days) for op in OPERATORS)
+    con = duckdb.connect() if local else _s3_duckdb()  # no AWS session needed when the days are local
     try:
         frames = [
             con.sql(f"""
                 SELECT DISTINCT '{operator}' AS operator, brandId
-                FROM read_parquet({_landing_paths(operator, LANDING_TABLES["bet"], days)}, union_by_name=True)
+                FROM read_parquet({_daily_paths("bet", operator, days)
+                                   or _landing_paths(operator, LANDING_TABLES["bet"], days)}, union_by_name=True)
                 WHERE brandId IS NOT NULL
             """).df()
             for operator in OPERATORS
@@ -177,6 +197,23 @@ def _windowed(event_days: pd.DataFrame, cutoff: dt.date, start_offset: int, end_
 def _bet_events(
     con: duckdb.DuckDBPyConnection, operator: str, brand_id: int, days: list[dt.date]
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    daily = _daily_paths("bet", operator, days)
+    if daily is not None:
+        con.sql(f"CREATE OR REPLACE TEMP TABLE bet_daily AS SELECT * FROM read_parquet({daily}) WHERE brandId = {brand_id}")
+        activity = con.sql("""
+            WITH active_days AS (SELECT DISTINCT partyId, activity_date FROM bet_daily WHERE n_rows > 0)
+            SELECT partyId, activity_date,
+                   LEAD(activity_date) OVER (PARTITION BY partyId ORDER BY activity_date) AS next_active_date
+            FROM active_days
+        """).df()
+        amounts = con.sql("""
+            SELECT partyId, activity_date, currency, SUM(stake_local) AS stake_local, SUM(win_local) AS win_local
+            FROM bet_daily GROUP BY partyId, activity_date, currency HAVING SUM(n_game) > 0
+        """).df()
+        activity["gap_to_next_days"] = (
+            pd.to_datetime(activity["next_active_date"]) - pd.to_datetime(activity["activity_date"])
+        ).dt.days
+        return activity, amounts
     paths = _landing_paths(operator, LANDING_TABLES["bet"], days)
     con.sql(f"""
         CREATE OR REPLACE TEMP TABLE bet_events AS
@@ -213,6 +250,15 @@ def _bet_events(
 def _deposit_amounts_daily(
     con: duckdb.DuckDBPyConnection, operator: str, brand_id: int, days: list[dt.date], fallback_currency: str
 ) -> pd.DataFrame:
+    daily = _daily_paths("transaction", operator, days)
+    if daily is not None:
+        df = con.sql(f"""
+            SELECT partyId, activity_date, currency, SUM(deposit_local) AS deposit_amount_local
+            FROM read_parquet({daily}) WHERE brandId = {brand_id}
+            GROUP BY partyId, activity_date, currency
+        """).df()
+        df["currency"] = df["currency"].fillna(fallback_currency)
+        return df
     paths = _landing_paths(operator, LANDING_TABLES["transaction"], days)
     con.sql(f"CREATE OR REPLACE VIEW txn AS SELECT * FROM read_parquet({paths}, union_by_name=True)")
     has_currency = "currency" in con.sql("SELECT * FROM txn LIMIT 0").columns
@@ -233,6 +279,9 @@ def _deposit_amounts_daily(
 
 
 def _player_regdate(con: duckdb.DuckDBPyConnection, operator: str, brand_id: int, days: list[dt.date]) -> pd.DataFrame:
+    daily = _daily_paths("player", operator, days)
+    if daily is not None:
+        return con.sql(f"SELECT DISTINCT partyId, regdate FROM read_parquet({daily}) WHERE brandId = {brand_id}").df()
     paths = _landing_paths(operator, LANDING_TABLES["player"], days)
     con.sql(f"CREATE OR REPLACE VIEW player_events AS SELECT * FROM read_parquet({paths}, union_by_name=True)")
     return con.sql(f"""
@@ -244,6 +293,18 @@ def _player_regdate(con: duckdb.DuckDBPyConnection, operator: str, brand_id: int
 def _bonus_events(
     con: duckdb.DuckDBPyConnection, operator: str, party_ids: set[int], days: list[dt.date], fallback_currency: str
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    daily = _daily_paths("bonus", operator, days)
+    if daily is not None:
+        con.sql(f"CREATE OR REPLACE TEMP TABLE bonus_daily AS SELECT * FROM read_parquet({daily})")
+        event_days = con.sql("SELECT DISTINCT partyId, activity_date FROM bonus_daily").df()
+        amounts = con.sql("""
+            SELECT partyId, activity_date, SUM(active_amount) AS bonus_amount_local
+            FROM bonus_daily GROUP BY partyId, activity_date HAVING SUM(n_active) > 0
+        """).df()
+        event_days = event_days[event_days["partyId"].isin(party_ids)].copy()
+        amounts = amounts[amounts["partyId"].isin(party_ids)].copy()
+        amounts["currency"] = fallback_currency
+        return event_days, amounts
     paths = _landing_paths(operator, LANDING_TABLES["bonus"], days)
     # `bonus` has no brandId, so this reads every brand of the operator: keep only the columns used.
     con.sql(f"""

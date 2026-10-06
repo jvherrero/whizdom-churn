@@ -23,11 +23,12 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format \
         features anomalies-landing anomalies-features training-features labels dataset pipeline data-pipeline \
-        segments train train-baseline results importance score alerts mlflow-ui clean-tmp
+        daily-tables segments train train-baseline results backtest importance score alerts mlflow-ui clean-tmp
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
 	@echo "lint / format       ruff check / black + ruff --fix"
+	@echo "daily-tables        S3 landing -> daily per-player tables, only the missing days [START=] [END=] [WORKERS=32]"
 	@echo "features            final feature vector: AS_OF=YYYY-MM-DD [BRAND=64|basel]"
 	@echo "anomalies-landing   anomaly study on raw landing data (EDA only)"
 	@echo "anomalies-features  anomaly study on features, writes the winsorisation YAML [CUTOFFS=...]"
@@ -41,6 +42,7 @@ help:
 	@echo "train               one catalog model: MODEL=<catalog id> [DATASET=path] [PARAMS='{json}'] [NO_SELECTION=1] [NO_SEGMENTS=1] [NO_TUNING=1] [N_TRIALS=n]"
 	@echo "train-baseline      LightGBM (event_60d) + Cox PH (churn day) [DATASET=path]"
 	@echo "results             reference LightGBM + Cox PH (optimisation step 1) -> docs/results_v0_brand{id}.md [DATASET=path]"
+	@echo "backtest            walk-forward: train/valid/test moved STEP_DAYS at a time -> docs/backtest_brand{id}.md: AS_OF=YYYY-MM-DD [STEP_DAYS=3] [N_TRIALS=n]"
 	@echo "importance          permutation, SHAP and family ablation of the latest baseline runs -> docs/feature_importance_brand{id}.md"
 	@echo "score               churn probability + median survival days per player: AS_OF=YYYY-MM-DD [BRAND=64]"
 	@echo "alerts              data alerts (configs/eda_alerts.yaml): AS_OF=YYYY-MM-DD [BRAND=64] [STAGE=landing|features|all]"
@@ -82,6 +84,9 @@ pipeline:
 	@test -n "$(AS_OF)" || (echo "usage: make pipeline AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1]"; exit 1)
 	$(PY) src/features/run_pipeline.py --as-of $(AS_OF) --brand-id $(BRAND) $(cutoffs_arg) $(if $(SKIP_ANOMALIES),--skip-anomalies) $(if $(SKIP_ALERTS),--skip-alerts)
 
+daily-tables:
+	$(PY) src/features/daily_tables.py $(if $(START),--start $(START)) $(if $(END),--end $(END)) $(if $(WORKERS),--workers $(WORKERS))
+
 data-pipeline:
 	$(PY) src/features/run_pipeline.py --brand-id $(BRAND) $(cutoffs_arg) $(if $(SKIP_ANOMALIES),--skip-anomalies)
 
@@ -98,6 +103,10 @@ train-baseline:
 
 results:
 	$(PY) src/models/results.py $(if $(DATASET),--dataset-path $(DATASET))
+
+backtest:
+	@test -n "$(AS_OF)" || (echo "usage: make backtest AS_OF=YYYY-MM-DD [BRAND=64] [STEP_DAYS=3] [TRAIN_WINDOW=2] [N_TRIALS=n]"; exit 1)
+	$(PY) src/models/backtest.py --as-of $(AS_OF) --brand-id $(BRAND) $(if $(STEP_DAYS),--step-days $(STEP_DAYS)) $(if $(TRAIN_WINDOW),--train-window $(TRAIN_WINDOW)) $(if $(N_TRIALS),--n-trials $(N_TRIALS))
 
 importance:
 	$(PY) src/models/feature_importance.py

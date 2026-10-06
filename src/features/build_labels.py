@@ -41,7 +41,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (
     DATA_AVAILABLE_THROUGH, LABEL_HORIZON_DAYS, LANDING_TABLES,
-    _date_range, _landing_paths, _resolve_operators_for_brand, _s3_duckdb,
+    _daily_paths, _date_range, _landing_paths, _resolve_operators_for_brand, _s3_duckdb,
 )
 
 LABEL_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data/02_intermediate/label_cache"
@@ -61,6 +61,14 @@ def _active_days_after(con, operator: str, brand_id: int, cutoff: dt.date, data_
     (any row, same "active" definition build_features.py uses, not just GAME_BET/GAME_WIN)."""
     # The cutoff folder holds local cutoff+1 00:00 to 02:00, so it is read too.
     days = _date_range(cutoff, data_end)
+    daily = _daily_paths("bet", operator, days)
+    if daily is not None:  # the daily tables (src/features/daily_tables.py): same rows, no S3
+        df = con.sql(f"""
+            SELECT DISTINCT partyId, activity_date FROM read_parquet({daily})
+            WHERE brandId = {brand_id} AND n_rows > 0
+        """).df()
+        df["activity_date"] = pd.to_datetime(df["activity_date"]).dt.date
+        return df[(df["activity_date"] > cutoff) & (df["activity_date"] <= data_end)]
     paths = _landing_paths(operator, LANDING_TABLES["bet"], days)
     df = con.sql(f"""
         SELECT DISTINCT partyId, CAST(dateTime AS DATE) AS activity_date

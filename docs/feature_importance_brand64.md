@@ -12,12 +12,12 @@ This document reports three importance measures together for the two baseline mo
 
 | | LightGBM | Cox PH |
 |---|---|---|
-| MLflow run | `lightgbm_classifier_brand64_1791273593` | `cox_ph_brand64_1791273654` |
+| MLflow run | `lightgbm_classifier_brand64_1791295189` | `cox_ph_brand64_1791295253` |
 | Target | `event_60d` (churn in the next 60 days) | `duration_days` + `event_observed` (churn day) |
 | Features (after Stage 2 selection) | 8 | 7 |
 | Test score (last cutoff) | AUC 0.8738 | c-index 0.8651 |
 
-- Dataset: `data/processed/train_dataset_64_2026-07-18_2026-07-27_2026-08-05_1791191780.parquet`.
+- Dataset: `data/processed/train_dataset_64_2026-07-18_2026-07-27_2026-08-05_1791295132.parquet`.
 - Rows: train 22,634, validation 4,007, test 14,687. The test month is 2026-08-05.
 - With only 3 cutoffs there is no separate validation month. The validation rows are 15% of the players of the training months, never seen in training. Permutation importance and SHAP use them.
 - Brands: LightGBM gets `brandId` as a categorical feature and Cox PH is stratified by brand (one baseline per brand), so `brandId` never appears in the Cox tables. With one brand it is constant and its importance is 0. Ablation does not drop it: the model always adds it.

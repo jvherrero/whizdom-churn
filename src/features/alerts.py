@@ -153,9 +153,15 @@ def check_null_rate(bench: list[dict], current: list[dict], rule: dict, used: se
                     **ctx) -> list[dict]:
     """`used`: the columns the pipeline reads; a null jump elsewhere is capped at warn."""
     def pooled(profiles):
-        rows = sum(p["rows"] for p in profiles)
-        cols = {c for p in profiles for c in p["null_rate"]}
-        return rows, {c: sum((p["null_rate"].get(c) or 0) * p["rows"] for p in profiles) / rows for c in cols} if rows else {}
+        """Null share per column over the profiles that have that column (a profile built from the
+        daily tables only covers the columns read there, so it says nothing about the others)."""
+        out = {}
+        for c in {c for p in profiles for c in p["null_rate"]}:
+            having = [p for p in profiles if p["null_rate"].get(c) is not None and p["rows"]]
+            rows = sum(p["rows"] for p in having)
+            if rows:
+                out[c] = sum(p["null_rate"][c] * p["rows"] for p in having) / rows
+        return sum(p["rows"] for p in profiles), out
 
     _, base = pooled(bench)
     n_cur, cur = pooled(current)
@@ -332,6 +338,30 @@ def feature_alerts(benchmark: pd.DataFrame, snapshot: pd.DataFrame, config: dict
 
 # ---------------------------------------------------------------- report
 
+MAX_ALERT_TAGS = 50
+
+
+def _where(a) -> str:
+    """table.column (brand X / operator) of one alert."""
+    target = ".".join(str(v) for v in (a.table, a.column) if isinstance(v, str) and v)
+    return f"{target} (brand {a.brandId}{', ' + a.operator if isinstance(a.operator, str) else ''})"
+
+
+def _one_line(a) -> str:
+    return f"{a.severity.upper()} | {a.check} | {_where(a)} | {a.message}"
+
+
+def _alerts_markdown(alerts: pd.DataFrame, stage: str, brand: str, as_of: str) -> str:
+    counts = alerts["severity"].value_counts()
+    lines = [f"**Alerts, {stage} checks** (brand {brand}, as of {as_of}): "
+             f"{int(counts.get('critical', 0))} critical, {int(counts.get('warn', 0))} warn. "
+             "Critical stops the pipeline; thresholds in `configs/eda_alerts.yaml`.", "",
+             "| severity | check | where | what |", "|---|---|---|---|"]
+    lines += [f"| {a.severity} | {a.check} | {_where(a)} | {str(a.message).replace('|', '/')} |"
+              for a in alerts.itertuples(index=False)]
+    return "\n".join(lines)
+
+
 def report(alerts: pd.DataFrame, stage: str, brand: str, as_of: str, stop_on_critical: bool = True) -> Path:
     """Save the alert list (CSV + MLflow run), print it, and raise CriticalAlert if any is critical."""
     timestamp_unix = int(time.time())
@@ -350,6 +380,18 @@ def report(alerts: pd.DataFrame, stage: str, brand: str, as_of: str, stop_on_cri
                          "source_script": "src/features/alerts.py", "brand_id": brand, "stage": stage})
         mlflow.log_params({"as_of": as_of, "config": os.path.relpath(CONFIG_PATH, PROJECT_ROOT)})
         mlflow.log_metrics({"n_alerts": len(alerts), "n_warn": n_warn, "n_critical": n_critical})
+        # How many of each kind, e.g. n_warn_null_rate, n_critical_row_count.
+        for (severity, check), n in alerts.groupby(["severity", "check"]).size().items():
+            mlflow.log_metric(f"n_{severity}_{check}", int(n))
+        # Every alert readable without opening a file: the run description (Overview tab) is a
+        # table of them, one tag per alert (alert_01, ...) and an MLflow table (Artifacts tab).
+        if len(alerts):
+            mlflow.set_tag("mlflow.note.content", _alerts_markdown(alerts, stage, brand, as_of))
+            for i, a in enumerate(alerts.head(MAX_ALERT_TAGS).itertuples(index=False), 1):
+                mlflow.set_tag(f"alert_{i:02d}", _one_line(a))
+            mlflow.log_table(alerts.astype(str), "alerts_table.json")
+        else:
+            mlflow.set_tag("mlflow.note.content", f"No alerts in the **{stage}** checks (brand {brand}, as of {as_of}).")
         mlflow.log_artifact(str(path))
         mlflow.log_artifact(str(CONFIG_PATH))
 

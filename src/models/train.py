@@ -9,26 +9,6 @@ The catalog interface decides how the model is trained:
     sklearn_estimator    classification on event_60d
     lifelines_survival   survival on duration_days + event_observed (Cox PH)
 
-Split: the last cutoff is the test month (out of time). The earlier cutoffs are the training
-months, split by partyId into train/valid (85/15), so one player is never in both.
-Before the final fit, the Stage 2 feature selection (select_features.py) runs on the training
-months only. --no-selection skips it.
-
-A classifier with a `class_balance` list in the catalog (none / scale_pos_weight / is_unbalance)
-is fitted once per option; the one with the lowest log-loss after calibration (cross-fitted on the
-validation rows) is kept, not the best AUC. The catalog's class_balance_preferred option (class
-weights) is kept unless another one beats it by more than class_balance_min_gain. Stage 2 selection runs before, with plain log-loss.
-
-A classifier with calibration methods in the catalog (isotonic, Platt) gets each one fitted on the
-validation rows, per brand; the one with the lowest expected calibration error (ECE) on the test
-month is kept, and the reliability curve shows them all. churn_probability() applies it.
-
-Brands: features are computed per brand upstream; here one model covers every brand. LightGBM
-gets brandId as a categorical feature, Cox PH is stratified by brand, calibration is per brand,
-and metrics are reported per brand. brandId never goes through Stage 2 selection.
-
-k-means player segments (segments.py) are fitted on the training months and added as one-hot
-input features before Stage 2, which decides whether the model keeps them. --no-segments skips it.
 """
 
 from __future__ import annotations
@@ -764,7 +744,7 @@ def run_info(run_id: str) -> dict:
 def train(
     model_id: str, dataset_path: str | Path | None = None, params: dict | None = None, select: bool = True,
     segments: bool = True, tune: bool = True, n_trials: int | None = None, reference: bool = False,
-    features_from_run: str | None = None,
+    features_from_run: str | None = None, tags: dict | None = None,
 ) -> str:
     """Train `model_id` on a train_dataset file (default: the latest one). Returns the MLflow run id."""
     start = time.time()
@@ -935,6 +915,8 @@ def train(
         mlflow.set_tag("source_script", "src/models/train.py")
         mlflow.set_tag("brand_id", brand)
         mlflow.set_tag("role", "reference" if reference else "optimised")
+        if tags:
+            mlflow.set_tags(tags)  # e.g. the backtest and scenario this run belongs to
         mlflow.log_param("seed", SEED)
         mlflow.log_dict(entry, "config/catalog_entry.json")  # the exact model configuration used
         # The training dataset, linked to the run under its brand-named MLflow dataset name.
