@@ -27,6 +27,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 import mlflow
 import numpy as np
 import pandas as pd
@@ -185,6 +186,39 @@ def _plot_shap_bar(table: pd.DataFrame, unit: str, title: str, path: Path):
     fig.tight_layout(); fig.savefig(path, dpi=120); plt.close(fig)
 
 
+def importance_by_family(shap_lgbm, shap_cox, abl_lgbm, abl_cox) -> pd.DataFrame:
+    """One row per feature family: its share of the total mean |SHAP| in each model, and what each
+    model loses on the test month when the whole family is removed (ablation)."""
+    table = pd.DataFrame({
+        "lightgbm_shap_share": shap_lgbm.groupby("family")["mean_abs_shap"].sum() / shap_lgbm["mean_abs_shap"].sum(),
+        "cox_shap_share": shap_cox.groupby("family")["mean_abs_shap"].sum() / shap_cox["mean_abs_shap"].sum(),
+        "lightgbm_auc_lost": -abl_lgbm.set_index("family")["test_delta"],
+        "cox_c_index_lost": -abl_cox.set_index("family")["test_delta"],
+    })
+    table = table.drop(index=[f for f in ("other",) if f in table.index])  # brandId: categorical, not a family
+    table = table.dropna(how="all").fillna(0.0)
+    return table.sort_values("lightgbm_shap_share", ascending=False).rename_axis("family").reset_index()
+
+
+def _plot_family(table: pd.DataFrame, path: Path):
+    fig, (left, right) = plt.subplots(1, 2, figsize=(12, 0.55 * len(table) + 2.2))
+    y = np.arange(len(table))
+    for ax, cols, labels, xlabel, title in (
+        (left, ["lightgbm_shap_share", "cox_shap_share"], ["LightGBM", "Cox PH"],
+         "share of the model's total mean |SHAP|", "How much each family weighs in the predictions"),
+        (right, ["lightgbm_auc_lost", "cox_c_index_lost"], ["LightGBM (AUC)", "Cox PH (c-index)"],
+         "score lost on the test month without the family", "What the model loses without the family"),
+    ):
+        ax.barh(y - 0.2, table[cols[0]], height=0.4, label=labels[0], color="tab:purple")
+        ax.barh(y + 0.2, table[cols[1]], height=0.4, label=labels[1], color="tab:orange")
+        ax.set_yticks(y, table["family"]); ax.invert_yaxis()
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_xlabel(xlabel); ax.set_title(title); ax.legend(loc="lower right")
+    left.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
+    fig.suptitle("Feature importance by family (validation SHAP, test-month ablation)")
+    fig.tight_layout(); fig.savefig(path, dpi=120); plt.close(fig)
+
+
 def _plot_dependence(rows: pd.DataFrame, values: pd.DataFrame, features: list[str], unit: str, title: str, path: Path):
     real = _unscale(rows[features])  # x axis in days / EUR / counts, not on the sign-log scale
     n_cols = 3
@@ -264,6 +298,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
         "shap_lgbm": fig_dir / "shap_global_lightgbm.png",
         "shap_cox": fig_dir / "shap_global_cox.png",
         "dep_lgbm": fig_dir / "shap_dependence_lightgbm.png",
+        "family": fig_dir / "importance_by_family.png",
     }
     _plot_permutation(perm_lgbm, "roc_auc", "LightGBM: permutation importance (validation)", fig["perm_lgbm"])
     _plot_permutation(perm_cox, "c_index", "Cox PH: permutation importance (validation)", fig["perm_cox"])
@@ -272,7 +307,11 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
     top = [f for f in shap_lgbm["feature"] if f != BRAND][:TOP_N_DEPENDENCE]  # brandId is categorical
     _plot_dependence(valid, shap_values_lgbm, top, "log-odds", "LightGBM: SHAP dependence, top features", fig["dep_lgbm"])
 
+    by_family = importance_by_family(shap_lgbm, shap_cox, abl_lgbm, abl_cox)
+    _plot_family(by_family, fig["family"])
+
     tables = {
+        "importance_by_family.csv": by_family,
         "permutation_lightgbm.csv": perm_lgbm, "permutation_cox.csv": perm_cox,
         "shap_lightgbm.csv": shap_lgbm, "shap_cox.csv": shap_cox,
         "ablation_lightgbm.csv": abl_lgbm, "ablation_cox.csv": abl_cox,
@@ -280,7 +319,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
     for name, table in tables.items():
         table.to_csv(fig_dir / name, index=False)
 
-    doc = _write_doc(lgbm, cox, data, split, perm_lgbm, perm_cox, shap_lgbm, shap_cox, abl_lgbm, abl_cox, fig,
+    doc = _write_doc(lgbm, cox, data, split, perm_lgbm, perm_cox, shap_lgbm, shap_cox, abl_lgbm, abl_cox, fig, by_family,
                      calibrated=lgbm_calibrator is not None, doc_path=doc_path)
     for info in (lgbm, cox):
         with mlflow.start_run(run_id=info["run_id"]):
@@ -291,7 +330,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
     return doc
 
 
-def _write_doc(lgbm, cox, data, split, perm_lgbm, perm_cox, shap_lgbm, shap_cox, abl_lgbm, abl_cox, fig,
+def _write_doc(lgbm, cox, data, split, perm_lgbm, perm_cox, shap_lgbm, shap_cox, abl_lgbm, abl_cox, fig, by_family,
                calibrated: bool, doc_path: Path) -> Path:
     rel = lambda p: os.path.relpath(p, doc_path.parent)
     test_cutoff = sorted(str(c) for c in data.loc[split == "test", "cutoff_date"].unique())
@@ -389,7 +428,15 @@ Dependence plots for the top {min(TOP_N_DEPENDENCE, len(shap_lgbm))} features (a
 
 A dependence plot for a linear model is a straight line with slope `beta`, so I do not draw it. The hazard ratios are in `hazard_ratios.csv` in the Cox MLflow run.
 
-## 3. Ablation by Family
+## 3. Importance by Family
+
+How much each group of features matters, with two measures side by side. **SHAP share**: the family's part of the model's total mean |SHAP| on the validation rows, so how much it weighs in the predictions. **Score lost**: what the model loses on the test month when the whole family is removed and the model is retrained, so what it adds that the other families cannot replace. A family can weigh a lot and still lose little when removed, if other families carry the same information.
+
+{_md_table(by_family)}
+
+![Importance by family]({rel(fig['family'])})
+
+## 4. Ablation by Family
 
 I retrain the model without every feature of one family and compare it with the full model (same features otherwise, same parameters, same rows). A negative delta means the family helps. A family with no feature in the model is left empty.
 
@@ -399,7 +446,7 @@ Full model: LightGBM AUC valid {abl_lgbm.attrs['full_valid']:.4f}, test {abl_lgb
 
 The most valuable family on the test month is **{bl['family']}** for LightGBM (AUC {bl['test_delta']:+.4f} without it) and **{bc['family']}** for Cox (c-index {bc['test_delta']:+.4f} without it).
 
-## 4. Known Limits
+## 5. Known Limits
 
 - **The Cox test month only has churn on day 0.** With data through 2026-10-04, a churn day after the cutoff can only be confirmed up to 60 days before the data ends, which is day 0 for the last cutoff. So on the test month the c-index measures "who is already gone", not "which day".
 - **The intervals only cover the shuffle.** A different validation sample would move the numbers more than the intervals show.

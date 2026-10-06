@@ -1,79 +1,79 @@
 {
-  "catalog_version": "2.7",
+  "catalog_version": "3.6",
   "last_updated": "2026-10-05",
-  "description": "Catálogo ejecutable de modelos: cada entrada en 'models' es instanciable dinámicamente (import_path + params) para poder entrenar y comparar varios modelos en paralelo con un runner genérico. 'interfaces' define cómo llamar fit/predict según el tipo de API. 'tooling' cubre librerías de soporte (tuning, interpretabilidad, tracking) que no son modelos y no compiten en la comparación.",
+  "description": "Executable model catalog: every entry in 'models' can be instantiated dynamically (import_path + params) so several models can be trained and compared in parallel with a generic runner. 'interfaces' defines how to call fit/predict for each API type. 'tooling' covers support libraries (tuning, interpretability, tracking) that are not models and do not compete in the comparison.",
   "interfaces": {
     "sklearn_estimator": {
       "instantiate": "cls(**default_params)",
       "fit": "estimator.fit(X_train, y_train)",
       "predict": "estimator.predict(X_test)",
-      "predict_proba": "estimator.predict_proba(X_test)  # si supports_predict_proba",
+      "predict_proba": "estimator.predict_proba(X_test)  # if supports_predict_proba",
       "parallel_safe": true,
-      "notes": "API uniforme de scikit-learn; también la implementan xgboost, lightgbm, catboost y surprise en modo wrapper sklearn",
-      "fit_params_notes": "class_balance = lista de candidatos (none / scale_pos_weight / is_unbalance) -> el runner los compara por log-loss calibrada con cross-fitting sobre validación; fit_params.early_stopping_rounds + eval_metric -> early stopping sobre el conjunto de validación (solo LightGBM)",
-      "brand_notes": "brand_feature='categorical' -> el runner añade brandId como variable categórica (fuera de la selección); solo para modelos que aceptan categóricas (LightGBM)"
+      "notes": "uniform scikit-learn API; xgboost, lightgbm, catboost and surprise also implement it through their sklearn wrapper",
+      "fit_params_notes": "class_balance = list of candidates (none / scale_pos_weight / is_unbalance) -> the runner compares them by calibrated log-loss with cross-fitting on the validation rows; fit_params.early_stopping_rounds + eval_metric -> early stopping on the validation set (LightGBM only)",
+      "brand_notes": "brand_feature='categorical' -> the runner adds brandId as a categorical feature (outside feature selection); only for models that accept categorical features (LightGBM)"
     },
     "statsmodels_timeseries": {
       "instantiate": "cls(endog, **default_params)",
       "fit": "fitted = model.fit()",
       "predict": "fitted.forecast(steps) | fitted.predict(start, end)",
       "parallel_safe": true,
-      "notes": "constructor recibe la serie directamente, no X/y separados"
+      "notes": "the constructor takes the series directly, not separate X/y"
     },
     "pmdarima_functional": {
-      "instantiate": "n/a (es una función, no una clase)",
+      "instantiate": "n/a (it is a function, not a class)",
       "fit": "model = pmdarima.auto_arima(y, **default_params)",
       "predict": "model.predict(n_periods)",
       "parallel_safe": true
     },
     "prophet": {
       "instantiate": "cls(**default_params)",
-      "fit": "model.fit(df)  # df con columnas 'ds','y'",
+      "fit": "model.fit(df)  # df with columns 'ds','y'",
       "predict": "model.predict(future_df)",
       "parallel_safe": true
     },
     "pytorch_custom": {
-      "instantiate": "factory_fn(**default_params) -> nn.Module  (definida en el proyecto, no en el catálogo)",
-      "fit": "training loop propio (no hay .fit() genérico)",
+      "instantiate": "factory_fn(**default_params) -> nn.Module  (defined in the project, not in the catalog)",
+      "fit": "own training loop (there is no generic .fit())",
       "predict": "model(x)",
       "parallel_safe": false,
-      "notes": "requiere arquitectura de red definida en código; el catálogo solo referencia el 'factory', no basta con import_path + params"
+      "notes": "needs a network architecture defined in code; the catalog only references the 'factory', import_path + params is not enough"
     },
     "huggingface_pretrained": {
       "instantiate": "cls.from_pretrained(pretrained_model_name, **default_params)",
       "fit": "transformers.Trainer(...).train()",
       "predict": "model(**inputs)",
       "parallel_safe": false,
-      "notes": "modelos grandes; correr varios a la vez compite por GPU/RAM, mejor secuencial o con colas"
+      "notes": "large models; running several at once competes for GPU/RAM, better sequential or with queues"
     },
     "stable_baselines3": {
       "instantiate": "cls('MlpPolicy', env, **default_params)",
       "fit": "model.learn(total_timesteps)",
       "predict": "model.predict(obs)",
       "parallel_safe": false,
-      "notes": "necesita un entorno (env) además de datos; comparar 5-6 algoritmos en paralelo es viable en CPU si el env es liviano"
+      "notes": "needs an environment (env) as well as data; comparing 5-6 algorithms in parallel is feasible on CPU if the env is light"
     },
     "pymc_factory": {
-      "instantiate": "factory_fn(data, **default_params) -> pm.Model  (definida en el proyecto)",
+      "instantiate": "factory_fn(data, **default_params) -> pm.Model  (defined in the project)",
       "fit": "with model: idata = pm.sample()",
       "predict": "pm.sample_posterior_predictive(idata)",
       "parallel_safe": false,
-      "notes": "MCMC es costoso; correr varios modelos bayesianos en paralelo puede saturar CPU rápido"
+      "notes": "MCMC is expensive; running several Bayesian models in parallel can saturate the CPU quickly"
     },
     "lifelines_survival": {
       "instantiate": "cls(**default_params)",
-      "fit": "fitter.fit(df, duration_col, event_col, cluster_col=None)  # df = features + duración + evento",
+      "fit": "fitter.fit(df, duration_col, event_col, cluster_col=None)  # df = features + duration + event",
       "predict": "fitter.predict_survival_function(X) | fitter.predict_median(X) | fitter.predict_partial_hazard(X)",
       "parallel_safe": true,
-      "notes": "modelos de supervivencia: el fit recibe un único DataFrame con la duración y el indicador de evento, no X/y separados; se evalúa con concordance index",
-      "brand_notes": "brand_strata=true -> Cox estratificado por brandId: una curva base por marca y efectos de las variables comunes"
+      "notes": "survival models: fit takes a single DataFrame with the duration and the event indicator, not separate X/y; evaluated with the concordance index",
+      "brand_notes": "brand_strata=true -> Cox stratified by brandId: one baseline curve per brand, shared covariate effects"
     }
   },
   "models": [
     {
       "id": "logistic_regression",
       "name": "Logistic Regression",
-      "category": "Modelos lineales",
+      "category": "Linear models",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -102,7 +102,7 @@
     {
       "id": "random_forest_classifier",
       "name": "Random Forest Classifier",
-      "category": "Árboles y ensembles clásicos",
+      "category": "Trees and classic ensembles",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -136,7 +136,7 @@
     {
       "id": "extra_trees_classifier",
       "name": "Extra Trees Classifier",
-      "category": "Árboles y ensembles clásicos",
+      "category": "Trees and classic ensembles",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -164,7 +164,7 @@
     {
       "id": "decision_tree_classifier",
       "name": "Decision Tree Classifier",
-      "category": "Árboles y ensembles clásicos",
+      "category": "Trees and classic ensembles",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -267,8 +267,14 @@
       "instantiation": "direct",
       "default_params": {
         "objective": "binary",
+        "metric": "binary_logloss",
         "n_estimators": 2000,
         "learning_rate": 0.05,
+        "num_leaves": 63,
+        "colsample_bytree": 0.8,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "min_child_samples": 100,
         "random_state": 42,
         "verbose": -1
       },
@@ -297,15 +303,124 @@
       "fit_params": {
         "early_stopping_rounds": 100,
         "eval_metric": [
-          "auc",
-          "binary_logloss"
-        ]
+          "auc"
+        ],
+        "first_metric_only": true,
+        "notes": "early stopping on validation AUC only (patience 100); binary_logloss (the model metric) is still recorded, it is the Optuna objective"
       },
-      "notes": "log-loss binaria; se comparan none (log-loss sin pesos), scale_pos_weight = negativos/positivos del train e is_unbalance=true, y se queda la de menor log-loss después de calibrar, no la de mayor AUC (los pesos distorsionan las probabilidades); una opción con pesos solo gana a none si mejora esa log-loss en más de class_balance_min_gain, si no se queda none, la más simple; n_estimators es un máximo, el early stopping sobre validación (AUC y log-loss) elige el número real de árboles; calibración isotónica sobre validación",
-      "calibration": "isotonic",
+      "notes": "binary log-loss; none (no weights), scale_pos_weight = negatives/positives of train and is_unbalance=true are compared by log-loss after calibration, not by AUC (weights distort the probabilities); the preferred one is scale_pos_weight (class_balance_preferred), useful for brands with a very small churn class: another option only wins if it improves that log-loss by more than class_balance_min_gain; calibration corrects the probability distortion the weights introduce; n_estimators is a ceiling, early stopping on validation (AUC and log-loss) picks the real tree count",
+      "calibration": {
+        "methods": [
+          "isotonic",
+          "platt"
+        ],
+        "fit_on": "valid",
+        "choose_by": "test_ece",
+        "notes": "isotonic and Platt are fitted on the validation rows (per brand, all brands as the fallback); the one with the lowest ECE on the test month is kept"
+      },
       "class_balance_selection": "calibrated_log_loss",
       "class_balance_min_gain": 0.002,
-      "brand_feature": "categorical"
+      "brand_feature": "categorical",
+      "class_balance_preferred": "scale_pos_weight",
+      "search": {
+        "library": "optuna",
+        "sampler": "TPE (Bayesian)",
+        "n_trials": 100,
+        "objective": "validation log-loss (with early stopping)",
+        "pruner": {
+          "type": "median",
+          "n_startup_trials": 10,
+          "n_warmup_steps": 20
+        },
+        "seed": 42,
+        "fixed_params": {
+          "subsample_freq": 1
+        },
+        "space": {
+          "num_leaves": {
+            "type": "int",
+            "low": 15,
+            "high": 255
+          },
+          "learning_rate": {
+            "type": "float",
+            "low": 0.01,
+            "high": 0.2,
+            "log": true
+          },
+          "min_child_samples": {
+            "type": "int",
+            "low": 20,
+            "high": 500
+          },
+          "colsample_bytree": {
+            "type": "float",
+            "low": 0.5,
+            "high": 1.0,
+            "alias": "feature_fraction"
+          },
+          "subsample": {
+            "type": "float",
+            "low": 0.5,
+            "high": 1.0,
+            "alias": "bagging_fraction"
+          },
+          "reg_alpha": {
+            "type": "float",
+            "low": 1e-08,
+            "high": 10.0,
+            "log": true,
+            "alias": "lambda_l1"
+          },
+          "reg_lambda": {
+            "type": "float",
+            "low": 1e-08,
+            "high": 10.0,
+            "log": true,
+            "alias": "lambda_l2"
+          },
+          "max_depth": {
+            "type": "int",
+            "low": 4,
+            "high": 10
+          }
+        },
+        "refit": "the best trial is refit on train with the tree count of its early stopping"
+      },
+      "regularisation_check": {
+        "max_gap": 0.03,
+        "max_valid_auc_loss": 0.002,
+        "max_rounds": 6,
+        "steps": {
+          "min_child_samples": {
+            "factor": 1.5,
+            "max": 500
+          },
+          "reg_lambda": {
+            "factor": 3.0,
+            "start_at_least": 0.1,
+            "max": 100.0
+          },
+          "num_leaves": {
+            "factor": 0.75,
+            "min": 15
+          }
+        },
+        "notes": "if the train - validation AUC gap is over max_gap, min_child_samples and lambda_l2 (reg_lambda) go up and num_leaves goes down, one round at a time, until the gap closes; a round that loses more than max_valid_auc_loss of validation AUC is rejected and the previous one kept"
+      },
+      "final_pruning": {
+        "max_valid_auc_loss": 0.002,
+        "notes": "the Stage 2 permutation-importance rule applied again to the final (tuned, regularised) model: the smallest set within 0.002 validation AUC of the full model; the model is refit on that set, which is what serving uses"
+      },
+      "inference_budget": {
+        "benchmark_players": 100000,
+        "max_seconds_full_run": 600,
+        "population_players": null,
+        "container_slowdown": 1.0,
+        "safety_margin": 0.8,
+        "notes": "scoring time is measured per 100k players; the full population is population_players or, if null, the players of the dataset's latest cutoff; container_slowdown scales the time measured here to the serving container (1.0 = same machine, set it once measured there); if the projection goes over max_seconds_full_run, the tree count is capped (with safety_margin) and the model refit"
+      },
+      "default_params_notes": "optimisation step 1, sane defaults: colsample_bytree = feature_fraction, subsample = bagging_fraction (subsample_freq=1 turns bagging on); n_estimators is a ceiling"
     },
     {
       "id": "catboost_classifier",
@@ -343,7 +458,7 @@
     {
       "id": "svc",
       "name": "Support Vector Classifier",
-      "category": "Modelos de margen máximo",
+      "category": "Maximum-margin models",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -372,7 +487,7 @@
     {
       "id": "knn_classifier",
       "name": "K-Nearest Neighbors Classifier",
-      "category": "Modelos basados en distancia",
+      "category": "Distance-based models",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -393,12 +508,12 @@
       "requires_scaling": true,
       "supports_predict_proba": true,
       "parallelizable": true,
-      "notes": "mlflow.sklearn.log_model() puede rechazar el modelo entrenado ('untrusted types': KDTree/EuclideanDistance64 del backend de skops) salvo que pases skops_trusted_types explícitamente al loguearlo"
+      "notes": "mlflow.sklearn.log_model() may reject the trained model ('untrusted types': KDTree/EuclideanDistance64 from the skops backend) unless skops_trusted_types is passed explicitly when logging it"
     },
     {
       "id": "mlp_classifier",
       "name": "MLP Classifier (red neuronal simple)",
-      "category": "Deep Learning ligero (sklearn)",
+      "category": "Light deep learning (sklearn)",
       "task_type": "classification",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -431,12 +546,12 @@
       "requires_scaling": true,
       "supports_predict_proba": true,
       "parallelizable": true,
-      "notes": "mlflow.sklearn.log_model() puede rechazar el modelo ('untrusted types': AdamOptimizer del optimizador interno) salvo que pases skops_trusted_types explícitamente al loguearlo"
+      "notes": "mlflow.sklearn.log_model() may reject the model ('untrusted types': AdamOptimizer of the internal optimiser) unless skops_trusted_types is passed explicitly when logging it"
     },
     {
       "id": "linear_regression",
       "name": "Linear Regression",
-      "category": "Modelos lineales",
+      "category": "Linear models",
       "task_type": "regression",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -452,7 +567,7 @@
     {
       "id": "ridge_regression",
       "name": "Ridge Regression",
-      "category": "Modelos lineales",
+      "category": "Linear models",
       "task_type": "regression",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -476,7 +591,7 @@
     {
       "id": "random_forest_regressor",
       "name": "Random Forest Regressor",
-      "category": "Árboles y ensembles clásicos",
+      "category": "Trees and classic ensembles",
       "task_type": "regression",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -593,7 +708,7 @@
       "supports_predict_proba": false,
       "parallelizable": true,
       "k_selection": "silhouette",
-      "notes": "segmentos de jugadores como variable de entrada (nunca el score); k = el de mayor silhouette dentro de param_grid.n_clusters, sobre variables estandarizadas"
+      "notes": "player segments as an input feature (never the score); k = the one with the highest silhouette among param_grid.n_clusters, on standardised features"
     },
     {
       "id": "dbscan",
@@ -653,7 +768,7 @@
     {
       "id": "pca",
       "name": "PCA",
-      "category": "Reducción de dimensionalidad",
+      "category": "Dimensionality reduction",
       "task_type": "dimensionality_reduction",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -678,7 +793,7 @@
     {
       "id": "umap",
       "name": "UMAP",
-      "category": "Reducción de dimensionalidad",
+      "category": "Dimensionality reduction",
       "task_type": "dimensionality_reduction",
       "library": "umap-learn",
       "pip_package": "umap-learn",
@@ -707,7 +822,7 @@
     {
       "id": "isolation_forest",
       "name": "Isolation Forest",
-      "category": "Detección de anomalías",
+      "category": "Anomaly detection",
       "task_type": "anomaly_detection",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -736,7 +851,7 @@
     {
       "id": "one_class_svm",
       "name": "One-Class SVM",
-      "category": "Detección de anomalías",
+      "category": "Anomaly detection",
       "task_type": "anomaly_detection",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -761,7 +876,7 @@
     {
       "id": "arima",
       "name": "ARIMA",
-      "category": "Series temporales",
+      "category": "Time series",
       "task_type": "time_series_forecasting",
       "library": "statsmodels",
       "pip_package": "statsmodels",
@@ -801,7 +916,7 @@
     {
       "id": "exponential_smoothing",
       "name": "Exponential Smoothing (Holt-Winters)",
-      "category": "Series temporales",
+      "category": "Time series",
       "task_type": "time_series_forecasting",
       "library": "statsmodels",
       "pip_package": "statsmodels",
@@ -830,7 +945,7 @@
     {
       "id": "auto_arima",
       "name": "Auto ARIMA",
-      "category": "Series temporales",
+      "category": "Time series",
       "task_type": "time_series_forecasting",
       "library": "pmdarima",
       "pip_package": "pmdarima",
@@ -848,7 +963,7 @@
     {
       "id": "prophet",
       "name": "Prophet",
-      "category": "Series temporales",
+      "category": "Time series",
       "task_type": "time_series_forecasting",
       "library": "Prophet",
       "pip_package": "prophet",
@@ -873,7 +988,7 @@
     {
       "id": "bayesian_ridge",
       "name": "Bayesian Ridge Regression",
-      "category": "Modelos probabilísticos / Bayesianos",
+      "category": "Probabilistic / Bayesian models",
       "task_type": "regression",
       "library": "scikit-learn",
       "pip_package": "scikit-learn",
@@ -898,7 +1013,7 @@
     {
       "id": "cox_ph",
       "name": "Cox Proportional Hazards",
-      "category": "Análisis de supervivencia",
+      "category": "Survival analysis",
       "task_type": "survival",
       "library": "lifelines",
       "pip_package": "lifelines",
@@ -923,7 +1038,30 @@
       "requires_scaling": true,
       "supports_predict_proba": false,
       "parallelizable": true,
-      "brand_strata": true
+      "brand_strata": true,
+      "inference_budget": {
+        "benchmark_players": 100000,
+        "max_seconds_full_run": 600,
+        "population_players": null,
+        "container_slowdown": 1.0,
+        "safety_margin": 0.8,
+        "notes": "scoring time is measured per 100k players; the full population is population_players or, if null, the players of the dataset's latest cutoff; container_slowdown scales the time measured here to the serving container (1.0 = same machine, set it once measured there); if the projection goes over max_seconds_full_run, the tree count is capped (with safety_margin) and the model refit"
+      },
+      "feature_set": "lightgbm_classifier",
+      "search": {
+        "param": "penalizer",
+        "grid": [
+          0.001,
+          0.002,
+          0.005,
+          0.01,
+          0.02,
+          0.05,
+          0.1
+        ],
+        "objective": "validation concordance (c-index), higher is better"
+      },
+      "notes": "Cox PH companion: the only tuning is the L2 penalty (penalizer, log grid 0.001-0.1, chosen by validation c-index), and it uses the same feature set as the LightGBM run of the same dataset (feature_set), without its own Stage 2 selection; brandId goes in as strata, not as a covariate"
     },
     {
       "id": "mlp_pytorch",
@@ -947,12 +1085,12 @@
       "requires_scaling": true,
       "supports_predict_proba": true,
       "parallelizable": false,
-      "notes": "import_path es un placeholder: apunta a una factory function que el proyecto debe implementar, no a una clase instanciable del catálogo"
+      "notes": "import_path is a placeholder: it points to a factory function the project must implement, not to a class the catalog can instantiate"
     },
     {
       "id": "lstm_pytorch",
       "name": "LSTM (PyTorch)",
-      "category": "Series temporales (Deep Learning)",
+      "category": "Time series (deep learning)",
       "task_type": "time_series_forecasting",
       "library": "PyTorch",
       "pip_package": "torch",
@@ -969,12 +1107,12 @@
       "requires_scaling": true,
       "supports_predict_proba": false,
       "parallelizable": false,
-      "notes": "import_path es un placeholder: requiere factory function propia del proyecto"
+      "notes": "import_path is a placeholder: it needs the project's own factory function"
     },
     {
       "id": "transformer_text_classifier",
       "name": "Transformer fine-tuning (texto)",
-      "category": "NLP / Texto",
+      "category": "NLP / Text",
       "task_type": "nlp_text_classification",
       "library": "Hugging Face Transformers",
       "pip_package": "transformers",
@@ -993,7 +1131,7 @@
     {
       "id": "svd_surprise",
       "name": "SVD (Collaborative Filtering)",
-      "category": "Sistemas de recomendación",
+      "category": "Recommender systems",
       "task_type": "recommendation",
       "library": "Surprise",
       "pip_package": "scikit-surprise",
@@ -1017,7 +1155,7 @@
       "requires_scaling": false,
       "supports_predict_proba": false,
       "parallelizable": true,
-      "notes": "usa fit(trainset)/test(testset) en vez de fit(X, y); no es 100% idéntico al resto de sklearn_estimator"
+      "notes": "uses fit(trainset)/test(testset) instead of fit(X, y); not 100% identical to the rest of sklearn_estimator"
     },
     {
       "id": "ppo_sb3",
@@ -1049,7 +1187,7 @@
   ],
   "tooling": [
     {
-      "purpose": "Optimización de hiperparámetros",
+      "purpose": "Hyperparameter optimisation",
       "primary_library": "Optuna",
       "pip_package": "optuna",
       "alternative_libraries": [
@@ -1067,7 +1205,7 @@
       ]
     },
     {
-      "purpose": "Tracking de experimentos / MLOps",
+      "purpose": "Experiment tracking / MLOps",
       "primary_library": "MLflow",
       "pip_package": "mlflow",
       "alternative_libraries": [

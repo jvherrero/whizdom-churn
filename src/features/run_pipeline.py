@@ -8,6 +8,8 @@ AS_OF is the "today" of the run: nothing after it is read. The training cutoffs 
 the last one is AS_OF - 60 days (the last cutoff whose 60-day label fits), then one every
 CUTOFF_STEP_DAYS days back, N_TRAINING_CUTOFFS in total, never before MIN_CUTOFF.
 
+Alerts (configs/eda_alerts.yaml; critical stops the run)
+ 0. landing alerts: the AS_OF day vs the days the training features are built from
 Data
  1. raw features per cutoff (S3 to EUR, cached), not winsorised, not scaled
  2. anomaly study on them: anomaly table + configs/winsorisation_features_brand{id}.yaml
@@ -16,8 +18,9 @@ Data
  5. training dataset (features joined with labels)
 Models (only with --as-of)
  6. LightGBM (churn probability) and Cox PH (churn day), with segments, selection and calibration
- 7. reports: docs/player_segments.md and docs/feature_importance.md for those two runs
- 8. scores of every player as of AS_OF: data/03_output/player_scores_*.parquet
+ 7. reports: docs/player_segments_brand{id}.md and docs/feature_importance_brand{id}.md
+ 8. feature alerts: the snapshot as of AS_OF vs the training dataset (PSI, players, expectations)
+ 9. scores of every player as of AS_OF: data/03_output/player_scores_*.parquet
 
 Each step gets the exact file or MLflow run the previous one produced, never "the latest one".
 """
@@ -37,12 +40,12 @@ from anomalies import FEATURES_SPEC, detect_anomalies, save_anomaly_outputs
 from build_features import (
     DATA_AVAILABLE_THROUGH, LABEL_HORIZON_DAYS, MIN_CUTOFF, build_feature_store, parse_brand_id,
 )
+from alerts import benchmark_days, check_expectations, feature_alerts, landing_alerts, load_config, report
 from build_labels import build_training_labels
 from build_training_features import DEFAULT_CUTOFF_DATES, PROJECT_ROOT, build_training_features
 from create_dataset import create_dataset
 
 sys.path.insert(0, str(PROJECT_ROOT / "eda"))
-from expectations.feature_snapshot import validate as validate_feature_snapshot
 
 N_TRAINING_CUTOFFS = 3
 CUTOFF_STEP_DAYS = 9
@@ -85,9 +88,15 @@ def build_training_data(
 
     print("[3] training features")
     features_path = build_training_features(cutoff_dates, brand_id)
-    check = validate_feature_snapshot(pd.read_parquet(features_path))
-    if not check.passed:
-        raise ValueError(f"{features_path.name} fails the feature snapshot suite: {check.issues}")
+    # Expectations on the training features: an alert list like the others, critical stops the run.
+    training_features = pd.read_parquet(features_path)
+    snapshot_alerts = pd.DataFrame(
+        [{"stage": "training_features", "table": "feature_snapshot", **a}
+         for a in check_expectations(training_features, "feature_snapshot", load_config()["expectations"])],
+        columns=["stage", "check", "severity", "operator", "brandId", "table", "column", "value", "benchmark",
+                 "threshold", "message"],
+    )
+    report(snapshot_alerts, "training_features", str(brand_id), str(data_end or cutoff_dates[-1]))
 
     print("[4] labels")
     build_training_labels(features_path, data_end=data_end)
@@ -99,9 +108,11 @@ def build_training_data(
 
 def run_pipeline(
     as_of: str | None = None, cutoff_dates: list[str] | None = None, brand_id: int | str = 64,
-    skip_anomalies: bool = False, use_cache: bool = True,
+    skip_anomalies: bool = False, use_cache: bool = True, skip_alerts: bool = False,
 ) -> Path:
-    """Without `as_of`: data steps 1-5 only. With it: every step, returns the player scores file."""
+    """Without `as_of`: data steps 1-5 only. With it: every step, returns the player scores file.
+    Data alerts (configs/eda_alerts.yaml) run on the landing data first and on the scoring snapshot
+    before scoring; a critical alert stops the run (alerts.CriticalAlert)."""
     start = time.time()
     if as_of is None:
         dataset = build_training_data(cutoff_dates or DEFAULT_CUTOFF_DATES, brand_id, skip_anomalies, use_cache)
@@ -118,6 +129,13 @@ def run_pipeline(
         raise ValueError(f"the 60-day label of {late} does not fit before AS_OF {as_of}")
     print(f"as of {as_of}: training cutoffs {cutoffs}")
 
+    if skip_alerts:
+        print("[0] landing alerts SKIPPED (--skip-alerts): use only while developing")
+    else:
+        print("[0] landing alerts: current days vs the days the training features are built from")
+        report(landing_alerts(brand_id, as_of, benchmark_days(cutoffs), use_cache=use_cache),
+               "landing", str(brand_id), as_of)
+
     dataset = build_training_data(cutoffs, brand_id, skip_anomalies, use_cache, data_end=as_of)
 
     sys.path.insert(0, str(PROJECT_ROOT / "src" / "models"))
@@ -128,13 +146,20 @@ def run_pipeline(
 
     print("[6] models")
     lgbm_run = train("lightgbm_classifier", dataset)
-    cox_run = train("cox_ph", dataset)
+    cox_run = train("cox_ph", dataset, features_from_run=lgbm_run)  # same features as LightGBM
 
     print("[7] reports")
     segments.run_report(dataset)
     feature_importance.run(lgbm_run, cox_run)
 
-    print(f"[8] scores as of {as_of}")
+    if not skip_alerts:
+        print(f"[8] feature alerts: snapshot as of {as_of} vs the training dataset")
+        from train import run_info
+        used = set(run_info(lgbm_run)["features"]) | set(run_info(cox_run)["features"])
+        report(feature_alerts(pd.read_parquet(dataset), build_feature_store(as_of, brand_id, use_cache=use_cache),
+                              model_features=used), "features", str(brand_id), as_of)
+
+    print(f"[9] scores as of {as_of}")
     scores = score.score(as_of, brand_id, lgbm_run, cox_run)
     print(f"pipeline done in {(time.time() - start) / 60:.1f} min")
     return scores
@@ -147,5 +172,7 @@ if __name__ == "__main__":
     parser.add_argument("--brand-id", type=parse_brand_id, default=64, help="brandId, or 'basel' for every brand")
     parser.add_argument("--skip-anomalies", action="store_true")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--skip-alerts", action="store_true", help="skip the data alerts (development only)")
     args = parser.parse_args()
-    run_pipeline(args.as_of, args.cutoff_dates, args.brand_id, args.skip_anomalies, not args.no_cache)
+    run_pipeline(args.as_of, args.cutoff_dates, args.brand_id, args.skip_anomalies, not args.no_cache,
+                 args.skip_alerts)

@@ -1,0 +1,60 @@
+# Data alert thresholds.
+#
+# Read by src/features/alerts.py: the pipeline checks the landing data before training and the
+
+version: 1
+
+current_window_days: 1
+tables: [bet, transaction, player, bonus]
+
+expectations:
+  severity: critical
+
+null_rate:
+  warn_increase_pts: 5
+  critical_increase_pts: 20
+  min_rows: 100              # Minimum number of rows in the current window to check null rate.
+  used_columns:
+    bet: [partyId, brandId, dateTime, currency, tranType, amountReal, rolledBack]
+    transaction: [partyId, brandId, requestDate, transactionType, status, processedAmount, currency]
+    player: [partyId, brandId, regdate]
+    bonus: [partyId, changeStatusTimestamp, amount, status]
+
+# Rows per day, current vs the benchmark's daily mean.
+row_count:
+  warn_relative_change: 0.20     # outside +-20%
+  critical_relative_change: 0.50 # outside +-50%, or a day with no data at all
+  # Per-table overrides. `player` logs profile changes (registrations, KYC, edits), which swing a
+  # lot from month to month (+91% in October vs August), and the pipeline only reads regdate from it.
+  per_table:
+    player:
+      warn_relative_change: 0.50
+      critical_relative_change: 1.50
+
+# tranType / device / os are the closest; country is in player.
+new_categories:
+  severity: warn
+  max_values_per_column: 500
+  columns:
+    bet: [tranType, currency, device, os]
+    player: [country, currency, language, kycStatus]
+    transaction: [transactionType, transactionMethod, status, currency]
+    bonus: [status]
+
+# Daily totals vs a rolling band: median of the previous `window_days` days +- n * MAD.
+daily_total:
+  window_days: 28
+  min_periods: 14
+  warn_n_mad: 3
+  critical_n_mad: 6
+  totals:
+    bet: [rows, n_players, stake_local]
+    transaction: [rows, n_players, deposits_local]
+    player: [rows, n_players]
+    bonus: [rows, n_players, bonus_amount]
+
+# Feature distribution shift, scoring snapshot vs training dataset (Population Stability Index).
+feature_drift:
+  bins: 10
+  warn_psi: 0.10
+  critical_psi: 0.25

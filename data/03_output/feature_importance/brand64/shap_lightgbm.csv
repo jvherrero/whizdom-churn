@@ -1,8 +1,9 @@
 feature,family,mean_abs_shap,rank_corr,direction
-n_active_days_last_30d,frequency,1.1356477458945011,-0.9632547935037633,"higher value, lower churn risk"
-days_since_last_deposit,recency,0.31273880831198947,0.7778278492560672,"higher value, higher churn risk"
-stake_last_30d,monetary,0.2650048417859297,-0.8510328771278679,"higher value, lower churn risk"
-tenure_days_missing,tenure,0.25913180347569137,-0.788395667890022,"higher value, lower churn risk"
-max_prior_gap_days,tenure,0.24873809022574736,-0.849880822837972,"higher value, lower churn risk"
-n_bonus_last_7d,frequency,0.16928174594306347,-0.9250023281590973,"higher value, lower churn risk"
-bonus_amount_trend_7,lag_trend,0.03634342176081069,-0.06384712103189741,"non-monotonic, see the plot"
+n_active_days_last_30d,frequency,1.1165705659404217,-0.9647528652964518,"higher value, lower churn risk"
+days_since_last_deposit,recency,0.4052661037268902,0.7697437129186337,"higher value, higher churn risk"
+max_prior_gap_days,tenure,0.3455879554260617,-0.8302581974609756,"higher value, lower churn risk"
+stake_last_30d,monetary,0.3309366151540721,-0.8804280946602596,"higher value, lower churn risk"
+tenure_days_missing,tenure,0.32487855852406106,-0.7883951865827417,"higher value, lower churn risk"
+n_bonus_last_7d,frequency,0.27441617339959584,-0.9336217950264674,"higher value, lower churn risk"
+bonus_amount_trend_7,lag_trend,0.11929336135795462,0.11386215184340706,"non-monotonic, see the plot"
+brandId,other,0.0,,categorical (brand)

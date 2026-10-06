@@ -5,6 +5,8 @@
 
 One row per player, saved to data/03_output/player_scores_{brand}_{as_of}_{unix_ts}.parquet:
 
+    risk_band                       1-10: decile of churn_probability_60d within the day's population of the
+                                    brand (10 = riskiest 10%); no threshold is baked in, the CRM team picks bands
     churn_probability_60d           LightGBM: probability of no bet in the next 60 days,
                                     isotonic-calibrated when the run has a calibrator
     median_survival_days            Cox PH: days after the cutoff until the predicted churn day,
@@ -54,6 +56,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     cox_model = joblib.load(mlflow.artifacts.download_artifacts(f"runs:/{cox['run_id']}/model/model.joblib"))
 
     features = build_feature_store(as_of, brand_id)
+    scoring_start = time.perf_counter()  # inference only: feature building is timed apart
     # Each run assigns players to the k-means segments it was trained with.
     lgbm_X, cox_X = features, features
     segment_model = load_segment_model(lgbm["run_id"])
@@ -76,11 +79,17 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
               f"({(~seen).sum():,} players): generic probability, no median_survival_days")
     scores["churn_probability_60d"] = churn_probability(lgbm_model, calibrator, lgbm_X, lgbm["features"])
     scores["probability_calibrated"] = calibrator is not None
+    # Threshold and band policy: no threshold is baked into the model. risk_band is the decile of the
+    # churn probability within the day's population of each brand (10 = the riskiest 10%); the CRM
+    # team picks the bands it acts on.
+    pct = scores.groupby(["cutoff_date", "brandId"])["churn_probability_60d"].rank(pct=True, method="average")
+    scores["risk_band"] = np.ceil(pct * 10).clip(1, 10).astype("int64")
     cox_seen = cox_X[BRAND].isin(set(cox["brands"] or cox_X[BRAND].unique()))
     median = np.full(len(cox_X), np.nan)
     if cox_seen.any():
         median[cox_seen.to_numpy()] = cox_model.predict_median(cox_input(cox_model, cox_X[cox_seen])).to_numpy()
     scores["median_survival_days"] = np.where(np.isinf(median), np.nan, median)
+    scoring_seconds = time.perf_counter() - scoring_start
     scores["median_beyond_horizon"] = np.isinf(median)
     scores["survival_horizon_days"] = int(cox["metrics"]["train_max_event_day"])
     if segment_model is not None:
@@ -94,7 +103,12 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
 
     p = scores["churn_probability_60d"]
     print(f"saved {os.path.relpath(output, PROJECT_ROOT)} ({len(scores):,} players, {time.time() - start:.1f}s)")
+    print(f"inference: {scoring_seconds:.2f}s for {len(scores):,} players = "
+          f"{scoring_seconds * 100_000 / max(len(scores), 1):.2f}s per 100k players")
     print(f"churn_probability_60d: mean {p.mean():.3f} | > 0.5: {(p > 0.5).mean():.1%}")
+    bands = scores.groupby("risk_band")["churn_probability_60d"].agg(["size", "min", "max"]).round(3)
+    print("risk bands (decile of the day's population):")
+    print(bands.to_string())
     print(f"median_survival_days: 0 days {(scores['median_survival_days'] == 0).mean():.1%} | "
           f"1-{scores['survival_horizon_days'].iloc[0]} days {(scores['median_survival_days'] > 0).mean():.1%} | "
           f"beyond the horizon {scores['median_beyond_horizon'].mean():.1%}")

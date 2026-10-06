@@ -19,11 +19,11 @@ MLFLOW_PORT ?= 5000
 
 cutoffs_arg := $(if $(CUTOFFS),--cutoff-dates $(CUTOFFS))
 features_arg := $(if $(FEATURES),--features-path $(FEATURES))
-train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params '$(PARAMS)') $(if $(NO_SELECTION),--no-selection) $(if $(NO_SEGMENTS),--no-segments)
+train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params '$(PARAMS)') $(if $(NO_SELECTION),--no-selection) $(if $(NO_SEGMENTS),--no-segments) $(if $(NO_TUNING),--no-tuning) $(if $(N_TRIALS),--n-trials $(N_TRIALS))
 
 .PHONY: help setup lint format \
         features anomalies-landing anomalies-features training-features labels dataset pipeline data-pipeline \
-        segments train train-baseline importance score mlflow-ui clean-tmp
+        segments train train-baseline results importance score alerts mlflow-ui clean-tmp
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -34,14 +34,16 @@ help:
 	@echo "training-features   feature snapshots for the training cutoffs [CUTOFFS=...]"
 	@echo "labels              churn labels for a training features file [FEATURES=path]"
 	@echo "dataset             join features and labels [FEATURES=path]"
-	@echo "pipeline            EVERYTHING as of a date: AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1]"
+	@echo "pipeline            EVERYTHING as of a date: AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1] [SKIP_ALERTS=1]"
 	@echo "                    data -> LightGBM + Cox -> segments + importance reports -> player scores"
 	@echo "data-pipeline       only the training data steps [CUTOFFS=...] [SKIP_ANOMALIES=1]"
 	@echo "segments            k-means player segments (k by silhouette) -> docs/player_segments_brand{id}.md"
-	@echo "train               one catalog model: MODEL=<catalog id> [DATASET=path] [PARAMS='{json}'] [NO_SELECTION=1] [NO_SEGMENTS=1]"
+	@echo "train               one catalog model: MODEL=<catalog id> [DATASET=path] [PARAMS='{json}'] [NO_SELECTION=1] [NO_SEGMENTS=1] [NO_TUNING=1] [N_TRIALS=n]"
 	@echo "train-baseline      LightGBM (event_60d) + Cox PH (churn day) [DATASET=path]"
+	@echo "results             reference LightGBM + Cox PH (optimisation step 1) -> docs/results_v0_brand{id}.md [DATASET=path]"
 	@echo "importance          permutation, SHAP and family ablation of the latest baseline runs -> docs/feature_importance_brand{id}.md"
 	@echo "score               churn probability + median survival days per player: AS_OF=YYYY-MM-DD [BRAND=64]"
+	@echo "alerts              data alerts (configs/eda_alerts.yaml): AS_OF=YYYY-MM-DD [BRAND=64] [STAGE=landing|features|all]"
 	@echo "mlflow-ui           open the MLflow UI on port $(MLFLOW_PORT)"
 	@echo "clean-tmp           delete DuckDB spill files (.tmp/)"
 	@echo "Default BRAND=$(BRAND). Without FEATURES, labels/dataset use the latest train_features_base file."
@@ -78,7 +80,7 @@ dataset:
 
 pipeline:
 	@test -n "$(AS_OF)" || (echo "usage: make pipeline AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1]"; exit 1)
-	$(PY) src/features/run_pipeline.py --as-of $(AS_OF) --brand-id $(BRAND) $(cutoffs_arg) $(if $(SKIP_ANOMALIES),--skip-anomalies)
+	$(PY) src/features/run_pipeline.py --as-of $(AS_OF) --brand-id $(BRAND) $(cutoffs_arg) $(if $(SKIP_ANOMALIES),--skip-anomalies) $(if $(SKIP_ALERTS),--skip-alerts)
 
 data-pipeline:
 	$(PY) src/features/run_pipeline.py --brand-id $(BRAND) $(cutoffs_arg) $(if $(SKIP_ANOMALIES),--skip-anomalies)
@@ -94,12 +96,19 @@ train-baseline:
 	$(PY) src/models/train.py --model-id lightgbm_classifier $(train_args)
 	$(PY) src/models/train.py --model-id cox_ph $(train_args)
 
+results:
+	$(PY) src/models/results.py $(if $(DATASET),--dataset-path $(DATASET))
+
 importance:
 	$(PY) src/models/feature_importance.py
 
 score:
 	@test -n "$(AS_OF)" || (echo "usage: make score AS_OF=YYYY-MM-DD [BRAND=64]"; exit 1)
 	$(PY) src/models/score.py --as-of $(AS_OF) --brand-id $(BRAND)
+
+alerts:
+	@test -n "$(AS_OF)" || (echo "usage: make alerts AS_OF=YYYY-MM-DD [BRAND=64] [STAGE=landing|features|all]"; exit 1)
+	$(PY) src/features/alerts.py --as-of $(AS_OF) --brand-id $(BRAND) --stage $(or $(STAGE),all)
 
 mlflow-ui:
 	$(PY) -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port $(MLFLOW_PORT)
