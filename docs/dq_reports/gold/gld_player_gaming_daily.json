@@ -1,0 +1,598 @@
+{
+  "table_name": "gld_player_gaming_daily",
+  "grain_description": "One row per player, game, provider, day and currency with play that day (sparse).",
+  "row_count": 59644836,
+  "date_range_start": "2025-04-01",
+  "date_range_end": "2026-10-06",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "tenant_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "brand_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "player_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "game_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "provider_code",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "event_date",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "currency",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "source_system",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "rounds",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bets",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "wins",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "winning_rounds",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bet_count_real",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bet_count_released_bonus",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bet_count_playable_bonus",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "big_win_rounds",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "wagered_real",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_released_bonus",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_playable_bonus",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_real",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_released_bonus",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_playable_bonus",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_real",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_released_bonus",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_playable_bonus",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "max_win",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "play_secs",
+      "dtype": "decimal128(14, 3)",
+      "nullable": false
+    },
+    {
+      "name": "event_count",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "first_played_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "last_played_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "loyalty_points_delta",
+      "dtype": "int64",
+      "nullable": false
+    },
+    {
+      "name": "fx_rate_to_eur",
+      "dtype": "decimal128(18, 8)",
+      "nullable": false
+    },
+    {
+      "name": "fx_rate_date_used",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "fx_is_provisional",
+      "dtype": "bool",
+      "nullable": false
+    },
+    {
+      "name": "wagered_real_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_released_bonus_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_playable_bonus_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_real_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_released_bonus_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_playable_bonus_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_real_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_released_bonus_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_playable_bonus_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "turnover_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "payout_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "real_ggr_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "max_win_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "rtp_actual",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "hold_pct",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "avg_bet_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "win_rate",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "net_position_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "dq_status",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "_version",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "_ingested_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "_processed_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "_ingested_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_processed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "avg_bet_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bet_count_playable_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bet_count_real",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bet_count_released_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "big_win_rounds",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "brand_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "currency",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "dq_status",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "event_count",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "event_date",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "first_played_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_is_provisional",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_rate_date_used",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_rate_to_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "game_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "hold_pct",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "last_played_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "loyalty_points_delta",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "max_win",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "max_win_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_position_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "payout_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "player_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "provider_code",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "real_ggr_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "rounds",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "rtp_actual",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "source_system",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_playable_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_playable_bonus_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_real",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_real_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_released_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_released_bonus_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenant_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "turnover_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_playable_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_playable_bonus_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_real",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_real_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_released_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_released_bonus_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "win_rate",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "winning_rounds",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wins",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_playable_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_playable_bonus_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_real",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_real_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_released_bonus",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_released_bonus_eur",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "tenant_id+brand_id+player_id+game_id+provider_code+event_date+currency+source_system",
+      "n_rows": 59644836,
+      "n_distinct": 59644836,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "issues": [
+      {
+        "column": "payout_eur",
+        "check": "negative_value",
+        "message": "minimum -207,773.6126, on 193 day(s)"
+      },
+      {
+        "column": "won_playable_bonus",
+        "check": "negative_value",
+        "message": "minimum -33,040.0000, on 169 day(s)"
+      },
+      {
+        "column": "won_playable_bonus_eur",
+        "check": "negative_value",
+        "message": "minimum -747.2081, on 169 day(s)"
+      },
+      {
+        "column": "won_real",
+        "check": "negative_value",
+        "message": "minimum -12,345,440.0000, on 155 day(s)"
+      },
+      {
+        "column": "won_real_eur",
+        "check": "negative_value",
+        "message": "minimum -263,031.4508, on 155 day(s)"
+      },
+      {
+        "column": "won_released_bonus",
+        "check": "negative_value",
+        "message": "minimum -44,663.1600, on 310 day(s)"
+      },
+      {
+        "column": "won_released_bonus_eur",
+        "check": "negative_value",
+        "message": "minimum -3,178.4000, on 310 day(s)"
+      }
+    ]
+  },
+  "notes": [
+    "Keys checked on 554 of 554 day(s) (key columns only, SQL aggregation).",
+    "Backfilled history: 487 day(s) processed on 2026-08-07; 5 day(s) processed on 2026-08-26; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.",
+    "Rows per day: first 141,977, median 103,791, last 107,181. Days up to 2026-10-06 (the last closed day).",
+    "Used for: signal explorer (T4): game breadth, wins."
+  ]
+}

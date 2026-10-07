@@ -1,37 +1,22 @@
-"""Backtest (walk-forward): the training, validation and test periods are moved forward a few days at
-a time, so the models are tested on several later periods instead of one. It is the temporal
-robustness check of the training spec (point 8): if the optimisation gain does not hold on every
-scenario, the simpler (reference) configuration is the safer choice.
+"""Temporal robustness check (training spec, point 8): the optimisation is repeated on earlier windows
+of the same monthly cutoffs. If its gain (optimised vs reference LightGBM) does not hold on every
+window, the simpler reference configuration is the safer choice.
 
-    .venv/bin/python src/models/backtest.py --as-of 2026-10-04                     # brand 64, every 3 days
-    .venv/bin/python src/models/backtest.py --as-of 2026-10-04 --step-days 4 --train-window 2 --n-trials 30
-    .venv/bin/python src/models/backtest.py --as-of 2026-10-04 --seeds 42 7 2026   # each scenario x 3 seeds
+Window k takes the first k cutoffs of the training dataset and splits them like train.split_rows
+(train = all but the last 3, validation = the 3rd last, test = the last 2). With 12 cutoffs and the
+default 2 windows: train on months 1-8 (validation month 8) and test on 9-10, then train on 1-9 and
+test on 10-11, as in the plan; the full dataset (test on 11-12) is the main training run.
 
-Cutoffs go from MIN_CUTOFF to AS_OF - 60 days (the last one whose 60-day label fits), one every
-`step_days`. Scenario k trains on the `train_window` cutoffs before cutoff k (train/validation by
-player, as always) and tests on cutoff k:
+    .venv/bin/python src/models/backtest.py                                        # latest dataset
+    .venv/bin/python src/models/backtest.py --dataset-path data/processed/train_dataset_...parquet --n-windows 3
+    .venv/bin/python src/models/backtest.py --seed-mode grid --seeds 42 7 2026     # each window x 3 seeds
 
-    train c1, c2 -> test c3      train c2, c3 -> test c4      ...
-
-In each scenario three runs are trained exactly like the normal training (train.py): the reference
-LightGBM (optimisation step 1), the optimised LightGBM (every step) and Cox PH (with the optimised
-LightGBM's features). Features and labels are built once for every cutoff (from the daily tables).
-
-Every scenario is repeated with each seed (train/validation split, LightGBM sampling, Optuna), which
-separates two kinds of variation: between periods (does the model hold over time?) and between seeds
-(is a result luck?).
-
-Output: docs/backtest_brand{id}.md, a figure and a table in data/03_output/backtest/, and the runs
-in MLflow tagged with the backtest id and scenario.
-
-Limits: the 60-day label windows of nearby scenarios overlap and the players repeat, so the
-scenarios are not independent; the backtest gains weight as the history grows.
+The rolling-origin backtest of T10 (12 monthly cut-offs, recency rule, pass conditions) is a separate task.
 """
 
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import os
 import sys
 import time
@@ -48,14 +33,10 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_features import HISTORY_START, LABEL_HORIZON_DAYS, data_available_through, MIN_CUTOFF, brand_label, parse_brand_id
-from build_labels import build_training_labels
-from build_training_features import build_training_features
-from create_dataset import create_dataset
-from train import run_info, train
+from build_features import brand_label
+from train import N_TEST_CUTOFFS, N_VALID_CUTOFFS, PROCESSED_DIR, run_info, train
 
-DEFAULT_STEP_DAYS = 3
-DEFAULT_TRAIN_WINDOW = 2
+DEFAULT_WINDOWS = 2
 DEFAULT_SEEDS = (42, 7, 2026)
 DEFAULT_SEED_MODE = "per_window"
 BASE_SEED = 42  # per_window mode: the window seeds are drawn from this one, so a backtest is reproducible
@@ -63,78 +44,61 @@ SCENARIO_DIR = PROJECT_ROOT / "data/02_intermediate/backtest"
 OUTPUT_DIR = PROJECT_ROOT / "data/03_output/backtest"
 DOC_PATH = PROJECT_ROOT / "docs/backtest_brand{brand}.md"
 MLFLOW_EXPERIMENT = "whizdom-churn-backtest"
-METRICS = {  # what each scenario reports, from the training runs
+METRICS = {  # what each window reports, from the training runs
     "lgbm_reference": ["test_calibrated_roc_auc", "test_calibrated_log_loss", "test_calibrated_ece"],
     "lgbm_optimised": ["test_calibrated_roc_auc", "test_calibrated_log_loss", "test_calibrated_ece"],
     "cox": ["test_c_index"],
 }
 
 
-def backtest_cutoffs(as_of: dt.date, step_days: int) -> list[str]:
-    last = as_of - dt.timedelta(days=LABEL_HORIZON_DAYS)
-    out, day = [], MIN_CUTOFF
-    while day <= last:
-        out.append(str(day))
-        day += dt.timedelta(days=step_days)
-    return out
-
-
-def run(as_of: str, brand_id: int | str = 64, step_days: int = DEFAULT_STEP_DAYS,
-        train_window: int = DEFAULT_TRAIN_WINDOW, n_trials: int | None = None, seeds=DEFAULT_SEEDS,
-        seed_mode: str = DEFAULT_SEED_MODE) -> Path:
+def run(dataset_path: str | Path | None = None, n_windows: int = DEFAULT_WINDOWS, n_trials: int | None = None,
+        seeds=DEFAULT_SEEDS, seed_mode: str = DEFAULT_SEED_MODE) -> Path:
     """seed_mode "per_window": each window gets its own random seed (one training per window, fast;
     the spread between windows then mixes period and seed). "grid": each window is trained with every
     seed in `seeds` (slower; separates the variation between periods from the one between seeds)."""
     start = time.time()
     if seed_mode not in ("per_window", "grid"):
         raise ValueError(f"seed_mode must be 'per_window' or 'grid', not {seed_mode!r}")
-    as_of_date = dt.date.fromisoformat(as_of)
-    import daily_tables  # top up the daily tables with the new complete days first
-    daily_tables.build(HISTORY_START, as_of_date, verbose=False)
-    available = data_available_through()
-    if as_of_date > available:
-        raise ValueError(f"AS_OF {as_of} is after the last complete data day ({available})")
-    cutoffs = backtest_cutoffs(as_of_date, step_days)
-    if len(cutoffs) <= train_window:
-        raise ValueError(f"{len(cutoffs)} cutoffs ({cutoffs}): not enough for a {train_window}-cutoff train window "
-                         "plus a test cutoff; lower --step-days or --train-window")
-    backtest_id = f"backtest_brand{brand_id}_{as_of}_step{step_days}_{int(start)}"
-    n_scenarios = len(cutoffs) - train_window
-    if seed_mode == "per_window":
-        window_seeds = [[int(x)] for x in np.random.default_rng(BASE_SEED).integers(0, 10_000, n_scenarios)]
-    else:
-        window_seeds = [list(seeds)] * n_scenarios
-    seeds = sorted({x for ws in window_seeds for x in ws})
-    print(f"{backtest_id}: cutoffs {cutoffs}, {n_scenarios} scenario(s), seed mode {seed_mode}: {window_seeds}")
-
-    # Features and labels of every cutoff, once (daily tables + caches make this fast).
-    features_path = build_training_features(cutoffs, brand_id)
-    build_training_labels(features_path, data_end=as_of)
-    create_dataset(features_path)
-    dataset_path = features_path.with_name(features_path.name.replace("train_features_base", "train_dataset"))
+    if dataset_path is None:
+        dataset_path = max(PROCESSED_DIR.glob("train_dataset_*.parquet"), key=lambda p: p.stat().st_mtime)
     data = pd.read_parquet(dataset_path)
+    cutoffs = sorted(str(c) for c in data["cutoff_date"].unique())
+    held_out = N_VALID_CUTOFFS + N_TEST_CUTOFFS
+    if len(cutoffs) - n_windows <= held_out:
+        raise ValueError(f"{len(cutoffs)} cutoffs: not enough for {n_windows} earlier window(s) with at least one "
+                         f"train month, {N_VALID_CUTOFFS} validation and {N_TEST_CUTOFFS} test months")
+    label = brand_label(data["brandId"].unique())
+    backtest_id = f"backtest_brand{label}_{cutoffs[-1]}_{n_windows}windows_{int(start)}"
+    if seed_mode == "per_window":
+        window_seeds = [[int(x)] for x in np.random.default_rng(BASE_SEED).integers(0, 10_000, n_windows)]
+    else:
+        window_seeds = [list(seeds)] * n_windows
+    seeds = sorted({x for ws in window_seeds for x in ws})
+    print(f"{backtest_id}: {n_windows} window(s), seed mode {seed_mode}: {window_seeds}")
 
     scenario_dir = SCENARIO_DIR / backtest_id
     scenario_dir.mkdir(parents=True, exist_ok=True)
     rows = []
-    for k in range(train_window, len(cutoffs)):
-        train_cutoffs, test_cutoff = cutoffs[k - train_window:k], cutoffs[k]
-        number = k - train_window + 1
-        subset = data[data["cutoff_date"].astype(str).isin(train_cutoffs + [test_cutoff])]
-        path = scenario_dir / f"scenario{number}_test{test_cutoff}.parquet"
+    for number, k in enumerate(range(len(cutoffs) - n_windows, len(cutoffs)), 1):
+        window = cutoffs[:k]
+        train_cutoffs, test_cutoffs = window[:-held_out], window[-N_TEST_CUTOFFS:]
+        subset = data[data["cutoff_date"].astype(str).isin(window)]
+        test_rows = subset["cutoff_date"].astype(str).isin(test_cutoffs)
+        path = scenario_dir / f"window{number}_test{test_cutoffs[0]}.parquet"
         subset.to_parquet(path, index=False)
         for seed in window_seeds[number - 1]:
-            tags = {"backtest_id": backtest_id, "scenario": number, "seed": seed, "test_cutoff": test_cutoff,
+            tags = {"backtest_id": backtest_id, "scenario": number, "seed": seed, "test_cutoffs": ",".join(test_cutoffs),
                     "train_cutoffs": ",".join(train_cutoffs)}
-            print(f"\n== scenario {number}/{n_scenarios}, seed {seed}: train {train_cutoffs} -> test {test_cutoff}")
+            print(f"\n== window {number}/{n_windows}, seed {seed}: train {train_cutoffs[0]}..{train_cutoffs[-1]}, "
+                  f"validation {window[-held_out]} -> test {test_cutoffs}")
             runs = {
                 "lgbm_reference": train("lightgbm_classifier", path, reference=True, tags=tags, seed=seed),
                 "lgbm_optimised": train("lightgbm_classifier", path, n_trials=n_trials, tags=tags, seed=seed),
             }
             runs["cox"] = train("cox_ph", path, features_from_run=runs["lgbm_optimised"], tags=tags, seed=seed)
-            row = {"scenario": number, "seed": seed, "train_cutoffs": ", ".join(train_cutoffs), "test_cutoff": test_cutoff,
-                   "test_rows": int((subset["cutoff_date"].astype(str) == test_cutoff).sum()),
-                   "test_churn_rate": float(subset.loc[subset["cutoff_date"].astype(str) == test_cutoff, "event_60d"].mean())}
+            row = {"scenario": number, "seed": seed, "train_cutoffs": f"{train_cutoffs[0]} .. {train_cutoffs[-1]}",
+                   "test_cutoff": ", ".join(test_cutoffs), "test_rows": int(test_rows.sum()),
+                   "test_churn_rate": float(subset.loc[test_rows, "event_60d"].mean())}
             for model, metric_names in METRICS.items():
                 info = run_info(runs[model])
                 for m in metric_names:
@@ -143,8 +107,8 @@ def run(as_of: str, brand_id: int | str = 64, step_days: int = DEFAULT_STEP_DAYS
             rows.append(row)
 
     table = pd.DataFrame(rows)
-    doc = _report(table, backtest_id, brand_id, data, step_days, train_window, as_of, time.time() - start, seeds,
-                  seed_mode)
+    doc = _report(table, backtest_id, label, os.path.relpath(Path(dataset_path).resolve(), PROJECT_ROOT),
+                  time.time() - start, seeds, seed_mode)
     print(f"\nsaved {os.path.relpath(doc, PROJECT_ROOT)} | {(time.time() - start) / 60:.1f} min")
     return doc
 
@@ -153,10 +117,9 @@ def _short(metric: str) -> str:
     return metric.removeprefix("test_").removeprefix("calibrated_")
 
 
-def _report(table: pd.DataFrame, backtest_id: str, brand_id, data, step_days, train_window, as_of, seconds,
-            seeds, seed_mode: str = "grid") -> Path:
+def _report(table: pd.DataFrame, backtest_id: str, label: str, dataset: str, seconds, seeds,
+            seed_mode: str = "grid") -> Path:
     grid = seed_mode == "grid" and len(seeds) > 1  # only then is there a spread between seeds per window
-    label = brand_label(data["brandId"].unique())
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     table_path = OUTPUT_DIR / f"{backtest_id}.csv"
     figure_path = OUTPUT_DIR / f"{backtest_id}.png"
@@ -182,7 +145,7 @@ def _report(table: pd.DataFrame, backtest_id: str, brand_id, data, step_days, tr
         for model in models:
             col = f"{model}__{metric}"
             ax.errorbar(x, mean[col], yerr=seed_std[col].fillna(0), marker="o", capsize=4, label=model.replace("lgbm_", ""))
-        ax.set_title(title); ax.set_xlabel("test cutoff"); ax.tick_params(axis="x", rotation=30); ax.legend()
+        ax.set_title(title); ax.set_xlabel("test months"); ax.tick_params(axis="x", rotation=30); ax.legend()
     fig.suptitle(f"Backtest {label}: " + (f"mean over {len(seeds)} seeds per scenario, bars = spread between seeds"
                                           if grid else "one seed per window (period and seed vary together)"))
     fig.tight_layout(); fig.savefig(figure_path, dpi=120); plt.close(fig)
@@ -194,7 +157,7 @@ def _report(table: pd.DataFrame, backtest_id: str, brand_id, data, step_days, tr
             return f"{mean[col].mean():.4f} / ± {between_periods:.4f}"
         return f"{mean[col].mean():.4f} / ± {between_periods:.4f} / ± {seed_std[col].mean():.4f}"
 
-    header = ["#", "test", "test rows", "churn", "AUC ref", "AUC opt", "log-loss ref", "log-loss opt", "ECE ref", "ECE opt", "C-index"]
+    header = ["#", "test months", "test rows", "churn", "AUC ref", "AUC opt", "log-loss ref", "log-loss opt", "ECE ref", "ECE opt", "C-index"]
     lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
     first = table.drop_duplicates("scenario").set_index("scenario")
     for r in mean.itertuples(index=False):
@@ -215,13 +178,13 @@ def _report(table: pd.DataFrame, backtest_id: str, brand_id, data, step_days, tr
         "change of period and the change of seed: if it is small, the model is robust to both. To tell them apart, "
         "run with `SEED_MODE=grid`.")
 
-    text = f"""# Backtest (walk-forward), brandId {label}
+    text = f"""# Temporal Robustness (training spec, point 8), brandId {label}
 
-The training, validation and test periods move forward {step_days} days at a time: each scenario trains on the previous {train_window} cutoffs (train / validation split by player) and tests on the next one. Three models per scenario, trained exactly as in normal training: the **reference** LightGBM (optimisation step 1), the **optimised** LightGBM (every optimisation step) and Cox PH (with the optimised LightGBM's features). Seed mode **{seed_mode}**: {"each scenario is repeated with every seed" if grid else "each window has its own random seed"} ({", ".join(map(str, seeds))}); the seed changes the train / validation split, the LightGBM row and column sampling and the Optuna search. This is the temporal robustness check of the training spec (point 8).
+The optimisation is repeated on earlier windows of the monthly cutoffs of `{dataset}`: window k takes the first cutoffs up to its test months and splits them as in normal training (train = the earlier months, validation = the month before the test months, test = the last 2 months). Three models per window, trained exactly as in normal training: the **reference** LightGBM (optimisation step 1), the **optimised** LightGBM (every optimisation step) and Cox PH (with the optimised LightGBM's features). Seed mode **{seed_mode}**: {"each window is repeated with every seed" if grid else "each window has its own random seed"} ({", ".join(map(str, seeds))}); the seed changes the LightGBM row and column sampling and the Optuna search.
 
-Backtest id `{backtest_id}` (data as of {as_of}, {len(mean)} scenarios x {len(seeds)} seeds = {len(table)} trainings per model, {seconds / 60:.1f} min). Every run is in MLflow with the tags `backtest_id`, `scenario` and `seed`; the summary run (experiment `{MLFLOW_EXPERIMENT}`) has one chart per metric across scenarios.
+Backtest id `{backtest_id}` ({f"{len(mean)} windows x {len(seeds)} seeds" if grid else f"{len(mean)} windows, one seed each"} = {len(table)} trainings per model, {seconds / 60:.1f} min). Every run is in MLflow with the tags `backtest_id`, `scenario` and `seed`; the summary run (experiment `{MLFLOW_EXPERIMENT}`) has one chart per metric across windows.
 
-## Results per scenario (test month; mean ± spread between seeds)
+## Results per window (test months; mean ± spread between seeds)
 
 {chr(10).join(lines)}
 
@@ -238,13 +201,13 @@ Backtest id `{backtest_id}` (data as of {as_of}, {len(mean)} scenarios x {len(se
 | LightGBM ECE | {spread('lgbm_reference__ece')} | {spread('lgbm_optimised__ece')} |
 | Cox PH c-index | | {spread('cox__c_index')} |
 
-**Does the optimisation gain hold on every scenario?** {"Yes" if holds else "No"}: averaged over the seeds, the optimised model has a higher or equal AUC in {int((gain >= 0).sum())} of {len(mean)} scenarios (mean change {gain.mean():+.4f}) and a lower or equal log-loss in {int((ll_gain >= 0).sum())} of {len(mean)} (mean change {-ll_gain.mean():+.4f}). {"The optimised configuration can stay." if holds else "By the spec's rule (point 8), the simpler reference configuration is the safer choice until the gain holds on every scenario."}
+**Does the optimisation gain hold on every window?** {"Yes" if holds else "No"}: averaged over the seeds, the optimised model has a higher or equal AUC in {int((gain >= 0).sum())} of {len(mean)} windows (mean change {gain.mean():+.4f}) and a lower or equal log-loss in {int((ll_gain >= 0).sum())} of {len(mean)} (mean change {-ll_gain.mean():+.4f}). {"The optimised configuration can stay." if holds else "By the spec's rule (point 8), the simpler reference configuration is the safer choice until the gain holds on every window."}
 
 ## How to read it
 
 - A difference between two models smaller than the spread between seeds is luck, not a real difference; one smaller than the spread between periods may not hold next month.
-- The scenarios are **not independent**: the 60-day label windows of nearby cutoffs overlap and the players repeat, so the results look more stable than they would be on truly separate periods. A fully out-of-time test needs training cutoffs at least 60 days before the test cutoff, which the history does not allow yet. Each new week of data adds a cutoff, so this backtest gains weight with time.
-- The winsorisation caps come from the configuration of the main pipeline (they may have seen some test cutoffs' features, not their labels).
+- The windows are **not independent**: they share their earlier months, and the players repeat across cutoffs.
+- The winsorisation caps come from the configuration of the main pipeline (they may have seen some test months' features, not their labels).
 
 Generated by `src/models/backtest.py` (`make backtest`). Table (one row per scenario and seed): `{os.path.relpath(table_path, PROJECT_ROOT)}`.
 """
@@ -253,8 +216,8 @@ Generated by `src/models/backtest.py` (`make backtest`). Table (one row per scen
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
     with mlflow.start_run(run_name=backtest_id):
         mlflow.set_tags({"brand_id": label, "backtest_id": backtest_id})
-        mlflow.log_params({"as_of": as_of, "step_days": step_days, "train_window": train_window, "seed_mode": seed_mode,
-                           "n_scenarios": len(mean), "seeds": seeds, "test_cutoffs": list(mean["test_cutoff"])})
+        mlflow.log_params({"dataset_path": dataset, "seed_mode": seed_mode, "n_windows": len(mean), "seeds": seeds,
+                           "test_cutoffs": list(mean["test_cutoff"])})
         # One point per scenario (step = scenario number): MLflow draws each metric as a line chart
         # across the windows in Model metrics. The mean over seeds, and each seed on its own.
         for r_mean, r_std in zip(mean.itertuples(index=False), seed_std.itertuples(index=False)):
@@ -282,14 +245,12 @@ Generated by `src/models/backtest.py` (`make backtest`). Table (one row per scen
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Walk-forward backtest of the reference and optimised models.")
-    parser.add_argument("--as-of", required=True)
-    parser.add_argument("--brand-id", type=parse_brand_id, default=64)
-    parser.add_argument("--step-days", type=int, default=DEFAULT_STEP_DAYS)
-    parser.add_argument("--train-window", type=int, default=DEFAULT_TRAIN_WINDOW)
+    parser = argparse.ArgumentParser(description="Temporal robustness of the reference and optimised models.")
+    parser.add_argument("--dataset-path", help="default: the latest train_dataset file")
+    parser.add_argument("--n-windows", type=int, default=DEFAULT_WINDOWS, help="earlier windows to train and test")
     parser.add_argument("--n-trials", type=int, help="Optuna trials per optimised run (default: the catalog's)")
     parser.add_argument("--seed-mode", choices=["per_window", "grid"], default=DEFAULT_SEED_MODE,
                         help="per_window: one random seed per window (fast); grid: every window x every --seeds")
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_SEEDS), help="grid mode: the seeds")
     args = parser.parse_args()
-    run(args.as_of, args.brand_id, args.step_days, args.train_window, args.n_trials, args.seeds, args.seed_mode)
+    run(args.dataset_path, args.n_windows, args.n_trials, args.seeds, args.seed_mode)

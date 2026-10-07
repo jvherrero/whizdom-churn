@@ -1,0 +1,247 @@
+{
+  "table_name": "gld_player_engagement_daily",
+  "grain_description": "One row per player ever seen and day: sessions, bets and active day that day.",
+  "row_count": 688181493,
+  "date_range_start": "2025-04-01",
+  "date_range_end": "2026-10-06",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "tenant_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "player_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "snapshot_date",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "sessions_today",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "active_days_today",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "bets_today",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "play_secs_today",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "engagement_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "lifecycle_stage",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "top_peak_hour",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "top_peak_day",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "tp_hourly_entropy",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_night_index",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_weekend_index",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_business_hours_ratio",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_avg_session_duration_secs",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "tp_median_session_duration_secs",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "tp_avg_sessions_per_active_day",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_avg_session_gap_hours",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_max_sessions_single_day",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "tp_window_days",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "_version",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "_ingested_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "_processed_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "_ingested_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_processed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_days_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "engagement_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "lifecycle_stage",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "player_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "snapshot_date",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenant_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "top_peak_day",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "top_peak_hour",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_avg_session_duration_secs",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_avg_session_gap_hours",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_avg_sessions_per_active_day",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_business_hours_ratio",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_hourly_entropy",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_max_sessions_single_day",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_median_session_duration_secs",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_night_index",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_weekend_index",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_window_days",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "tenant_id+player_id+snapshot_date",
+      "n_rows": 688181493,
+      "n_distinct": 688181493,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "notes": [
+    "Keys checked on 554 of 554 day(s) (key columns only, SQL aggregation).",
+    "Backfilled history: 459 day(s) processed on 2026-07-09; 5 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.",
+    "Rows per day: first 36,974, median 1,367,263, last 2,052,450. Days up to 2026-10-06 (the last closed day).",
+    "Used for: labels (T7): active days after the cutoff."
+  ]
+}

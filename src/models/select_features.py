@@ -23,30 +23,23 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 
 MAX_MISSING_SHARE = 0.40
-# Near-zero variance, caret's rule: the top value is 19x more frequent than the second one
-# and there are few distinct values.
-NZV_FREQ_RATIO = 95 / 5
-NZV_UNIQUE_SHARE = 0.10
+# Near-zero variance: the most common value covers more than 95% of the known values (for a flag, caret's
+# 95/5 rule). caret's rule for many-valued features (top value 19x the second one and < 10% distinct
+# values) is not used: with 140k rows any count passes it, e.g. bets_l7d (56% zeros, AUC 0.72).
+NZV_MAX_MODE_SHARE = 0.95
 # The functional-dependence check only makes sense between discrete features (counts, flags,
 # day numbers). A continuous feature that is a function of another one has |corr| ~ 1 in step 2.
 DISCRETE_MAX_UNIQUE = 50
 MAX_ABS_CORR = 0.95
 # Below this adversarial AUC the drift is mild (0.5 = no drift): keep the features, the report
 # still shows their adversarial importance for review. 0.60 dropped the strongest signals.
-ADV_AUC_THRESHOLD = 0.70
+ADV_AUC_THRESHOLD = 0.70  # drift features are dropped while the adversarial AUC is above this
 # A feature with more than this share of the adversarial importance is drifting.
 ADV_IMPORTANCE_SHARE = 0.10
 MAX_ADV_ROUNDS = 5
 MAX_METRIC_LOSS = 0.002
 PERMUTATION_REPEATS = 5
 SEED = 42
-
-# build_features.py fills these when the real value is unknown; the filled rows count as missing.
-# (days_since_last_* = 30 is not missing: it means "30 days or more".)
-IMPUTED = {
-    "tenure_days": lambda d: d["tenure_days_missing"] == 1 if "tenure_days_missing" in d else None,
-    "rtp_last_7d": lambda d: d["stake_last_7d"] <= 0 if "stake_last_7d" in d else None,
-}
 
 
 @dataclass
@@ -58,24 +51,18 @@ class ModelAdapter:
     params: dict = field(default_factory=dict)  # the model parameters actually used, for logging
 
 
-def _missing_share(df: pd.DataFrame, feature: str) -> float:
-    missing = df[feature].isna()
-    imputed = IMPUTED.get(feature, lambda d: None)(df)
-    if imputed is not None:
-        missing = missing | imputed
-    return float(missing.mean())
-
-
 def _near_zero_variance(s: pd.Series) -> bool:
     counts = s.value_counts()
-    if len(counts) < 2:
-        return True
-    return counts.iloc[0] / counts.iloc[1] > NZV_FREQ_RATIO and len(counts) / len(s) < NZV_UNIQUE_SHARE
+    return len(counts) < 2 or counts.iloc[0] / counts.sum() > NZV_MAX_MODE_SHARE
 
 
 def single_feature_auc(x: pd.Series, y: pd.Series) -> float:
-    """Direction-free AUC of one feature on its own."""
-    auc = roc_auc_score(y, x)
+    """Direction-free AUC of one feature on its own, on the rows where it has a value (gold features
+    can be empty, e.g. deposits before March 2026). 0.5 when it cannot be measured."""
+    known = x.notna()
+    if known.sum() < 2 or y[known].nunique() < 2 or x[known].nunique() < 2:
+        return 0.5
+    auc = roc_auc_score(y[known], x[known])
     return max(auc, 1 - auc)
 
 
@@ -87,9 +74,9 @@ def _is_function_of(a: pd.Series, b: pd.Series) -> bool:
 def _step1(train: pd.DataFrame, features: list[str], auc: dict) -> tuple[list[str], list[dict]]:
     rows, kept = [], []
     for f in features:
-        share = _missing_share(train, f)
+        share = train[f].isna().mean()
         if share > MAX_MISSING_SHARE:
-            rows.append({"feature": f, "step": 1, "reason": f"{share:.0%} missing (imputed values count)"})
+            rows.append({"feature": f, "step": 1, "reason": f"{share:.0%} missing"})
         elif _near_zero_variance(train[f]):
             rows.append({"feature": f, "step": 1, "reason": "near-zero variance"})
         else:
@@ -146,7 +133,9 @@ def _step3(train_months, test_months, features) -> tuple[list[str], list[dict], 
     adv_auc, share = first_auc, first_share
     for _ in range(MAX_ADV_ROUNDS):
         drifting = list(share[share > ADV_IMPORTANCE_SHARE].index)
-        if adv_auc < ADV_AUC_THRESHOLD or not drifting:
+        # Stop at or below the threshold, read as reported (3 decimals): a period gap of exactly 0.700
+        # does not justify dropping more features (decision 2026-10-07: it removed bet recency).
+        if round(adv_auc, 3) <= ADV_AUC_THRESHOLD or not drifting:
             break
         for f in drifting:
             rows.append({"feature": f, "step": 3,

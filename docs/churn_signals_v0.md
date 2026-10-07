@@ -1,118 +1,114 @@
-# Baseline Churn Signals and Feature Selection V0.1 (brandId=64)
+# Churn Signals v0.2 (brandId=64, gold layer)
 
-This document explains the work behind the early-warning signal analysis for player churn, done before building the real Feature Store. The question this work answers is simple to state but needed real testing to answer: **which player behaviors, measured before a player goes quiet, actually give an advance signal that they are about to go quiet?**
+## 0. What Changed from v0.1
 
-## 0. Scope Change from V0: One Brand, EUR, and the 60-Day Label
+v0.1 tested 14 signals on the landing layer with 2 weekly cutoffs. This version tests the plan's full hypothesis table on the **gold layer**, with **12 monthly cutoffs** (2025-06-01 to 2026-05-01, training months only; the later months are kept for the test month and the backtest). Notebook: `eda/03_signal_explorer.ipynb`; module: `eda/signal_explorer.py`; tables and figures: `data/03_output/signals/brand64/`.
 
-This version re-runs the whole analysis for a single brand, **`brandId = 64`** (`primus` only), in **EUR**, using the **60-day churn label**, replacing the earlier version of this document, which pooled every brand together, worked in local currency implicitly, and used a 30-day label as a practical compromise. Three changes, three reasons:
+## 1. Method
 
-1. **One brand, not all brands.** Each operator's landing data mixes several distinct brands (13 under `primus`, 8-9 under `secundus`, no overlap between the two), and brands behave differently, as `02_churn_definition.ipynb` already showed directly: `brandId=64`'s players are far stickier than the all-brands pool (median survival 8.1 days vs. 0.8 days at the 14-day threshold). Building and validating this analysis on one brand first is how it scales to every brand later without a rewrite, I keep `brandId` explicit throughout rather than dropping it.
-2. **EUR, not local currency.** `brandId=64`'s activity is in Turkish Lira (TRY). Every monetary feature below (deposits, net loss, RTP) is converted to EUR before any trend or comparison is computed (`src/fx_rates.py`), so money-based signals are on a currency that is actually comparable across brands and across time.
-3. **60-day threshold, not 30.** The training label decided in `02_churn_definition.ipynb` is `event_60d`, not `event_30d`. Matching that label here matters more than having more cutoff dates to work with, even though it leaves only **2 complete cutoff dates** (`2026-07-18` and `2026-07-25`) instead of 7, a direct, known consequence of combining a 60-day threshold with a single brand's smaller, more recent history, not a bug.
+- **Population and label.** At each cutoff, the players of brand 64 with a bet in the 30 days up to it: 223,334 player-cutoffs, 94,481 players. Label: the 60-day churn of `docs/churn_definition_v0.md` (44.9% overall).
+- **Signals.** Computed per player from data up to the cutoff only: from `gld_player_signals_daily` on the cutoff day (and 7 and 30 days before, for trends), from the daily activity and financial history, and from `gld_player_payments_daily`.
+- **The same four numbers for every signal.** Lift (churn with / without the signal, or highest / lowest quartile), univariate Cox hazard ratio (per 1 SD of the sign-log value, or for the flag) with 95% intervals, single-signal AUC for the 60-day label, and the lift at each cutoff.
+- **Decision rule.** PROMOTED when the hazard-ratio interval excludes 1, the AUC is at least 0.05 away from 0.5, the effect never flips side across the cutoffs, and lift, hazard ratio and AUC point the same way. Otherwise REJECTED.
+- **Known limit of the intervals.** Players repeat across cutoffs, so the intervals are slightly too narrow. A player-clustered interval was the same to two decimals on a test signal and 40 times slower, so it is not used.
 
-I tested 14 behavioral signals, the same 14 as the original pass, built from the five data sources I have access to (`player`, `bet`, `transaction`, `bonus`, and a day-level activity table I build myself). Every signal was tested one at a time, using three different statistical methods, against `event_60d`: a player is "churned" if they place no bet for 60 days after a given reference date `T` (the "cutoff").
+## 2. Data Problems Found on Gold
 
-**The short version**: the strongest group of signals here is **Frequency / Velocity**, not Recency, a change from the all-brands version. Recency is still strong (second place), and three real data problems carried over from the all-brands pass (an "already dormant" confound, two non-monotonic signals, and RTP's signal coming mostly from missingness), confirmed again on this brand's data, in some cases more sharply. A new data-quality problem specific to this brand's data was also found and is documented in full: `transaction`'s `currency` column does not exist at all before `2026-08-26`, a real schema change in the source, not random nulls.
+These change what can be tested, and are reported to the data team (`docs/dq_reports/gold/semantic_checks_brand64.md`):
 
-## 1. Why This Needed a Careful Setup, Not Just a Correlation Check
+1. **`gld_player_signals_daily.days_since_bet` is broken.** It is 0 for most players: it matches the recency recomputed from the daily activity for only 16% of the players (median over 18 months). Recomputed recency has an AUC of 0.758; gold's column has 0.500. I compute recency from the activity (`days_since_last_bet`). The other activity and money windows of the signals table match the recomputation for 95% to 100% of the players.
+2. **Completed deposits and withdrawals only exist from March 2026.** From April to November 2025 no betting player has a completed deposit; the share is 1% to 8% in December and January, 34% in February, and 62% to 75% from March 2026. `gld_player_financial_daily` only has them from June 2026. Deposit and withdrawal signals are therefore left **empty (unknown, not 0)** at every cutoff whose window starts before 2026-03-01, and can only be tested on **2 cutoffs** (2026-04-01 and 2026-05-01): their effect is clear, but their stability over time cannot be checked yet.
 
-The obvious way to check "does X predict churn" is to compare X between players who later churned and players who did not. That is dangerous here, because it is very easy to let the future leak into the past by accident. If I compute "days since last bet" using the true end of the data for every player, a player who has already gone quiet by the time I look will of course show up as inactive, that is not a prediction, that is the answer already baked into the question.
+3. **`tenure_days` is not consistent in the backfilled history.** Between two monthly snapshots, a player's tenure should grow by the days in between; it does for only 11% to 22% of the players before August 2026, and for 99% from August to September 2026 (the live period). It drifts strongly over time (adversarial AUC 0.95 in T6). The T4 result for `tenure_days` below is kept for the record, but the features use `days_since_first_bet` (days since the first bet seen, capped at 150 days), which is consistent: single-signal AUC 0.68 to 0.80 at every cutoff.
 
-To avoid this, every signal in this document is computed using a **cutoff-date simulation**, exactly as in the original pass. I pick a date `T` in the past and pretend it is "today." Every feature is computed using only activity up to and including `T`. The label, whether the player churns, is computed using only what happens strictly after `T`, in the 60 days that follow. At this threshold, with ~103 days of history and a single brand's data, only 2 cutoff dates fit (`2026-07-18`, `2026-07-25`), giving 27,261 (player, cutoff) rows to test on. The overall churn rate across both is 38.5% (35.2% at the earlier cutoff, 41.3% at the later one).
+## 3. Results
 
-## 2. The 14 Signals, Grouped by What They Measure
+### Promoted (21), by AUC
 
-Same six behavioral groups as the original pass, unchanged, since the grouping is about what kind of player behavior each signal describes, not about which brand or threshold it is tested on.
+| Signal | Hypothesis | Cutoffs | AUC | Lift [95% CI] | Hazard ratio [95% CI] | Higher / present means | As the plan expected |
+|---|---|---|---|---|---|---|---|
+| `engagement_score` | Engagement | 12 | 0.181 | 0.10 [0.10, 0.10] | 0.46 [0.45, 0.46] | less churn | yes |
+| `n_deposit_days_30d` | Deposit frequency | 2 | 0.211 | 0.06 [0.06, 0.07] | 0.40 [0.40, 0.41] | less churn | yes |
+| `days_since_last_deposit` | Deposit recency | 2 | 0.774 | 9.75 [8.87, 10.72] | 2.23 [2.19, 2.28] | more churn | yes |
+| `tenure_days` | Tenure | 12 | 0.232 | 0.29 [0.29, 0.30] | 0.49 [0.49, 0.50] | less churn | yes |
+| `days_since_last_bet` | Bet recency | 12 | 0.758 | 5.10 [4.99, 5.21] | 1.73 [1.72, 1.73] | more churn | yes |
+| `deposited_within_14d` | Deposit recency | 2 | 0.286 | 0.28 [0.27, 0.29] | 0.28 [0.28, 0.29] | less churn | yes |
+| `games_breadth_30d` | Product narrowing | 12 | 0.287 | 0.31 [0.30, 0.31] | 0.62 [0.62, 0.62] | less churn | yes |
+| `n_deposit_days_7d` | Deposit frequency | 2 | 0.300 | 0.15 [0.13, 0.16] | 0.48 [0.47, 0.49] | less churn | yes |
+| `deposited_within_7d` | Deposit recency | 2 | 0.309 | 0.20 [0.18, 0.21] | 0.27 [0.26, 0.28] | less churn | yes |
+| `deposit_frequency_score` | Deposit frequency | 2 | 0.320 | 0.25 [0.23, 0.27] | 0.56 [0.55, 0.57] | less churn | yes |
+| `losing_streak` | Losing streak | 12 | 0.322 | 0.33 [0.32, 0.33] | 0.75 [0.74, 0.75] | less churn | no |
+| `games_breadth_ratio` | Product narrowing | 12 | 0.663 | 2.27 [2.24, 2.31] | 1.27 [1.27, 1.28] | more churn | no |
+| `failed_deposits_14d` | Failed deposits | 2 | 0.341 | 0.27 [0.25, 0.29] | 0.56 [0.55, 0.57] | less churn | no |
+| `deposits_30_vs_prior30` | Deposit size trend | 1 | 0.344 | 0.35 [0.29, 0.42] | 0.77 [0.73, 0.81] | less churn | yes |
+| `prior_dormancy_spells_14d` | Prior dormancy | 12 | 0.354 | 0.46 [0.46, 0.47] | 0.81 [0.80, 0.81] | less churn | no |
+| `deposited_within_3d` | Deposit recency | 2 | 0.355 | 0.11 [0.10, 0.12] | 0.25 [0.23, 0.26] | less churn | yes |
+| `net_loss_7d` | Heavy loss | 12 | 0.358 | 0.31 [0.31, 0.32] | 0.84 [0.84, 0.84] | less churn | no |
+| `bonus_stake_share_30d` | Bonus dependence | 12 | 0.639 | 1.61 [1.59, 1.63] | 1.57 [1.56, 1.58] | more churn | yes |
+| `withdrawals_30d_share` | Big win then withdrawal | 2 | 0.371 | 0.46 [0.42, 0.50] | 0.78 [0.76, 0.80] | less churn | no |
+| `heavy_loss_multiple` | Heavy loss | 12 | 0.388 | 0.57 [0.57, 0.58] | 0.95 [0.95, 0.96] | less churn | no |
+| `days_since_last_return` | Prior dormancy | 12 | 0.605 | 1.58 [1.56, 1.60] | 1.08 [1.07, 1.08] | more churn | no |
 
-**Recency** (3 signals): `days_since_last_active`, `days_since_last_deposit`, `days_since_last_bonus`.
+### Reference: the platform's current rule
 
-**Frequency / Activity Velocity** (2 signals): `n_active_days_last_7d`, `freq_drop_7_vs_prior7`.
+`churn_score` (gold): AUC 0.621, lift 1.77, hazard ratio 1.22. **19 signals separate churners better than it**, recency alone among them (AUC 0.758). Half of its formula is the broken recency column, which explains most of the gap.
 
-**Monetary / Cash-Flow Trend** (2 signals): `deposit_drop_7_vs_prior7`, `deposit_amount_trend`. Both now in EUR.
+### Rejected (11)
 
-**Bonus & Promotional Engagement** (1 signal): `bonus_drop_7_vs_prior7`.
-
-**Game Experience / GGR** (3 signals): `net_loss_last_7d`, `net_loss_trend`, `rtp_last_7d`. The first two now in EUR; RTP is a ratio and is unaffected by currency either way.
-
-**Historical Behavior** (3 signals): `tenure_days`, `max_prior_gap_days`, `n_prior_dormancy_episodes_7d`.
-
-## 3. The Three Statistical Methods Used
-
-Unchanged methodology from the original pass: lift (decile separation), Cox Proportional Hazards (hazard ratio on a reframed "time to return" label), and stratified Kaplan-Meier curves (the full time-to-return shape, not just a summary number), each one catching things the others can miss. See the original document's Section 3 for the full explanation of each method and why all three are used together.
-
-One real methodological payoff from the smaller, single-brand dataset: at 1.7 million rows (all brands, 30-day threshold), every single feature's p-value rounded to zero, the sample size alone was enough to make any effect "significant," so p-values carried no information about which signals actually mattered. At 27,261 rows (this brand, 60-day threshold), the p-value is informative again, see Section 5, where one feature's p-value genuinely fails to clear significance, something that could not happen in the all-brands pass no matter how weak the real effect was.
-
-## 4. Results, Grouped and Ranked
-
-![Lift by decile, per feature, brandId=64](../data/03_output/lift_grid_brand64.png)
-
-*Figure 1: Decile lift for all 14 candidate signals, `brandId=64`, 60-day threshold.*
-
-![Lift spread summary, brandId=64](../data/03_output/lift_summary_brand64.png)
-
-*Figure 2: Minimum and maximum lift per signal, sorted by how far apart they are.*
-
-![Cox Hazard Ratio forest plot, brandId=64](../data/03_output/cox_hr_forest_brand64.png)
-
-*Figure 3: Hazard Ratio per one standard deviation, per signal. HR below 1 (red) means higher risk at higher values; HR above 1 (blue) means lower risk at higher values. Confidence intervals are visibly wider here than in the all-brands version, expected at 27,261 rows instead of 1.7 million.*
-
-![Kaplan-Meier curves by stratum, brandId=64, all 14 features](../data/03_output/km_by_stratum_brand64.png)
-
-*Figure 4: Stratified time-to-return curves for all 14 signals, `brandId=64`.*
-
-![Quantitative decision matrix, brandId=64](../data/03_output/decision_matrix_brand64.png)
-
-*Figure 5: The three magnitude measures (lift spread, distance of HR from 1, Kaplan-Meier separation at day 60) per signal, raw numbers in each cell.*
-
-Averaging the composite score within each behavioral group gives the group ranking, **and it changed from the all-brands version**:
-
-| Rank | Group | Score (brandId=64) | Score (all brands, reference) | Signals |
+| Signal | Hypothesis | AUC | Lift | Reason |
 |---|---|---|---|---|
-| 1 | **Frequency / Velocity** | 0.681 | 0.615 | `n_active_days_last_7d` (HIGH), `freq_drop_7_vs_prior7` (MEDIUM) |
-| 2 | **Recency** | 0.515 | 0.680 | `days_since_last_active` (HIGH), `days_since_last_bonus`, `days_since_last_deposit` (both MEDIUM) |
-| 3 | **Historical Behavior** | 0.453 | 0.313 | `max_prior_gap_days`, `tenure_days` (both HIGH), `n_prior_dormancy_episodes_7d` (LOW) |
-| 4 | **Monetary / Cash-Flow Trend** | 0.381 | 0.435 | `deposit_drop_7_vs_prior7` (MEDIUM), `deposit_amount_trend` (LOW) |
-| 5 | **Game Experience / GGR** | 0.354 | 0.286 | `net_loss_last_7d` (HIGH), `net_loss_trend`, `rtp_last_7d` (both LOW) |
-| 6 | **Bonus Engagement** | 0.014 | 0.139 | `bonus_drop_7_vs_prior7` (LOW, only signal in this group, and now far weaker) |
+| `session_length_ratio` | Session decay | 0.427 | 0.58 | hazard ratio interval includes 1; lift, hazard ratio and AUC disagree on the direction |
+| `prior_dormancy_spells_30d` | Prior dormancy | 0.458 | 0.81 | AUC within 0.05 of 0.5; effect flips side at 1 cutoff(s) |
+| `heavy_loss_flag` | Heavy loss | 0.461 | 0.73 | AUC within 0.05 of 0.5 |
+| `withdrawal_no_redeposit` | Withdrawal without redeposit | 0.466 | 0.40 | AUC within 0.05 of 0.5 |
+| `rg_loss_chasing_30d` | Heavy loss | 0.474 | 0.86 | AUC within 0.05 of 0.5; lift, hazard ratio and AUC disagree on the direction |
+| `deposit_days_ratio_30_vs_prior30` | Deposit frequency | 0.518 | 1.83 | hazard ratio interval includes 1; AUC within 0.05 of 0.5; lift, hazard ratio and AUC disagree on the direction |
+| `big_win_then_withdrawal` | Big win then withdrawal | 0.484 | 0.16 | AUC within 0.05 of 0.5 |
+| `active_days_7_vs_prior7` | Session decay | 0.485 | 0.70 | AUC within 0.05 of 0.5; effect flips side at 2 cutoff(s) |
+| `session_ratio_7_vs_prior7` | Session decay | 0.490 | 0.73 | AUC within 0.05 of 0.5; effect flips side at 2 cutoff(s) |
+| `bonus_granted_30d` | Bonus dependence | 0.495 | 0.99 | AUC within 0.05 of 0.5 |
+| `deposit_recency_score` | Deposit recency | 0.500 | 1.01 | hazard ratio interval includes 1; AUC within 0.05 of 0.5; lift, hazard ratio and AUC disagree on the direction |
 
-**Frequency / Velocity overtakes Recency for this brand.** In the all-brands pass, simple "how long since X" questions beat everything else. For `brandId=64`, how much a player is playing *right now*, not just whether they showed up recently, separates churners from non-churners even better. **Historical Behavior also jumped from fourth place to third**, both of its non-monotonic signals (`tenure_days`, `max_prior_gap_days`) moved into the HIGH tier here (Section 5 has the detail on why these two need careful handling despite the strong ranking). **Bonus Engagement collapsed to almost no signal at all** (0.014, barely above a coin flip), the clearest brand-specific difference in this table: this brand's players do not seem to change their bonus behavior much before churning, whatever signal bonus activity carries for other brands does not transfer here.
+### Figures
 
-## 5. Findings Carried Over From the All-Brands Pass, Confirmed Again
+![Ranking](../data/03_output/signals/brand64/ranking.png)
 
-All three real problems documented in the original version of this document were re-checked against this brand's data, independently, not assumed to still hold. All three held, in some cases more strongly.
+![Lift per cutoff](../data/03_output/signals/brand64/lift_stability.png)
 
-**5.1 The "already dormant" confound.** Still present in all five trend signals (`freq_drop_7_vs_prior7`, `deposit_drop_7_vs_prior7`, `bonus_drop_7_vs_prior7`, `net_loss_trend`, `deposit_amount_trend`): a naive sign-based split (declining / stable / increasing) conflates genuinely steady, active players with players who are already fully dormant in both comparison windows (zero activity, zero minus zero equals zero). The fix from the original pass (an explicit fourth "already dormant" group, carved out before the sign split) is used unchanged here, and is already built into the Kaplan-Meier code for these five signals in `03_signal_explorer.ipynb`.
+![Kaplan-Meier, top ten promoted](../data/03_output/signals/brand64/km_top10.png)
 
-**5.2 Two historical signals are still not a straight line.** `tenure_days` and `max_prior_gap_days` are both non-monotonic for this brand too, and the shape is sharper: `tenure_days`' riskiest decile is 13-25 days of tenure (lift 1.82), not the newest players (lift 1.60) or the longest-tenured ones (lift as low as 0.43 for 1021-1267 days). Both signals still need a bucketed, non-linear encoding if fed into a model, this is now confirmed on two brands' data, not an artifact of the first one.
+## 4. Findings
 
-**5.3 RTP's signal is still mostly about being missing, not the value itself.** For `brandId=64`, `rtp_last_7d` is defined for 37.9% of rows (higher coverage than the all-brands 21.1%, a smaller, more concentrated population), and its missing-value bucket again has a higher lift (1.39) than any of its own 10 real-value bins (which top out at 0.74). The same conclusion applies: this signal is largely redundant with `days_since_last_active` and `n_active_days_last_7d`, which already capture "not betting recently" more completely.
+1. **Engagement and recency are the strongest families.** The gold engagement score (active days, sessions and play time over 30 days) has an AUC of 0.181: 7.8% churn in its top quartile against 77.1% in its bottom one. Bet recency alone reaches 0.758, with 5 times more churn in the most recent-inactive quartile. Both are stable at every cutoff.
+2. **Deposit behaviour is as strong as expected, where the data exists.** Deposit days in the last 30 days (AUC 0.211) and days since the last deposit (AUC 0.774) are among the strongest signals, in the direction the plan expected, on the 2 cutoffs with deposits.
+3. **New players churn most** (tenure, AUC 0.232), as the churn definition already showed.
+4. **Product breadth works, but as breadth, not as narrowing.** Players on more games churn less (AUC 0.287). The narrowing ratio points the opposite way to the hypothesis because a new player has no previous month to compare with.
+5. **Several "risk" hypotheses point the other way: they measure volume.** A longer losing streak, a larger 7-day net loss, more failed deposits, more prior dormancy spells and a higher withdrawal share all go with **less** churn, against the plan's expectation. They are not false; they describe players who play a lot (more days, more bets, more deposit attempts), and in a one-signal test that dominates. They are promoted as predictors, but read as activity proxies; the model and the selection of T6 decide whether they add anything beyond activity.
+6. **Bonus dependence works as expected**: players who play mostly with bonus money churn more (AUC 0.639).
+7. **Week-on-week trends are not stable.** Sessions and active days in the last 7 days against the previous 7 flip side at 2 of the 12 cutoffs, and are rejected.
+8. **Two rare flags are strong but too rare for the AUC rule.** A big win followed by a withdrawal (2% of players) and a withdrawal without a redeposit (7%) have strong lifts (0.16 and 0.41, i.e. less churn) but an AUC close to 0.5 because they concern few players. They stay out of the feature list; they could come back as interaction features if the model needs them.
 
-**5.4 One real difference this time: `net_loss_trend` fails to clear statistical significance.** At `p_bh = 0.159`, this is the one feature in the whole Cox analysis (14 features x 2 brand passes = 28 tests so far) that does not reject the null hypothesis. Its Hazard Ratio sits almost exactly at 1 (1.014), consistent with the already-documented finding (both in the original pass and in `03_signal_explorer.ipynb`'s own Result cell for this brand) that `deposit_amount_trend` and `net_loss_trend` behave strangely once pooled across even just 2 cutoffs: both trend measures came back flat or slightly negative for *both* churners and non-churners here, the same calendar-time confound flagged in the original document likely applies with less data available to average it out.
+## 5. Signals Promoted to Features (input to T5)
 
-## 6. A New Data-Quality Finding: `transaction`'s `currency` Column Does Not Always Exist
+By family, with the promoted signals:
 
-While converting deposit amounts to EUR, 105,563 of 168,417 deposit rows (62.7%) for this brand came back with `currency = NULL`. This was not a random missing-value problem. Checking the per-day file schema directly (not inferred from the data, checked day by day in both `primus` and `secundus`) showed that **`transaction` (`whizdomai-payments`) has no `currency` column at all for any day before `2026-08-26`**, a real schema change partway through the available history, 69 of the 104 days (66%) predate it. `bet` (`whizdomai-transactions`) does not have this problem, its `currency` column is present on every sampled day across the full history.
+- **Recency**: `days_since_last_bet`.
+- **Engagement and frequency**: `engagement_score`, `games_breadth_30d`, `games_breadth_ratio`.
+- **Tenure**: `tenure_days`.
+- **Deposits** (from March 2026 data only): `n_deposit_days_7d`, `n_deposit_days_30d`, `days_since_last_deposit`, `deposited_within_3d` / `7d` / `14d`, `deposit_frequency_score`, `deposits_30_vs_prior30`, `failed_deposits_14d`, `withdrawals_30d_share`.
+- **Money and outcome** (activity proxies): `losing_streak`, `net_loss_7d`, `heavy_loss_multiple`.
+- **Prior dormancy**: `prior_dormancy_spells_14d`, `days_since_last_return`.
+- **Bonus**: `bonus_stake_share_30d`.
 
-Since there is no way to recover a value that was never recorded, the 69-day gap is filled with `TRY`, the same way the FX-rate gap in `02_churn_definition.ipynb`'s companion work was handled: as an explicit, documented assumption, not a verified fact for those specific rows. The assumption is well supported, not a guess: in the 35 days where the column does exist (`2026-08-26` onward), 100% of this brand's deposit transactions are TRY, matching `bet`'s currency for the same brand (also 100% TRY). This fill is implemented in both the one-off script that built the cached data for this document and in `03_signal_explorer.ipynb`'s own `deposit_amounts_daily_brand` function, with a `print` statement reporting exactly how many rows were filled each time it runs, so this assumption stays visible, not silent.
+Many of them overlap (engagement, recency, breadth and the volume proxies all measure how much a player plays), so T6's selection will drop the redundant ones (correlation and permutation steps).
 
-This is worth carrying forward to every future brand this analysis is repeated for: `transaction`'s schema is not stable across the full history, and this should be checked explicitly per table, per brand, rather than assumed from one brand's result.
+## 6. Signals Rejected (do not test again without new data)
 
-## 7. Final Recommendation
+Week-on-week session and active-day ratios (unstable), 30-day prior dormancy (unstable, weak), heavy-loss flag, gold's loss-chasing indicator, bonus granted, gold's deposit recency score, the 30-vs-30 deposit-days ratio (one cutoff, contradictory), and the two rare flags (big win then withdrawal, withdrawal without redeposit). Reasons in the table above.
 
-Combining the quantitative tiers from Section 4 with the confirmed, brand-independent problems from Section 5 gives the same three-tier recommendation structure as the original document, re-evaluated on this brand's numbers.
+## 7. Known Limits
 
-**Ready to use as-is**: `n_active_days_last_7d`, `days_since_last_active`, `net_loss_last_7d`. All three HIGH tier, clean, monotonic, consistent across both brand passes so far.
-
-**Ready to use with a specific, named fix**: `max_prior_gap_days` and `tenure_days` (bucketed, non-linear encoding, confirmed non-monotonic on two brands now); `days_since_last_deposit`, `days_since_last_bonus` (missing-value indicator, structural missingness); `freq_drop_7_vs_prior7`, `deposit_drop_7_vs_prior7`, `bonus_drop_7_vs_prior7`, `deposit_amount_trend` (the four-group "already dormant" definition from Section 5.1, not the raw signed difference); `net_loss_trend` (same fix, plus a note that it was not statistically significant on this brand specifically, weight it accordingly, do not drop it outright given it was significant in the all-brands pass).
-
-**Not recommended for v0.1**: `rtp_last_7d` (redundant with already-promoted recency signals, confirmed again); `n_prior_dormancy_episodes_7d` (direction still a construction artifact, confirmed again, more sharply).
-
-**Brand-specific note for the Feature Store build**: `bonus_drop_7_vs_prior7`'s composite score collapsed from 0.139 (all brands) to 0.014 (this brand). It stays in the "fix and use" tier because the fix itself (the already-dormant correction) is still valid and because it may carry more signal for other brands, but it should not be assumed useful by default when this pipeline runs for a brand with low bonus engagement. Per-brand feature importance, not a single fixed feature set, is likely the right design once this scales past one brand.
-
-## 8. Known Limits, Not Fixed in This Version
-
-- Only 2 complete cutoff dates at the 60-day threshold used throughout this document (Section 0), a direct tradeoff of matching the training label exactly rather than maximizing row count. More cutoffs become available as history accumulates.
-- The `transaction.currency` schema gap (Section 6) is specific to this brand's data as checked, not yet verified for other brands, re-check it each time this analysis is repeated.
-- The Cox models do not correct for the same player appearing in up to 2 rows per analysis (same caveat as the all-brands pass, smaller here since there are only 2 cutoffs instead of 7).
-- This document only tests each signal on its own, same as the original pass. It does not test how the signals interact or overlap once combined in an actual model, that is the next step, once the Feature Store is built on the recommendation in Section 7.
-- This is the second brand-independent confirmation of the findings in Section 5, but still only the second. A third and fourth brand, ideally one from `secundus`, would meaningfully strengthen confidence that these are general patterns, not coincidences across two brands under the same operator.
+- **Deposit signals rest on 2 cutoffs.** Their stability must be re-checked when more months with deposit data join the training window.
+- **Univariate only.** Each signal is tested alone; overlaps between them are left to T6.
+- **The first cutoff (2025-06-01) had only 61 days of gold history**, so its 90-day windows were incomplete. The feature pipeline (T6) starts at 2025-06-30 (90 days of history); removing that cutoff does not change any of the other 11 cutoffs' values (checked).
+- **Hypotheses not testable with gold today:** vertical mix (casino, sports, live) and session length decay in minutes beyond the 7-day ratio; days since the last bonus (no daily bonus history cached).

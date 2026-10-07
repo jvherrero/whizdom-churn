@@ -1,0 +1,199 @@
+{
+  "table_name": "gld_player_financial_daily",
+  "grain_description": "One row per player ever seen and day: EUR wagered, GGR, NGR, deposits, withdrawals that day.",
+  "row_count": 688181082,
+  "date_range_start": "2025-04-01",
+  "date_range_end": "2026-10-06",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "tenant_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "player_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "snapshot_date",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "wagered_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ngr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposits_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdrawals_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_cash_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_real_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_bonus_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "value_score_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "value_tier",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "_version",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "_ingested_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "_processed_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "_ingested_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_processed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposits_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_cash_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ngr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "player_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "snapshot_date",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenant_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_score_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_tier",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_bonus_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_real_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdrawals_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_eur_today",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "tenant_id+player_id+snapshot_date",
+      "n_rows": 688181082,
+      "n_distinct": 688181082,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "issues": [
+      {
+        "column": "won_eur_today",
+        "check": "negative_value",
+        "message": "minimum -207,773.6127, on 159 day(s)"
+      }
+    ]
+  },
+  "notes": [
+    "Keys checked on 554 of 554 day(s) (key columns only, SQL aggregation).",
+    "Backfilled history: 460 day(s) processed on 2026-07-09; 5 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.",
+    "Rows per day: first 36,974, median 1,367,263, last 2,052,450. Days up to 2026-10-06 (the last closed day).",
+    "Used for: labels and value (T7, value at risk)."
+  ]
+}

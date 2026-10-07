@@ -6,37 +6,50 @@ The first results table: the reference LightGBM and Cox PH, trained once on the 
 
 | | |
 |---|---|
-| Dataset | `data/processed/train_dataset_64_2026-07-18_2026-07-27_2026-08-05_1791191780.parquet` |
-| Training months | 2026-07-18, 2026-07-27 (train / validation split by player, 85 / 15) |
-| Test month (out of time) | 2026-08-05 |
-| Rows | train 22,634, validation 4,007, test 14,687 |
-| Seed | 42 (split, models, bootstrap) |
-| LightGBM run | `lightgbm_classifier_reference_brand64_1791273720`: 7 features + `brandId`, `learning_rate` 0.05, `scale_pos_weight` 1.637073, 2000 trees max (early stopping) |
-| Cox PH run | `cox_ph_reference_brand64_1791273750`: 7 features, stratified by brand, `penalizer` 0.1 |
+| Dataset | `data/processed/train_dataset_64_2025-09-01_2025-10-01_2025-11-01_2025-12-01_2026-01-01_2026-02-01_2026-03-01_2026-04-01_2026-05-01_2026-06-01_2026-07-01_2026-08-01_1791383649.parquet` |
+| Train months | 2025-09-01, 2025-10-01, 2025-11-01, 2025-12-01, 2026-01-01, 2026-02-01, 2026-03-01, 2026-04-01, 2026-05-01 |
+| Validation month | 2026-06-01 (early stopping and calibration) |
+| Test months (out of time) | 2026-07-01, 2026-08-01 |
+| Rows | train 142,681, validation 12,982, test 24,459 |
+| Seed | 42 (models, bootstrap) |
+| LightGBM run | `lightgbm_classifier_reference_brand64_1791384033`: 7 features + `brandId`, `learning_rate` 0.05, `scale_pos_weight` 1.382902, 2000 trees max (early stopping) |
+| Cox PH run | `cox_ph_reference_brand64_1791384063`: 7 features, stratified by brand, `penalizer` 0.1 |
 | Config | `config/catalog_entry.json` in each run |
 
-Confidence intervals: 95% percentile intervals over 1000 bootstrap resamples of the players of each split. They show the sampling noise of the evaluation rows, not the variation between training runs.
+Confidence intervals: 95% percentile intervals over 200 bootstrap resamples of the rows (player-cutoffs) of each split. They show the sampling noise of the evaluation rows, not the variation between training runs.
 
 ## Results
 
 | Model | Metric | Validation | Test (out of time) |
 |---|---|---|---|
-| LightGBM | AUC | 0.882 [0.871, 0.892] | **0.875 [0.869, 0.880]** |
-| LightGBM | ECE (calibrated) | 0.019 [0.013, 0.032] | **0.024 [0.019, 0.030]** |
-| LightGBM | ECE (raw model output) | 0.064 | 0.042 |
-| LightGBM | Log-loss (calibrated) | 0.416 [0.399, 0.433] | 0.433 [0.425, 0.442] |
-| Cox PH | C-index | 0.851 [0.840, 0.862] | **0.865 [0.860, 0.871]** |
-| Cox PH | IBS (days 0 to 18) | 0.157 [0.152, 0.163] | **0.151 [0.148, 0.154]** |
+| LightGBM | AUC | 0.885 [0.879, 0.890] | **0.896 [0.892, 0.899]** |
+| LightGBM | ECE (calibrated) | 0.005 [0.005, 0.013] | **0.020 [0.017, 0.025]** |
+| LightGBM | ECE (raw model output) | 0.046 | 0.062 |
+| LightGBM | Log-loss (calibrated) | 0.409 [0.401, 0.419] | 0.391 [0.385, 0.397] |
+| LightGBM | Top-decile precision (lift) | 0.874 [0.857, 0.891] (2.29x) | 0.886 [0.874, 0.898] (2.43x) |
+| Cox PH | C-index | 0.843 [0.837, 0.847] | **0.871 [0.867, 0.875]** |
+| Cox PH | IBS (days 0 to 340) | 0.061 [0.060, 0.063] | **0.036 [0.035, 0.036]** |
+| Cox PH | Time-dependent AUC, day 7 | 0.882 [0.876, 0.887] | 0.891 [0.887, 0.895] |
+| Cox PH | One-calibration, day 7: gap (p-value) | 0.120 (3.72e-262) | 0.111 (0) |
+| Cox PH | Time-dependent AUC, day 14 | 0.882 [0.876, 0.887] | 0.901 [0.897, 0.904] |
+| Cox PH | One-calibration, day 14: gap (p-value) | 0.107 (1.75e-205) | 0.103 (0) |
+| Cox PH | Time-dependent AUC, day 30 | 0.875 [0.868, 0.880] | 0.907 [0.903, 0.910] |
+| Cox PH | One-calibration, day 30: gap (p-value) | 0.068 (7.09e-91) | 0.081 (1.32e-242) |
+| Cox PH | Time-dependent AUC, day 60 | 0.898 [0.892, 0.903] | 0.935 [0.932, 0.938] |
+| Cox PH | One-calibration, day 60: gap (p-value) | 0.064 (3.42e-84) | 0.128 (0) |
 
-Churn in 60 days: validation 37.2%, test 42.8%.
+Churn in 60 days: validation 38.1%, test 36.4%.
 
 ## How to Read It
 
 - **AUC** (0.5 = random, 1 = perfect): how well LightGBM ranks players by churn risk.
-- **ECE** (lower is better): the average gap between the predicted probability and the observed churn rate. The calibrated value is what scoring delivers; the raw one shows what calibration fixes (the class weights push the raw probabilities up).
+- **ECE** (lower is better): the average gap between the predicted probability and the observed churn rate. The calibrated value is what scoring delivers; the raw one shows what calibration fixes (the class weights push the raw probabilities up). Its bootstrap interval can sit above the point value: resampling adds noise to every bin, and an absolute gap only grows with noise, so ECE intervals are biased upwards on small splits.
+- **Top-decile precision**: the churn rate among the 10% of players with the highest score, the ones a retention campaign would contact; the lift is that rate over the overall churn rate.
 - **C-index** (0.5 = random, 1 = perfect): how well Cox PH ranks who churns earlier.
-- **IBS** (lower is better, 0.25 = a coin flip): the squared error of the predicted survival curve, averaged over days 0 to 18, with censored players weighted by the inverse probability of being still observed (IPCW, censoring curve from the train rows).
-- **The test month only shows churn on day 0** (a churn day after the cutoff can be confirmed only up to 60 days before the data ends). So the Cox test metrics mostly measure "who is already gone", not "which day".
-- **The validation numbers are slightly optimistic**: early stopping and calibration use those rows. The test month is the honest check.
+- **Time-dependent AUC at day t**: how well Cox PH separates players who churned by day t from players still active after t (IPCW). Only the days up to the last training churn day are shown.
+- **One-calibration at day t**: players in 10 groups of predicted P(churn by t); the gap is the mean difference between the predicted and the Kaplan-Meier probability, the p-value a Hosmer-Lemeshow-type test (small = miscalibrated). The Cox survival curve is not calibrated; the probability the business uses comes from the calibrated LightGBM.
+- **IBS** (lower is better, 0.25 = a coin flip): the squared error of the predicted survival curve, averaged over days 0 to 340, with censored players weighted by the inverse probability of being still observed (IPCW, censoring curve from the train rows).
+- **The test months only show churn on days 0 to 37** (a churn day can be confirmed only when the 60 days after it are in the data). So the Cox test metrics mostly measure "who is already gone", not "which day".
+- **The validation numbers are slightly optimistic**: early stopping uses that month (the calibrated probability is cross-fitted, so calibration does not). The test months are the honest check.
 
-Generated by `src/models/results.py` (`make results`). The same metrics, with their intervals, are logged in both MLflow runs as `results_*`.
+Generated by `src/models/results.py` (`make results`), with the metrics of `src/evaluation/`. The same metrics, with their intervals, are logged in both MLflow runs as `results_*`.

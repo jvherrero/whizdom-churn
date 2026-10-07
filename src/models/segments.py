@@ -4,7 +4,7 @@
 
 k-means comes from the catalog (`kmeans`). The number of segments is the one with the highest
 silhouette coefficient among the catalog's param_grid.n_clusters. It is fitted on the training
-months only (never the test month), on a 30-day behaviour profile standardised to mean 0 and
+months only (never the test months), on a 30-day behaviour profile standardised to mean 0 and
 standard deviation 1.
 
 train.py fits the same segmentation, adds it as one-hot columns (segment_1 ... segment_{k-1},
@@ -32,16 +32,16 @@ sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from build_features import _unscale, brand_label
 
 # The 30-day behaviour profile: how often, how much, how they pay, bonus use and recency.
+# Deposit features are left out: they are empty before March 2026 and k-means needs every value.
 SEGMENT_FEATURES = [
-    "n_active_days_last_30d", "stake_last_30d", "net_loss_last_30d",
-    "n_deposit_last_30d", "deposit_amount_last_30d",
-    "n_bonus_last_7d", "bonus_amount_last_7d", "days_since_last_active",
+    "active_days_l30d", "wagered_eur_l30d", "ggr_eur_l30d", "games_breadth_30d",
+    "bonus_stake_share_30d", "engagement_score", "days_since_last_bet",
 ]
 LABELS = {
-    "n_active_days_last_30d": "active days (30d)", "stake_last_30d": "stake (30d, EUR)",
-    "net_loss_last_30d": "net loss (30d, EUR)", "n_deposit_last_30d": "deposit days (30d)",
-    "deposit_amount_last_30d": "deposits (30d, EUR)", "n_bonus_last_7d": "bonus days (7d)",
-    "bonus_amount_last_7d": "bonus amount (7d, EUR)", "days_since_last_active": "days since last bet",
+    "active_days_l30d": "active days (30d)", "wagered_eur_l30d": "stake (30d, EUR)",
+    "ggr_eur_l30d": "net loss (30d, EUR)", "games_breadth_30d": "distinct games (30d)",
+    "bonus_stake_share_30d": "share of stake from bonus (30d)", "engagement_score": "engagement score",
+    "days_since_last_bet": "days since last bet",
 }
 SEGMENT_PREFIX = "segment_"
 SILHOUETTE_SAMPLE = 10_000  # silhouette is quadratic in rows, so it is measured on a sample
@@ -62,7 +62,7 @@ class SegmentModel:
     order: np.ndarray  # raw k-means label -> segment id, segment 0 = the largest
 
     def assign(self, rows: pd.DataFrame) -> np.ndarray:
-        return self.order[self.kmeans.predict(self.scaler.transform(rows[self.features]))]
+        return self.order[self.kmeans.predict(self.scaler.transform(rows[self.features].fillna(0)))]
 
     def centroids(self) -> pd.DataFrame:
         """Standardised centroid per segment (0 = average player, +1 = one std above)."""
@@ -76,8 +76,9 @@ def fit_segments(rows: pd.DataFrame) -> SegmentModel:
     from train import instantiate, load_catalog_entry  # train.py imports this module
 
     entry, _, _ = load_catalog_entry("kmeans")
-    scaler = StandardScaler().fit(rows[SEGMENT_FEATURES])
-    X = scaler.transform(rows[SEGMENT_FEATURES])
+    # An empty value (e.g. bonus share with no stake) counts as 0: k-means needs every value.
+    scaler = StandardScaler().fit(rows[SEGMENT_FEATURES].fillna(0))
+    X = scaler.transform(rows[SEGMENT_FEATURES].fillna(0))
     sample = min(SILHOUETTE_SAMPLE, len(X))
     # n_init=10 instead of the catalog's "auto" (a single start): k-means depends on the start.
     fitted, silhouette = {}, {}
@@ -114,14 +115,14 @@ def load_segment_model(run_id: str) -> SegmentModel | None:
 
 def _name(z: pd.Series) -> str:
     """A short, rule-based name from the standardised centroid."""
-    activity = ("Frequent" if z["n_active_days_last_30d"] >= 0.5
-                else "Occasional" if z["n_active_days_last_30d"] <= -0.5 else "Regular")
-    value = ("high-value" if z["stake_last_30d"] >= 0.5
-             else "low-value" if z["stake_last_30d"] <= -0.5 else "mid-value")
+    activity = ("Frequent" if z["active_days_l30d"] >= 0.5
+                else "Occasional" if z["active_days_l30d"] <= -0.5 else "Regular")
+    value = ("high-value" if z["wagered_eur_l30d"] >= 0.5
+             else "low-value" if z["wagered_eur_l30d"] <= -0.5 else "mid-value")
     name = f"{activity} {value}"
-    if z["days_since_last_active"] >= 0.75:
+    if z["days_since_last_bet"] >= 0.75:
         name = f"Fading, {name.lower()}"
-    if max(z["n_bonus_last_7d"], z["bonus_amount_last_7d"]) >= 0.75:
+    if z["bonus_stake_share_30d"] >= 0.75:
         name += ", bonus-heavy"
     return name
 
@@ -175,7 +176,7 @@ def write_report(data: pd.DataFrame, split: pd.Series, model: SegmentModel, data
             "segment": s, "name": names[s], "share": rows.sum() / len(training),
             **{LABELS[f]: med[f] for f in model.features},
             "churn 60d (training months)": data.loc[rows, "event_60d"].mean(),
-            "churn 60d (test month)": data.loc[(seg_all == s) & (split == "test"), "event_60d"].mean(),
+            "churn 60d (test months)": data.loc[(seg_all == s) & (split == "test"), "event_60d"].mean(),
         })
     profile = pd.DataFrame(profile)
     by_cutoff = pd.crosstab(data["cutoff_date"], seg_all, normalize="index")
@@ -214,9 +215,9 @@ def write_report(data: pd.DataFrame, split: pd.Series, model: SegmentModel, data
     prof_table = "| " + " | ".join(cols) + " |\n|" + "---|" * len(cols) + "\n" + "\n".join(
         "| " + " | ".join([str(r["segment"]), r["name"], f"{r['share']:.1%}"] + [fmt(r[LABELS[f]]) for f in model.features]) + " |"
         for _, r in profile.iterrows())
-    churn_table = "| segment | name | what stands out | churn 60d, training months | churn 60d, test month |\n|---|---|---|---|---|\n" + "\n".join(
+    churn_table = "| segment | name | what stands out | churn 60d, training months | churn 60d, test months |\n|---|---|---|---|---|\n" + "\n".join(
         f"| {s} | {names[s]} | {_describe(z.loc[s])} | {profile.loc[s, 'churn 60d (training months)']:.1%} | "
-        f"{profile.loc[s, 'churn 60d (test month)']:.1%} |" for s in range(model.k))
+        f"{profile.loc[s, 'churn 60d (test months)']:.1%} |" for s in range(model.k))
     stab_table = "| cutoff | " + " | ".join(by_cutoff.columns) + " |\n|" + "---|" * (len(by_cutoff.columns) + 1) + "\n" + "\n".join(
         f"| {c} | " + " | ".join(f"{v:.1%}" for v in row) + " |" for c, row in by_cutoff.iterrows())
     overall = data.loc[split != "test", "event_60d"].mean()
@@ -229,7 +230,7 @@ I group players by how they behaved in the 30 days before the cutoff, with k-mea
 ## 1. Method
 
 - **Brands**: one segmentation for every brand in the dataset ({brands}). The features were already computed and winsorised per brand upstream; here the segments are common to all brands, so "high value" means high in EUR, not high relative to the player's own brand.
-- **Rows**: the training months only ({', '.join(sorted(str(c) for c in training['cutoff_date'].unique()))}), {len(training):,} player snapshots. The test month ({', '.join(sorted(str(c) for c in test['cutoff_date'].unique()))}) is only assigned to a segment, never used to fit them.
+- **Rows**: the train and validation months ({', '.join(sorted(str(c) for c in training['cutoff_date'].unique()))}), {len(training):,} player snapshots. The test months ({', '.join(sorted(str(c) for c in test['cutoff_date'].unique()))}) are only assigned to a segment, never used to fit them.
 - **Features** (the 30-day behaviour profile): {', '.join(f'`{f}`' for f in model.features)}. They are on the sign-log scale from `build_features.py` and then standardised (mean 0, std 1), so no feature dominates because of its units.
 - **Model**: `kmeans` from `catalog/model_library_catalog.json` (`sklearn.cluster.KMeans`), 10 starts, seed {SEED}.
 - **Number of segments**: the k with the highest silhouette coefficient among {ks}. Silhouette goes from -1 to 1: high means players are close to their own segment and far from the others. I measure it on a random sample of {min(SILHOUETTE_SAMPLE, len(training)):,} rows, because it is slow on all of them.
@@ -259,7 +260,7 @@ How each segment differs from the average player (standardised centroid, top 3 f
 
 ## 4. Stability Over Time
 
-Share of players in each segment, per cutoff (the last one is the test month):
+Share of players in each segment, per cutoff (the last two are the test months):
 
 {stab_table}
 
@@ -283,8 +284,9 @@ Generated by `src/models/segments.py` (`make segments`) from `{os.path.relpath(d
     return doc_path
 
 
-def run_report(dataset_path: str | Path | None = None) -> Path:
-    """Fit the segments on a training dataset (default: the latest) and write docs/player_segments_brand{brand}.md."""
+def run_report(dataset_path: str | Path | None = None, run_id: str | None = None) -> Path:
+    """Write docs/player_segments_brand{brand}.md for a training dataset (default: the latest), with the
+    segmentation logged in training run `run_id` (trained on that dataset), or a new fit without one."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from train import PROCESSED_DIR, split_rows
 
@@ -293,7 +295,7 @@ def run_report(dataset_path: str | Path | None = None) -> Path:
     dataset_path = Path(dataset_path)
     data = pd.read_parquet(dataset_path)
     split = split_rows(data)
-    model = fit_segments(data[split != "test"])
+    model = (run_id and load_segment_model(run_id)) or fit_segments(data[split != "test"])
     doc = write_report(data, split, model, dataset_path)
     print(f"k = {model.k} | silhouette {', '.join(f'{k}: {v:.3f}' for k, v in model.silhouette.items())}")
     print(f"saved {os.path.relpath(doc, PROJECT_ROOT)}")

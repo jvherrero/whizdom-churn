@@ -31,17 +31,18 @@ import matplotlib.ticker
 import mlflow
 import numpy as np
 import pandas as pd
-from lifelines.utils import concordance_index
 from scipy import stats
 from sklearn.metrics import brier_score_loss, roc_auc_score
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from evaluation.metrics import ECE_BINS, c_index, expected_calibration_error  # noqa: E402
 from build_features import FEATURE_COLUMNS, _unscale, brand_label
 from segments import SEGMENT_PREFIX, add_segment_features, load_segment_model
 from train import (
-    BRAND, DURATION, ECE_BINS, EVENT, TARGET, churn_probability, cox_input, expected_calibration_error,
+    BRAND, DURATION, EVENT, TARGET, churn_probability, cox_input,
     latest_run, load_calibrator, load_catalog_entry, make_adapter, model_input, run_info, split_rows,
 )
 
@@ -56,11 +57,10 @@ MONOTONIC_MIN_RHO = 0.5
 
 
 def family_of(feature: str) -> str:
-    """Feature family from build_features.FEATURE_COLUMNS; a _missing flag goes with its feature."""
+    """Feature family from build_features.FEATURE_COLUMNS."""
     if feature.startswith(SEGMENT_PREFIX):
         return "segment"
-    base = feature.removesuffix("_missing")
-    return next((fam for fam, cols in FEATURE_COLUMNS.items() if base in cols), "other")
+    return next((fam for fam, cols in FEATURE_COLUMNS.items() if feature in cols), "other")
 
 
 class Scorer:
@@ -82,8 +82,7 @@ class Scorer:
         if self.kind == "classifier":
             return {"roc_auc": roc_auc_score(rows[TARGET], p), "brier": brier_score_loss(rows[TARGET], p),
                     "ece": expected_calibration_error(rows[TARGET], p)}
-        # Higher hazard means an earlier churn, so the risk score is the negative hazard.
-        return {"c_index": concordance_index(rows[DURATION], -p, rows[EVENT])}
+        return {"c_index": c_index(rows[DURATION], p, rows[EVENT])}
 
     def shap(self, rows: pd.DataFrame) -> pd.DataFrame:
         """Per-row SHAP values: log-odds for LightGBM (TreeSHAP), log-hazard for Cox."""
@@ -188,7 +187,7 @@ def _plot_shap_bar(table: pd.DataFrame, unit: str, title: str, path: Path):
 
 def importance_by_family(shap_lgbm, shap_cox, abl_lgbm, abl_cox) -> pd.DataFrame:
     """One row per feature family: its share of the total mean |SHAP| in each model, and what each
-    model loses on the test month when the whole family is removed (ablation)."""
+    model loses on the test months when the whole family is removed (ablation)."""
     table = pd.DataFrame({
         "lightgbm_shap_share": shap_lgbm.groupby("family")["mean_abs_shap"].sum() / shap_lgbm["mean_abs_shap"].sum(),
         "cox_shap_share": shap_cox.groupby("family")["mean_abs_shap"].sum() / shap_cox["mean_abs_shap"].sum(),
@@ -207,7 +206,7 @@ def _plot_family(table: pd.DataFrame, path: Path):
         (left, ["lightgbm_shap_share", "cox_shap_share"], ["LightGBM", "Cox PH"],
          "share of the model's total mean |SHAP|", "How much each family weighs in the predictions"),
         (right, ["lightgbm_auc_lost", "cox_c_index_lost"], ["LightGBM (AUC)", "Cox PH (c-index)"],
-         "score lost on the test month without the family", "What the model loses without the family"),
+         "score lost on the test months without the family", "What the model loses without the family"),
     ):
         ax.barh(y - 0.2, table[cols[0]], height=0.4, label=labels[0], color="tab:purple")
         ax.barh(y + 0.2, table[cols[1]], height=0.4, label=labels[1], color="tab:orange")
@@ -215,7 +214,7 @@ def _plot_family(table: pd.DataFrame, path: Path):
         ax.axvline(0, color="black", linewidth=0.8)
         ax.set_xlabel(xlabel); ax.set_title(title); ax.legend(loc="lower right")
     left.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0))
-    fig.suptitle("Feature importance by family (validation SHAP, test-month ablation)")
+    fig.suptitle("Feature importance by family (validation SHAP, test-months ablation)")
     fig.tight_layout(); fig.savefig(path, dpi=120); plt.close(fig)
 
 
@@ -257,7 +256,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
         raise ValueError(f"the two runs use different datasets: {lgbm['dataset_path']} vs {cox['dataset_path']}")
 
     data = pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"])
-    split = split_rows(data, lgbm["seed"])  # the same train/validation split the runs were trained with
+    split = split_rows(data)  # the same temporal split the runs were trained with
     # The k-means segments each run was trained with (same dataset and seed, so the same segments).
     segments = {name: load_segment_model(info["run_id"]) for name, info in (("lgbm", lgbm), ("cox", cox))}
     if segments["lgbm"] is not None:
@@ -333,8 +332,13 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
 def _write_doc(lgbm, cox, data, split, perm_lgbm, perm_cox, shap_lgbm, shap_cox, abl_lgbm, abl_cox, fig, by_family,
                calibrated: bool, doc_path: Path) -> Path:
     rel = lambda p: os.path.relpath(p, doc_path.parent)
-    test_cutoff = sorted(str(c) for c in data.loc[split == "test", "cutoff_date"].unique())
+    cutoffs = {s: ", ".join(sorted(str(c) for c in data.loc[split == s, "cutoff_date"].unique()))
+               for s in ("valid", "test")}
     n = {s: int((split == s).sum()) for s in ("train", "valid", "test")}
+    test_events = data.loc[(split == "test") & (data[EVENT] == 1), DURATION]
+    # Delivery plan: a feature is served only if its permutation-importance interval excludes zero.
+    # brandId is left out: the model always adds it (constant with one brand).
+    not_significant = list(perm_lgbm.loc[(perm_lgbm["roc_auc_ci_low"] <= 0) & (perm_lgbm["feature"] != BRAND), "feature"])
 
     perm_l = pd.DataFrame({
         "feature": perm_lgbm["feature"], "family": perm_lgbm["family"],
@@ -372,11 +376,11 @@ This document reports three importance measures together for the two baseline mo
 | MLflow run | `{lgbm['run_name']}` | `{cox['run_name']}` |
 | Target | `event_60d` (churn in the next 60 days) | `duration_days` + `event_observed` (churn day) |
 | Features (after Stage 2 selection) | {len(lgbm['features'])} | {len(cox['features'])} |
-| Test score (last cutoff) | AUC {lgbm['metrics']['test_roc_auc']:.4f} | c-index {cox['metrics']['test_c_index']:.4f} |
+| Test score (test months) | AUC {lgbm['metrics']['test_roc_auc']:.4f} | c-index {cox['metrics']['test_c_index']:.4f} |
 
 - Dataset: `{lgbm['dataset_path']}`.
-- Rows: train {n['train']:,}, validation {n['valid']:,}, test {n['test']:,}. The test month is {', '.join(test_cutoff)}.
-- With only 3 cutoffs there is no separate validation month. The validation rows are 15% of the players of the training months, never seen in training. Permutation importance and SHAP use them.
+- Rows: train {n['train']:,}, validation {n['valid']:,}, test {n['test']:,}. Validation month: {cutoffs['valid']}. Test months: {cutoffs['test']}.
+- Permutation importance and SHAP use the validation month, which the models were never fitted on (it is only used for early stopping, tuning and calibration).
 - Brands: LightGBM gets `brandId` as a categorical feature and Cox PH is stratified by brand (one baseline per brand), so `brandId` never appears in the Cox tables. With one brand it is constant and its importance is 0. Ablation does not drop it: the model always adds it.
 - Every number here comes from the models logged in those two runs. The script checks that they reproduce the logged test score before it measures anything.
 
@@ -391,6 +395,8 @@ I shuffle one feature at a time on the validation rows, {N_REPEATS} times, and m
 ### LightGBM
 
 {_md_table(perm_l)}
+
+The delivery plan keeps a feature in the served model only if its permutation-importance interval excludes zero. {"Every LightGBM feature passes this rule." if not not_significant else "Features whose AUC-drop interval does not exclude zero: " + ", ".join(f"`{f}`" for f in not_significant) + "."}
 
 ![Permutation importance, LightGBM]({rel(fig['perm_lgbm'])})
 
@@ -430,7 +436,7 @@ A dependence plot for a linear model is a straight line with slope `beta`, so I 
 
 ## 3. Importance by Family
 
-How much each group of features matters, with two measures side by side. **SHAP share**: the family's part of the model's total mean |SHAP| on the validation rows, so how much it weighs in the predictions. **Score lost**: what the model loses on the test month when the whole family is removed and the model is retrained, so what it adds that the other families cannot replace. A family can weigh a lot and still lose little when removed, if other families carry the same information.
+How much each group of features matters, with two measures side by side. **SHAP share**: the family's part of the model's total mean |SHAP| on the validation rows, so how much it weighs in the predictions. **Score lost**: what the model loses on the test months when the whole family is removed and the model is retrained, so what it adds that the other families cannot replace. A family can weigh a lot and still lose little when removed, if other families carry the same information.
 
 {_md_table(by_family)}
 
@@ -444,13 +450,13 @@ Full model: LightGBM AUC valid {abl_lgbm.attrs['full_valid']:.4f}, test {abl_lgb
 
 {_md_table(abl)}
 
-The most valuable family on the test month is **{bl['family']}** for LightGBM (AUC {bl['test_delta']:+.4f} without it) and **{bc['family']}** for Cox (c-index {bc['test_delta']:+.4f} without it).
+The most valuable family on the test months is **{bl['family']}** for LightGBM (AUC {bl['test_delta']:+.4f} without it) and **{bc['family']}** for Cox (c-index {bc['test_delta']:+.4f} without it).
 
 ## 5. Known Limits
 
-- **The Cox test month only has churn on day 0.** With data through 2026-10-04, a churn day after the cutoff can only be confirmed up to 60 days before the data ends, which is day 0 for the last cutoff. So on the test month the c-index measures "who is already gone", not "which day".
+- **The Cox test months only have churn on days 0 to {int(test_events.max()) if len(test_events) else 0}.** A churn day can only be confirmed when the 60 days after it are in the data, so on the test months the c-index mostly measures "who is already gone", not "which day".
 - **The intervals only cover the shuffle.** A different validation sample would move the numbers more than the intervals show.
-- **Correlated features share credit.** Stage 2 already removed pairs over 0.95, but features from the same family (for example `n_active_days_last_30d` and `max_prior_gap_days`) can still hide each other in permutation importance. Ablation by family shows the joint value.
+- **Correlated features share credit.** Stage 2 already removed pairs over 0.95, but features from the same family (for example `active_days_l30d` and `active_days_l90d`) can still hide each other in permutation importance. Ablation by family shows the joint value.
 
 Generated by `src/models/feature_importance.py` (`make importance`). The figures and tables are in `{os.path.relpath(fig['perm_lgbm'].parent, PROJECT_ROOT)}/` and in the `feature_importance/` folder of both MLflow runs.
 """

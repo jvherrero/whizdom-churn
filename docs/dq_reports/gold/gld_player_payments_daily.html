@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gld_player_payments_daily — Data quality report</title>
+<style>
+body {font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+color:#252525;background:#fff;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+table {width:100%;border-collapse:collapse;margin-bottom:1.5rem}
+th,td {border:1px solid #ccc;padding:.6rem;text-align:left;overflow-wrap:anywhere}
+th {background:#eee} h2 {margin-top:2rem}
+</style></head>
+<body><header><h1>gld_player_payments_daily</h1>
+<p>One row per player, processed day and currency with payments that day (sparse).</p></header>
+<main><h2>Summary</h2><table><thead><tr><th scope="col">Row count</th><th scope="col">Date range</th><th scope="col">Gap count</th></tr></thead><tbody><tr><td>5583579</td><td>2025-09-18 to 2026-10-06</td><td>40</td></tr></tbody></table>
+<h2>Null rates</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Null percentage</th></tr></thead><tbody><tr><td>_ingested_at</td><td>0%</td></tr><tr><td>_processed_at</td><td>0%</td></tr><tr><td>_version</td><td>0%</td></tr><tr><td>avg_withdraw_settlement_secs</td><td>0%</td></tr><tr><td>brand_id</td><td>0%</td></tr><tr><td>currency</td><td>0%</td></tr><tr><td>deposit_amount</td><td>0%</td></tr><tr><td>deposit_amount_eur</td><td>0%</td></tr><tr><td>deposit_attempts</td><td>0%</td></tr><tr><td>deposit_count</td><td>0%</td></tr><tr><td>deposit_fee</td><td>0%</td></tr><tr><td>deposit_fee_eur</td><td>0%</td></tr><tr><td>dq_status</td><td>0%</td></tr><tr><td>event_date</td><td>0%</td></tr><tr><td>failed_deposit_count</td><td>0%</td></tr><tr><td>failed_withdraw_count</td><td>0%</td></tr><tr><td>fx_is_provisional</td><td>0%</td></tr><tr><td>fx_rate_date_used</td><td>0%</td></tr><tr><td>fx_rate_to_eur</td><td>0%</td></tr><tr><td>net_deposit_eur</td><td>0%</td></tr><tr><td>player_id</td><td>0%</td></tr><tr><td>requested_withdraw_amount</td><td>0%</td></tr><tr><td>requested_withdraw_amount_eur</td><td>0%</td></tr><tr><td>source_system</td><td>0%</td></tr><tr><td>tenant_id</td><td>0%</td></tr><tr><td>withdraw_amount</td><td>0%</td></tr><tr><td>withdraw_amount_eur</td><td>0%</td></tr><tr><td>withdraw_attempts</td><td>0%</td></tr><tr><td>withdraw_count</td><td>0%</td></tr><tr><td>withdraw_fee</td><td>0%</td></tr><tr><td>withdraw_fee_eur</td><td>0%</td></tr></tbody></table>
+<h2>Key uniqueness</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Rows</th><th scope="col">Distinct values</th><th scope="col">Unique</th></tr></thead><tbody><tr><td>tenant_id+brand_id+player_id+event_date+currency+source_system</td><td>5583579</td><td>5583579</td><td>PASS</td></tr></tbody></table>
+<h2>Validation issues</h2><p>FAIL</p><table><thead><tr><th scope="col">Column</th><th scope="col">Check</th><th scope="col">Message</th></tr></thead><tbody><tr><td>avg_withdraw_settlement_secs</td><td>negative_value</td><td>minimum -2.0000, on 35 day(s)</td></tr><tr><td>player_id</td><td>referential_integrity</td><td>236,423 player-days are missing from that day&#x27;s gld_player_signals_daily</td></tr></tbody></table>
+<h2>Notes</h2><ul><li>Keys checked on 344 of 344 day(s) (key columns only, SQL aggregation).</li><li>Backfilled history: 283 day(s) processed on 2026-08-13; 4 day(s) processed on 2026-08-26; 2 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.</li><li>Rows per day: first 1, median 18,463, last 23,580. Days up to 2026-10-06 (the last closed day).</li><li>Used for: signal explorer (T4): failed deposits, withdrawals.</li></ul></main></body></html>

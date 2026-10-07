@@ -1,0 +1,345 @@
+{
+  "table_name": "gld_player_bonus_daily",
+  "grain_description": "One row per player, day, award type and currency with bonus activity that day (sparse).",
+  "row_count": 176426517,
+  "date_range_start": "2025-04-01",
+  "date_range_end": "2026-10-06",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "tenant_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "brand_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "player_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "event_date",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "award_type",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "currency",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "source_system",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "bonuses_granted",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bonuses_released",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bonuses_expired",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bonuses_forfeited",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "granted",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "released",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "expired",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "forfeited",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_toward_req",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "active_bonus_balance",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "fx_rate_to_eur",
+      "dtype": "decimal128(18, 8)",
+      "nullable": false
+    },
+    {
+      "name": "fx_rate_date_used",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "fx_is_provisional",
+      "dtype": "bool",
+      "nullable": false
+    },
+    {
+      "name": "granted_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "released_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "expired_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "forfeited_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_toward_req_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "active_bonus_balance_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_cost",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_cost_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "dq_status",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "_version",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "_ingested_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "_processed_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "_ingested_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_processed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_bonus_balance",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_bonus_balance_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "award_type",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_cost",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_cost_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonuses_expired",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonuses_forfeited",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonuses_granted",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonuses_released",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "brand_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "currency",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "dq_status",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "event_date",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "expired",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "expired_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "forfeited",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "forfeited_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_is_provisional",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_rate_date_used",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_rate_to_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "granted",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "granted_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "player_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "released",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "released_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "source_system",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenant_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_toward_req",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_toward_req_eur",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "tenant_id+brand_id+player_id+event_date+award_type+currency+source_system",
+      "n_rows": 176426517,
+      "n_distinct": 176426517,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "issues": [
+      {
+        "column": "bonus_cost",
+        "check": "negative_value",
+        "message": "minimum -296.6000, on 2 day(s)"
+      },
+      {
+        "column": "bonus_cost_eur",
+        "check": "negative_value",
+        "message": "minimum -296.6000, on 2 day(s)"
+      },
+      {
+        "column": "granted",
+        "check": "negative_value",
+        "message": "minimum -296.6000, on 2 day(s)"
+      },
+      {
+        "column": "granted_eur",
+        "check": "negative_value",
+        "message": "minimum -296.6000, on 2 day(s)"
+      },
+      {
+        "column": "player_id",
+        "check": "referential_integrity",
+        "message": "90,079,817 player-days are missing from that day's gld_player_signals_daily"
+      }
+    ]
+  },
+  "notes": [
+    "Keys checked on 554 of 554 day(s) (key columns only, SQL aggregation).",
+    "Backfilled history: 488 day(s) processed on 2026-08-09; 5 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.",
+    "Rows per day: first 300,370, median 300,456, last 499,961. Days up to 2026-10-06 (the last closed day).",
+    "Used for: signal explorer (T4): bonus dependence."
+  ]
+}

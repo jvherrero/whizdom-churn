@@ -1,3 +1,5 @@
+> **Superseded by `docs/feature_dictionary.md` (gold layer).** This version describes the landing-based pipeline (`src/features/build_features.py`) until T6 migrates it to gold.
+
 # Feature Dictionary v0.1
 
 This document lists the columns that `build_feature_store()` returns by default, the 30 features actually used for the first baseline model. 
@@ -54,9 +56,11 @@ I do **not** scale: the `_missing` flags, `already_dormant_7`, and `rtp_last_7d`
 Every money feature is in EUR.
 
 - `bet` always has a real currency value.
-- `transaction` (deposits) has no currency column before **2026-08-26** (checked day by day, in both `primus` and `secundus`), a real change in the source, not a random gap. I fill it with the brand's own main bet currency.
-- `bonus` has no currency column at all, ever. I always fill it with the brand's own main bet currency. This is an assumption, not a value I ever observed.
-- Both fills only checked out as safe for brandId=64, which bets in one currency only (TRY). For a brand that genuinely mixes currencies, filling with "the main currency" would be a guess for the minority currency. Not checked yet for other brands, open question (query_log_2026_10_02 Query_ID: T05-0001).
+- `transaction` (deposits) has no currency column before **2026-08-26** (checked day by day, in both `primus` and `secundus`), a real change in the source, not a random gap. A deposit without a currency gets **the player's own betting currency**.
+- `bonus` has no currency column at all, ever. A bonus also gets the player's own betting currency.
+- Why this is safe: no player bets in more than one currency (408,321 players checked, `eda/05_currency_missing.ipynb`), so the betting currency is the player's account currency. A deposit that has its own currency (from 2026-08-26) keeps it.
+- Before this, the fill was the brand's main betting currency. That was right for one-currency brands like brandId=64 (TRY), but wrong for the brands that mix currencies (72, 73, 82, 119): for example the deposits of brand 82 players who bet in Argentine pesos were read as EUR, 1,600 times too big.
+- Rates: `data/01_raw/fx_rates.csv` has one rate per currency and day. `src/fx_rates.py` tops it up with the missing days of every currency in the daily tables (USDT, CLP and MXN included) from a public daily source (`fawazahmed0/currency-api`), each time the daily tables are built (`make pipeline`, `make backtest`, `make fx`). A day the source does not have carries the previous rate forward. Until 2026-10-07 the file only had rates from 10 to 17 June, carried flat to October, and nothing for USDT, CLP and MXN.
 
 ## 5. The 30 Features, by Category
 

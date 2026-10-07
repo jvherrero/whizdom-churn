@@ -1,19 +1,27 @@
-# Data alert thresholds.
+# Data alert thresholds (EDA stage 3).
 #
-# Read by src/features/alerts.py: the pipeline checks the landing data before training and the
+# Read by src/features/alerts.py: the pipeline checks the local gold caches after topping them up
+# (stage "gold") and the feature snapshot before scoring (stage "features"). A critical alert stops
+# the pipeline, except feature drift, which is only reported. The same thresholds are reused by the
+# drift monitor in Week 2.
 
-version: 1
+version: 2
 
+# Days checked, ending on AS_OF. The benchmark is the days the training features were built from.
 current_window_days: 1
-tables: [bet, transaction, player, bonus]
 
-# Only what the pipeline actually reads is checked. These are the columns the daily tables and the
-# feature/label queries use: null rate, expectations and new categories ignore every other column.
-used_columns:
-  bet: [partyId, brandId, dateTime, currency, tranType, amountReal, rolledBack]
-  transaction: [partyId, brandId, requestDate, transactionType, status, processedAmount, currency]
-  player: [partyId, brandId, regdate]
-  bonus: [partyId, changeStatusTimestamp, amount, status]
+# The local gold caches (src/features/gold_cache.py) and the daily totals watched in each: "rows" =
+# players with a bet (activity), with money moving (financial) or with a payment (payments) that day.
+# valid_from: the cache is only complete from that day (payments: completed deposits from March 2026),
+# so the benchmark and the rolling band use the later days only.
+tables:
+  activity:
+    totals: [rows, bets, turnover_eur, ggr_eur]
+  financial:
+    totals: [rows, wagered_eur, ggr_eur]
+  payments:
+    totals: [rows, deposit_count, deposit_eur, withdraw_count]
+    valid_from: 2026-03-01
 
 expectations:
   severity: critical
@@ -23,34 +31,10 @@ null_rate:
   critical_increase_pts: 20
   min_rows: 100              # Minimum number of rows in the current window to check null rate.
 
-# Rows the pipeline uses per day, current vs the benchmark's daily mean. The count comes from the
-# daily tables (count_columns), not from the raw landing rows: e.g. `transaction` logs every status
-# change of a payment (pending, failed, retried, completed) and only completed deposits are used
-# (on 2026-10-06 the raw rows were +64% with new IS_V2_* payment methods). "rows" = daily-table rows.
-# Without a daily table for some day, the raw landing rows are compared instead.
+# Rows per day, current vs the benchmark's daily mean.
 row_count:
   warn_relative_change: 0.20     # outside +-20%
   critical_relative_change: 0.50 # outside +-50%, or a day with no data at all
-  count_columns:
-    bet: n_rows                  # bet events
-    transaction: n_deposit       # completed deposits
-    player: rows                 # players with their registration date
-    bonus: n_events              # bonus status events
-  # Per-table overrides. `player` logs profile changes (registrations, KYC, edits), which swing a
-  # lot from month to month (+91% in October vs August), and the pipeline only reads regdate from it.
-  per_table:
-    player:
-      warn_relative_change: 0.50
-      critical_relative_change: 1.50
-
-# Used categorical columns only (the values the queries filter or convert on).
-new_categories:
-  severity: warn
-  max_values_per_column: 500
-  columns:
-    bet: [tranType, currency]
-    transaction: [transactionType, status, currency]
-    bonus: [status]
 
 # Daily totals vs a rolling band: median of the previous `window_days` days +- n * MAD.
 daily_total:
@@ -58,13 +42,12 @@ daily_total:
   min_periods: 14
   warn_n_mad: 3
   critical_n_mad: 6
-  totals:
-    bet: [rows, n_players, stake_local]
-    transaction: [deposits_local]          # completed deposits; raw rows / players count every status event
-    bonus: [rows, n_players, bonus_amount]
 
 # Feature distribution shift, scoring snapshot vs training dataset (Population Stability Index).
+# Critical: PSI > 0.25 on one feature, or PSI > 0.10 on critical_n_features or more. Drift never stops
+# the run (the delivery plan writes the scores and flags them).
 feature_drift:
   bins: 10
   warn_psi: 0.10
   critical_psi: 0.25
+  critical_n_features: 5

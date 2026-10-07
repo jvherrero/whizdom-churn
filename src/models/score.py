@@ -67,7 +67,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     if missing:
         raise ValueError(f"the feature store has no {missing}: the models were trained on other features")
 
-    scores = features[["cutoff_date", "brandId", "partyId"]].copy()
+    scores = features[["cutoff_date", "tenant_id", "brandId", "player_id"]].copy()
    
     trained = set(lgbm["brands"] or features[BRAND].unique())
     seen = features[BRAND].isin(trained)

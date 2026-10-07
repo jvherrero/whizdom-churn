@@ -1,0 +1,1542 @@
+{
+  "table_name": "gld_player_signals_daily",
+  "grain_description": "One row per player ever seen and as-of day (snapshot_date, UTC); the precomputed signals: l7d/l30d/l90d/l180d windows, prior windows, tenure, recency, platform scores.",
+  "row_count": 689211331,
+  "date_range_start": "2025-04-01",
+  "date_range_end": "2026-10-06",
+  "n_gap_days": 0,
+  "gap_dates": [],
+  "columns": [
+    {
+      "name": "tenant_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "player_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "snapshot_date",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "brand_id",
+      "dtype": "int32",
+      "nullable": true
+    },
+    {
+      "name": "currency",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "country",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "language",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "has_sufficient_data",
+      "dtype": "bool",
+      "nullable": false
+    },
+    {
+      "name": "confidence_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "gap_days",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "param_version",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "lifecycle_stage",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "tenure_days",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "days_since_bet",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "current_active_streak_days",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "lifetime_value_tier",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "wagered_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ggr_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ngr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ngr_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ngr_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ngr_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "ngr_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "won_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposits_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposits_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposits_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposits_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposits_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdrawals_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdrawals_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdrawals_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdrawals_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdrawals_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_cash_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_cash_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_cash_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_cash_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_cash_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_ggr_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "real_ggr_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "real_ggr_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "real_ggr_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "real_ggr_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "real_ggr_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "tax_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "cashout_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "cashout_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "cashout_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "cashout_eur_l90d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "cashout_eur_l180d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_real_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_real_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_bonus_eur_today",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "wagered_bonus_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_granted_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bonus_wagered_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_ggr_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_ggr_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_wagered_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_wagered_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_active_days_l7d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "prior_active_days_l30d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "prior_bets_l7d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "prior_bets_l30d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "prior_deposits_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_deposits_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "value_score_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "value_tier",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "value_rank_within_tenant",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "active_days_today",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "active_days_l7d",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "active_days_l30d",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "active_days_l90d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "active_days_l180d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "sessions_today",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "sessions_l7d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "sessions_l30d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "sessions_l90d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "sessions_l180d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bets_today",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bets_l7d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bets_l30d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bets_l90d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "bets_l180d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "play_secs_today",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "play_secs_l7d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "play_secs_l30d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "play_secs_l90d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "play_secs_l180d",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "games_breadth_l30d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "sessions_with_bonus_l30d",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "engagement_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "top_peak_hour",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "top_peak_day",
+      "dtype": "uint8",
+      "nullable": false
+    },
+    {
+      "name": "tp_hourly_entropy",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_night_index",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_weekend_index",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_business_hours_ratio",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_avg_session_duration_secs",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "tp_median_session_duration_secs",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "tp_avg_sessions_per_active_day",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_avg_session_gap_hours",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "tp_max_sessions_single_day",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "tp_window_days",
+      "dtype": "uint16",
+      "nullable": false
+    },
+    {
+      "name": "avg_bet_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "avg_bet_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "prior_avg_bet_eur_l7d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "hold_pct_l30d",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "theo_win_eur_l30d",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "bet_z_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "session_len_z",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "stake_escalation",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "betting_aggression_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "risk_appetite_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "deposit_frequency_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "deposit_recency_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "rg_loss_chasing_30d",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "rg_deposit_velocity",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "rg_night_play_ratio",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "net_loss_velocity",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "session_intensity_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "risk_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "risk_band",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "recency_pressure",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "frequency_decline",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "value_decline",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "churn_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "churn_propensity_raw",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "churn_band",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "prior_engagement_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "prior_risk_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "prior_churn_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "prior_betting_aggression_score",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "prev_value_tier",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "value_tier_changed_at",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "prev_churn_band",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "churn_band_changed_at",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "prev_risk_band",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "risk_band_changed_at",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "prev_lifecycle_stage",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "lifecycle_stage_changed_at",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "_version",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "_ingested_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "_processed_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "_ingested_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_processed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_days_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_days_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_days_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_days_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "active_days_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "avg_bet_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "avg_bet_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bet_z_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bets_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "betting_aggression_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_ggr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_granted_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "bonus_wagered_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "brand_id",
+      "null_percentage": 86.7789
+    },
+    {
+      "name": "cashout_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "cashout_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "cashout_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "cashout_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "cashout_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "churn_band",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "churn_band_changed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "churn_propensity_raw",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "churn_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "confidence_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "country",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "currency",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "current_active_streak_days",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "days_since_bet",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_frequency_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_recency_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposits_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposits_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposits_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposits_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposits_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "engagement_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "frequency_decline",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "games_breadth_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "gap_days",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ggr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "has_sufficient_data",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "hold_pct_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "language",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "lifecycle_stage",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "lifecycle_stage_changed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "lifetime_value_tier",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_cash_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_cash_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_cash_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_cash_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_cash_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_loss_velocity",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ngr_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ngr_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ngr_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ngr_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "ngr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "param_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "play_secs_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "player_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prev_churn_band",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prev_lifecycle_stage",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prev_risk_band",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prev_value_tier",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_active_days_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_active_days_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_avg_bet_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_bets_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_bets_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_betting_aggression_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_churn_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_deposits_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_deposits_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_engagement_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_ggr_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_ggr_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_risk_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_wagered_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "prior_wagered_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "real_ggr_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "real_ggr_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "real_ggr_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "real_ggr_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "real_ggr_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "recency_pressure",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "rg_deposit_velocity",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "rg_loss_chasing_30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "rg_night_play_ratio",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "risk_appetite_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "risk_band",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "risk_band_changed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "risk_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "session_intensity_score",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "session_len_z",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "sessions_with_bonus_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "snapshot_date",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "stake_escalation",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tax_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenant_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenure_days",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "theo_win_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "top_peak_day",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "top_peak_hour",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_avg_session_duration_secs",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_avg_session_gap_hours",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_avg_sessions_per_active_day",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_business_hours_ratio",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_hourly_entropy",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_max_sessions_single_day",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_median_session_duration_secs",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_night_index",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_weekend_index",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tp_window_days",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_decline",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_rank_within_tenant",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_score_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_tier",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "value_tier_changed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_bonus_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_bonus_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_real_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "wagered_real_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdrawals_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdrawals_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdrawals_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdrawals_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdrawals_eur_today",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_eur_l180d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_eur_l30d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_eur_l7d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_eur_l90d",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "won_eur_today",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "tenant_id+player_id+snapshot_date",
+      "n_rows": 689211331,
+      "n_distinct": 689211331,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "issues": [
+      {
+        "column": "won_eur_l180d",
+        "check": "negative_value",
+        "message": "minimum -747.2081, on 554 day(s)"
+      },
+      {
+        "column": "won_eur_l30d",
+        "check": "negative_value",
+        "message": "minimum -747.2081, on 511 day(s)"
+      },
+      {
+        "column": "won_eur_l7d",
+        "check": "negative_value",
+        "message": "minimum -2,850.2299, on 352 day(s)"
+      },
+      {
+        "column": "won_eur_l90d",
+        "check": "negative_value",
+        "message": "minimum -747.2081, on 554 day(s)"
+      },
+      {
+        "column": "won_eur_today",
+        "check": "negative_value",
+        "message": "minimum -207,773.6127, on 158 day(s)"
+      }
+    ]
+  },
+  "notes": [
+    "Keys checked on 554 of 554 day(s) (key columns only, SQL aggregation).",
+    "Backfilled history: 487 day(s) processed on 2026-08-08; 5 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.",
+    "Rows per day: first 36,990, median 1,367,657, last 2,052,525. Days up to 2026-10-06 (the last closed day).",
+    "Used for: features (T6)."
+  ]
+}

@@ -1,3 +1,3 @@
-segment,name,share,active days (30d),"stake (30d, EUR)","net loss (30d, EUR)",deposit days (30d),"deposits (30d, EUR)",bonus days (7d),"bonus amount (7d, EUR)",days since last bet,churn 60d (training months),churn 60d (test month)
-0,Occasional low-value,0.6518564949669997,1.0,0.0,0.0,0.0,0.0,0.0,0.0,10.0,0.5539906103286385,0.6045544554455445
-1,"Frequent high-value, bonus-heavy",0.34814350503300023,9.0,2340.8164644999997,167.67,6.0,380.052,2.0,8.2141535,1.0,0.06280449057403092,0.07759699624530664
+segment,name,share,active days (30d),"stake (30d, EUR)","net loss (30d, EUR)",distinct games (30d),share of stake from bonus (30d),engagement score,days since last bet,churn 60d (training months),churn 60d (test months)
+0,Occasional low-value,0.6427474737092308,1.000424,42.42755,7.6343,2.0,0.4884636838227011,2.2572221755981445,14.0,0.5974493263502978,0.5424126033461363
+1,Frequent high-value,0.35725252629076915,10.005966,2536.5119,173.7927,7.0,0.06022451795830976,27.89527702331543,1.0,0.0907554260847674,0.06287096065069246

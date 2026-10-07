@@ -1,23 +1,23 @@
-"""Pandera suites checked into version control, one per source table plus one
-for the feature snapshot `build_feature_store()` produces.
+"""Pandera suites checked into version control, one per source table (the local gold caches the
+pipeline reads, src/features/gold_cache.py) plus one for the feature snapshot `build_feature_store()`
+produces.
 
     from expectations import SUITES
-    SUITES["bet"].validate(some_bet_dataframe)
+    SUITES["gold_activity"].validate(some_activity_dataframe)
 
 or, for the issue list this project's own report format expects:
 
-    from expectations import bet
-    result = bet.validate(some_bet_dataframe)  # dq_lib.ValidationResult
+    from expectations import gold_activity
+    result = gold_activity.validate(some_activity_dataframe)  # dq_lib.ValidationResult
 """
 
-from . import bet, bonus, feature_snapshot, player, transaction
+from . import feature_snapshot, gold_activity, gold_financial, gold_payments
 
 SUITES = {
-    "player": player.SCHEMA,
-    "bet": bet.SCHEMA,
-    "transaction": transaction.SCHEMA,
-    "bonus": bonus.SCHEMA,
+    "gold_activity": gold_activity.SCHEMA,
+    "gold_financial": gold_financial.SCHEMA,
+    "gold_payments": gold_payments.SCHEMA,
     "feature_snapshot": feature_snapshot.SCHEMA,
 }
 
-__all__ = ["SUITES", "player", "bet", "transaction", "bonus", "feature_snapshot"]
+__all__ = ["SUITES", "gold_activity", "gold_financial", "gold_payments", "feature_snapshot"]

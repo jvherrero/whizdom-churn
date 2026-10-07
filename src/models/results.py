@@ -22,124 +22,47 @@ import os
 import sys
 from pathlib import Path
 
-import joblib
-import mlflow
-import numpy as np
 import pandas as pd
-from lifelines import KaplanMeierFitter
-from lifelines.utils import concordance_index
-from sklearn.metrics import log_loss, roc_auc_score
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_features import brand_label
-from segments import add_segment_features, load_segment_model
-from train import (
-    BRAND, DURATION, EVENT, PROCESSED_DIR, SEED, TARGET, churn_probability, cox_input,
-    expected_calibration_error, load_calibrator, model_input, run_info, split_rows, train,
-)
+from build_features import brand_label  # noqa: E402
+from evaluation.evaluate import cox_results, lightgbm_results, log_results, run_data  # noqa: E402
+from evaluation.metrics import N_BOOTSTRAP  # noqa: E402
+from train import BRAND, PROCESSED_DIR, SEED, run_info, train  # noqa: E402
 
-N_BOOTSTRAP = 1000
 DOC_PATH = PROJECT_ROOT / "docs/results_v0_brand{brand}.md"
-
-
-def _ci(values) -> tuple[float, float]:
-    return float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5))
-
-
-def bootstrap(n_rows: int, statistic, seed: int = SEED) -> tuple[float, float]:
-    """95% percentile interval of `statistic(indices)` over N_BOOTSTRAP resamples of the rows.
-    One row is one player here (a split holds one cutoff per player in the test month)."""
-    rng = np.random.default_rng(seed)
-    return _ci([statistic(rng.integers(0, n_rows, n_rows)) for _ in range(N_BOOTSTRAP)])
-
-
-def brier_contributions(surv: np.ndarray, grid: np.ndarray, durations, events, censoring: KaplanMeierFitter) -> np.ndarray:
-    """Per-player IPCW Brier terms (players x days). At day t, a player who churned by t
-    (event, T <= t) should have S(t) = 0, weighted by 1 / G(T-); a player still active (T > t)
-    should have S(t) = 1, weighted by 1 / G(t). Censored before t: weight 0. G = censoring KM."""
-    d, e = np.asarray(durations, dtype=float), np.asarray(events)
-    g = lambda t: np.clip(censoring.survival_function_at_times(t).to_numpy(), 1e-6, None)
-    g_before = np.where(d > 0, g(np.maximum(d - 1, 0)), 1.0)  # G(T-): days are integers
-    out = np.zeros_like(surv)
-    for j, t in enumerate(grid):
-        churned = (d <= t) & (e == 1)
-        active = d > t
-        out[:, j] = churned * surv[:, j] ** 2 / g_before + active * (1 - surv[:, j]) ** 2 / g(t)[0]
-    return out
-
-
-def integrated(contrib: np.ndarray, grid: np.ndarray, rows=None) -> float:
-    curve = (contrib if rows is None else contrib[rows]).mean(axis=0)
-    return float(curve[0]) if len(grid) == 1 else float(np.trapezoid(curve, grid) / (grid[-1] - grid[0]))
-
-
-def lightgbm_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
-    model = mlflow.lightgbm.load_model(f"runs:/{info['run_id']}/model")
-    calibrator = load_calibrator(info["run_id"])
-    out = {}
-    for name in ("valid", "test"):
-        part = data[split == name].reset_index(drop=True)
-        y = part[TARGET].to_numpy()
-        raw = model.predict_proba(model_input(part, info["features"]))[:, 1]
-        p = churn_probability(model, calibrator, part, info["features"])
-        out[name] = {
-            "auc": (roc_auc_score(y, p), bootstrap(len(y), lambda i: roc_auc_score(y[i], p[i]))),
-            "ece": (expected_calibration_error(y, p), bootstrap(len(y), lambda i: expected_calibration_error(y[i], p[i]))),
-            "ece_raw": (expected_calibration_error(y, raw), None),
-            "log_loss": (log_loss(y, p), bootstrap(len(y), lambda i: log_loss(y[i], p[i], labels=[0, 1]))),
-            "churn_rate": float(y.mean()), "n": len(y),
-        }
-    return out
-
-
-def cox_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
-    model = joblib.load(mlflow.artifacts.download_artifacts(f"runs:/{info['run_id']}/model/model.joblib"))
-    train_rows = data[split == "train"]
-    censoring = KaplanMeierFitter().fit(train_rows[DURATION], event_observed=1 - train_rows[EVENT])
-    horizon = int(info["metrics"]["train_max_event_day"])
-    grid = np.arange(0, horizon + 1)
-    out = {}
-    for name in ("valid", "test"):
-        part = data[split == name].reset_index(drop=True)
-        d, e = part[DURATION].to_numpy(), part[EVENT].to_numpy()
-        risk = np.asarray(model.predict_partial_hazard(cox_input(model, part)))
-        surv = model.predict_survival_function(cox_input(model, part), times=grid).T.to_numpy()
-        contrib = brier_contributions(surv, grid, d, e, censoring)
-        out[name] = {
-            "c_index": (concordance_index(d, -risk, e), bootstrap(len(d), lambda i: concordance_index(d[i], -risk[i], e[i]))),
-            "ibs": (integrated(contrib, grid), bootstrap(len(d), lambda i: integrated(contrib, grid, i))),
-            "event_rate": float(e.mean()), "n": len(d), "horizon": horizon,
-        }
-    return out
-
-
-def _log(info: dict, results: dict):
-    with mlflow.start_run(run_id=info["run_id"]):
-        for split_name, metrics in results.items():
-            for key, value in metrics.items():
-                if isinstance(value, tuple):
-                    point, ci = value
-                    mlflow.log_metric(f"results_{split_name}_{key}", point)
-                    if ci:
-                        mlflow.log_metric(f"results_{split_name}_{key}_ci_low", ci[0])
-                        mlflow.log_metric(f"results_{split_name}_{key}_ci_high", ci[1])
-        mlflow.log_param("results_bootstrap", f"{N_BOOTSTRAP} resamples of players, 95% percentile interval")
 
 
 def _fmt(value, digits=3) -> str:
     point, ci = value
+    if point != point:  # NaN: not measurable on this split
+        return "n/a"
     return f"{point:.{digits}f} [{ci[0]:.{digits}f}, {ci[1]:.{digits}f}]" if ci else f"{point:.{digits}f}"
+
+
+def _onecal(res: dict, h) -> str:
+    if f"one_calibration_{h}d_gap" not in res:
+        return "n/a"
+    return f"{res[f'one_calibration_{h}d_gap'][0]:.3f} ({res[f'one_calibration_{h}d_p_value'][0]:.3g})"
 
 
 def write_doc(lgbm: dict, cox: dict, lgbm_res: dict, cox_res: dict, data: pd.DataFrame, split: pd.Series,
               dataset_path: Path) -> Path:
     label = brand_label(data[BRAND].unique())
     path = Path(str(DOC_PATH).format(brand=label))
-    test_cutoff = ", ".join(sorted(str(c) for c in data.loc[split == "test", "cutoff_date"].unique()))
-    train_cutoffs = ", ".join(sorted(str(c) for c in data.loc[split != "test", "cutoff_date"].unique()))
+    cutoffs = {s: ", ".join(sorted(str(c) for c in data.loc[split == s, "cutoff_date"].unique()))
+               for s in ("train", "valid", "test")}
+    test_events = data.loc[(split == "test") & (data["event_observed"] == 1), "duration_days"]
     p = lgbm["params"]
+    horizons = [k.removeprefix("td_auc_").removesuffix("d") for k in cox_res["test"] if k.startswith("td_auc_")]
+    survival_rows = "".join(
+        f"| Cox PH | Time-dependent AUC, day {h} | {_fmt(cox_res['valid'].get(f'td_auc_{h}d', (float('nan'), None)))} "
+        f"| {_fmt(cox_res['test'][f'td_auc_{h}d'])} |\n"
+        f"| Cox PH | One-calibration, day {h}: gap (p-value) | {_onecal(cox_res['valid'], h)} | {_onecal(cox_res['test'], h)} |\n"
+        for h in horizons)
     text = f"""# Results v0: reference models (brandId {label})
 
 The first results table: the reference LightGBM and Cox PH, trained once on the temporal split. "Reference" means optimisation step 1 only: the catalog defaults, binary log-loss with the preferred class weights and early stopping on the validation rows. No imbalance comparison, hyperparameter search, regularisation check or final pruning. The optimised models are measured against this table.
@@ -149,15 +72,16 @@ The first results table: the reference LightGBM and Cox PH, trained once on the 
 | | |
 |---|---|
 | Dataset | `{os.path.relpath(dataset_path, PROJECT_ROOT)}` |
-| Training months | {train_cutoffs} (train / validation split by player, 85 / 15) |
-| Test month (out of time) | {test_cutoff} |
+| Train months | {cutoffs['train']} |
+| Validation month | {cutoffs['valid']} (early stopping and calibration) |
+| Test months (out of time) | {cutoffs['test']} |
 | Rows | train {int((split == 'train').sum()):,}, validation {int((split == 'valid').sum()):,}, test {int((split == 'test').sum()):,} |
-| Seed | {SEED} (split, models, bootstrap) |
+| Seed | {SEED} (models, bootstrap) |
 | LightGBM run | `{lgbm['run_name']}`: {len(lgbm['features']) - 1} features + `brandId`, `learning_rate` {p.get('learning_rate')}, `scale_pos_weight` {p.get('scale_pos_weight')}, {p.get('n_estimators')} trees max (early stopping) |
 | Cox PH run | `{cox['run_name']}`: {len(cox['features'])} features, stratified by brand, `penalizer` {cox['params'].get('penalizer')} |
 | Config | `config/catalog_entry.json` in each run |
 
-Confidence intervals: 95% percentile intervals over {N_BOOTSTRAP} bootstrap resamples of the players of each split. They show the sampling noise of the evaluation rows, not the variation between training runs.
+Confidence intervals: 95% percentile intervals over {N_BOOTSTRAP} bootstrap resamples of the rows (player-cutoffs) of each split. They show the sampling noise of the evaluation rows, not the variation between training runs.
 
 ## Results
 
@@ -167,21 +91,25 @@ Confidence intervals: 95% percentile intervals over {N_BOOTSTRAP} bootstrap resa
 | LightGBM | ECE (calibrated) | {_fmt(lgbm_res['valid']['ece'])} | **{_fmt(lgbm_res['test']['ece'])}** |
 | LightGBM | ECE (raw model output) | {_fmt(lgbm_res['valid']['ece_raw'])} | {_fmt(lgbm_res['test']['ece_raw'])} |
 | LightGBM | Log-loss (calibrated) | {_fmt(lgbm_res['valid']['log_loss'])} | {_fmt(lgbm_res['test']['log_loss'])} |
+| LightGBM | Top-decile precision (lift) | {_fmt(lgbm_res['valid']['top_decile_precision'])} ({lgbm_res['valid']['top_decile_lift'][0]:.2f}x) | {_fmt(lgbm_res['test']['top_decile_precision'])} ({lgbm_res['test']['top_decile_lift'][0]:.2f}x) |
 | Cox PH | C-index | {_fmt(cox_res['valid']['c_index'])} | **{_fmt(cox_res['test']['c_index'])}** |
 | Cox PH | IBS (days 0 to {cox_res['test']['horizon']}) | {_fmt(cox_res['valid']['ibs'])} | **{_fmt(cox_res['test']['ibs'])}** |
-
+{survival_rows}
 Churn in 60 days: validation {lgbm_res['valid']['churn_rate']:.1%}, test {lgbm_res['test']['churn_rate']:.1%}.
 
 ## How to Read It
 
 - **AUC** (0.5 = random, 1 = perfect): how well LightGBM ranks players by churn risk.
-- **ECE** (lower is better): the average gap between the predicted probability and the observed churn rate. The calibrated value is what scoring delivers; the raw one shows what calibration fixes (the class weights push the raw probabilities up).
+- **ECE** (lower is better): the average gap between the predicted probability and the observed churn rate. The calibrated value is what scoring delivers; the raw one shows what calibration fixes (the class weights push the raw probabilities up). Its bootstrap interval can sit above the point value: resampling adds noise to every bin, and an absolute gap only grows with noise, so ECE intervals are biased upwards on small splits.
+- **Top-decile precision**: the churn rate among the 10% of players with the highest score, the ones a retention campaign would contact; the lift is that rate over the overall churn rate.
 - **C-index** (0.5 = random, 1 = perfect): how well Cox PH ranks who churns earlier.
+- **Time-dependent AUC at day t**: how well Cox PH separates players who churned by day t from players still active after t (IPCW). Only the days up to the last training churn day are shown.
+- **One-calibration at day t**: players in 10 groups of predicted P(churn by t); the gap is the mean difference between the predicted and the Kaplan-Meier probability, the p-value a Hosmer-Lemeshow-type test (small = miscalibrated). The Cox survival curve is not calibrated; the probability the business uses comes from the calibrated LightGBM.
 - **IBS** (lower is better, 0.25 = a coin flip): the squared error of the predicted survival curve, averaged over days 0 to {cox_res['test']['horizon']}, with censored players weighted by the inverse probability of being still observed (IPCW, censoring curve from the train rows).
-- **The test month only shows churn on day 0** (a churn day after the cutoff can be confirmed only up to 60 days before the data ends). So the Cox test metrics mostly measure "who is already gone", not "which day".
-- **The validation numbers are slightly optimistic**: early stopping and calibration use those rows. The test month is the honest check.
+- **The test months only show churn on days 0 to {int(test_events.max()) if len(test_events) else 0}** (a churn day can be confirmed only when the 60 days after it are in the data). So the Cox test metrics mostly measure "who is already gone", not "which day".
+- **The validation numbers are slightly optimistic**: early stopping uses that month (the calibrated probability is cross-fitted, so calibration does not). The test months are the honest check.
 
-Generated by `src/models/results.py` (`make results`). The same metrics, with their intervals, are logged in both MLflow runs as `results_*`.
+Generated by `src/models/results.py` (`make results`), with the metrics of `src/evaluation/`. The same metrics, with their intervals, are logged in both MLflow runs as `results_*`.
 """
     path.write_text(text, encoding="utf-8")
     return path
@@ -194,16 +122,10 @@ def run(dataset_path: str | Path | None = None) -> Path:
     lgbm_id = train("lightgbm_classifier", dataset_path, reference=True)
     cox_id = train("cox_ph", dataset_path, reference=True, features_from_run=lgbm_id)
     lgbm, cox = run_info(lgbm_id), run_info(cox_id)
-
-    data = pd.read_parquet(dataset_path)
-    split = split_rows(data)
-    segment_model = load_segment_model(lgbm_id)
-    if segment_model is not None:
-        data = add_segment_features(data, segment_model)
-
+    data, split = run_data(lgbm)  # the same dataset, seed and segments for both runs
     lgbm_res, cox_res = lightgbm_results(lgbm, data, split), cox_results(cox, data, split)
-    _log(lgbm, lgbm_res)
-    _log(cox, cox_res)
+    log_results(lgbm, lgbm_res)
+    log_results(cox, cox_res)
     doc = write_doc(lgbm, cox, lgbm_res, cox_res, data, split, dataset_path)
     print(f"saved {os.path.relpath(doc, PROJECT_ROOT)} | runs {lgbm['run_name']}, {cox['run_name']}")
     return doc

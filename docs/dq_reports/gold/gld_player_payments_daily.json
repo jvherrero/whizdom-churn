@@ -1,0 +1,362 @@
+{
+  "table_name": "gld_player_payments_daily",
+  "grain_description": "One row per player, processed day and currency with payments that day (sparse).",
+  "row_count": 5583579,
+  "date_range_start": "2025-09-18",
+  "date_range_end": "2026-10-06",
+  "n_gap_days": 40,
+  "gap_dates": [
+    "2025-09-20",
+    "2025-09-21",
+    "2025-09-22",
+    "2025-09-23",
+    "2025-09-24",
+    "2025-09-25",
+    "2025-09-26",
+    "2025-09-27",
+    "2025-09-28",
+    "2025-09-29",
+    "2025-09-30",
+    "2025-10-01",
+    "2025-10-02",
+    "2025-10-03",
+    "2025-10-04",
+    "2025-10-05",
+    "2025-10-06",
+    "2025-10-07",
+    "2025-10-08",
+    "2025-10-09",
+    "2025-10-10",
+    "2025-10-11",
+    "2025-10-12",
+    "2025-10-13",
+    "2025-10-14",
+    "2025-10-15",
+    "2025-10-16",
+    "2025-10-23",
+    "2025-10-25",
+    "2025-10-26",
+    "2025-10-27",
+    "2025-10-31",
+    "2025-11-05",
+    "2025-11-11",
+    "2025-11-13",
+    "2025-11-15",
+    "2025-11-16",
+    "2025-11-17",
+    "2025-12-06",
+    "2025-12-07"
+  ],
+  "columns": [
+    {
+      "name": "tenant_id",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "brand_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "player_id",
+      "dtype": "int32",
+      "nullable": false
+    },
+    {
+      "name": "event_date",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "currency",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "source_system",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "deposit_count",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "withdraw_count",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "deposit_attempts",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "withdraw_attempts",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "failed_deposit_count",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "failed_withdraw_count",
+      "dtype": "uint32",
+      "nullable": false
+    },
+    {
+      "name": "deposit_amount",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdraw_amount",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposit_fee",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdraw_fee",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "requested_withdraw_amount",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "avg_withdraw_settlement_secs",
+      "dtype": "float",
+      "nullable": false
+    },
+    {
+      "name": "fx_rate_to_eur",
+      "dtype": "decimal128(18, 8)",
+      "nullable": false
+    },
+    {
+      "name": "fx_rate_date_used",
+      "dtype": "date32[day]",
+      "nullable": false
+    },
+    {
+      "name": "fx_is_provisional",
+      "dtype": "bool",
+      "nullable": false
+    },
+    {
+      "name": "deposit_amount_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdraw_amount_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "deposit_fee_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "withdraw_fee_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "requested_withdraw_amount_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "net_deposit_eur",
+      "dtype": "decimal128(18, 4)",
+      "nullable": false
+    },
+    {
+      "name": "dq_status",
+      "dtype": "string",
+      "nullable": false
+    },
+    {
+      "name": "_version",
+      "dtype": "uint64",
+      "nullable": false
+    },
+    {
+      "name": "_ingested_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    },
+    {
+      "name": "_processed_at",
+      "dtype": "timestamp[ms, tz=UTC]",
+      "nullable": false
+    }
+  ],
+  "null_stats": [
+    {
+      "name": "_ingested_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_processed_at",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "_version",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "avg_withdraw_settlement_secs",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "brand_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "currency",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_amount",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_amount_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_attempts",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_count",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_fee",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "deposit_fee_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "dq_status",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "event_date",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "failed_deposit_count",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "failed_withdraw_count",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_is_provisional",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_rate_date_used",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "fx_rate_to_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "net_deposit_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "player_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "requested_withdraw_amount",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "requested_withdraw_amount_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "source_system",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "tenant_id",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdraw_amount",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdraw_amount_eur",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdraw_attempts",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdraw_count",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdraw_fee",
+      "null_percentage": 0.0
+    },
+    {
+      "name": "withdraw_fee_eur",
+      "null_percentage": 0.0
+    }
+  ],
+  "key_checks": [
+    {
+      "column": "tenant_id+brand_id+player_id+event_date+currency+source_system",
+      "n_rows": 5583579,
+      "n_distinct": 5583579,
+      "is_unique": true
+    }
+  ],
+  "validation": {
+    "passed": false,
+    "issues": [
+      {
+        "column": "avg_withdraw_settlement_secs",
+        "check": "negative_value",
+        "message": "minimum -2.0000, on 35 day(s)"
+      },
+      {
+        "column": "player_id",
+        "check": "referential_integrity",
+        "message": "236,423 player-days are missing from that day's gld_player_signals_daily"
+      }
+    ]
+  },
+  "notes": [
+    "Keys checked on 344 of 344 day(s) (key columns only, SQL aggregation).",
+    "Backfilled history: 283 day(s) processed on 2026-08-13; 4 day(s) processed on 2026-08-26; 2 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.",
+    "Rows per day: first 1, median 18,463, last 23,580. Days up to 2026-10-06 (the last closed day).",
+    "Used for: signal explorer (T4): failed deposits, withdrawals."
+  ]
+}

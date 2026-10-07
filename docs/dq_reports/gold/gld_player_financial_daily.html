@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gld_player_financial_daily — Data quality report</title>
+<style>
+body {font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+color:#252525;background:#fff;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+table {width:100%;border-collapse:collapse;margin-bottom:1.5rem}
+th,td {border:1px solid #ccc;padding:.6rem;text-align:left;overflow-wrap:anywhere}
+th {background:#eee} h2 {margin-top:2rem}
+</style></head>
+<body><header><h1>gld_player_financial_daily</h1>
+<p>One row per player ever seen and day: EUR wagered, GGR, NGR, deposits, withdrawals that day.</p></header>
+<main><h2>Summary</h2><table><thead><tr><th scope="col">Row count</th><th scope="col">Date range</th><th scope="col">Gap count</th></tr></thead><tbody><tr><td>688181082</td><td>2025-04-01 to 2026-10-06</td><td>0</td></tr></tbody></table>
+<h2>Null rates</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Null percentage</th></tr></thead><tbody><tr><td>_ingested_at</td><td>0%</td></tr><tr><td>_processed_at</td><td>0%</td></tr><tr><td>_version</td><td>0%</td></tr><tr><td>bonus_ggr_eur_today</td><td>0%</td></tr><tr><td>deposits_eur_today</td><td>0%</td></tr><tr><td>ggr_eur_today</td><td>0%</td></tr><tr><td>net_cash_eur_today</td><td>0%</td></tr><tr><td>ngr_eur_today</td><td>0%</td></tr><tr><td>player_id</td><td>0%</td></tr><tr><td>snapshot_date</td><td>0%</td></tr><tr><td>tenant_id</td><td>0%</td></tr><tr><td>value_score_eur</td><td>0%</td></tr><tr><td>value_tier</td><td>0%</td></tr><tr><td>wagered_bonus_eur_today</td><td>0%</td></tr><tr><td>wagered_eur_today</td><td>0%</td></tr><tr><td>wagered_real_eur_today</td><td>0%</td></tr><tr><td>withdrawals_eur_today</td><td>0%</td></tr><tr><td>won_eur_today</td><td>0%</td></tr></tbody></table>
+<h2>Key uniqueness</h2><table><thead><tr><th scope="col">Column</th><th scope="col">Rows</th><th scope="col">Distinct values</th><th scope="col">Unique</th></tr></thead><tbody><tr><td>tenant_id+player_id+snapshot_date</td><td>688181082</td><td>688181082</td><td>PASS</td></tr></tbody></table>
+<h2>Validation issues</h2><p>FAIL</p><table><thead><tr><th scope="col">Column</th><th scope="col">Check</th><th scope="col">Message</th></tr></thead><tbody><tr><td>won_eur_today</td><td>negative_value</td><td>minimum -207,773.6127, on 159 day(s)</td></tr></tbody></table>
+<h2>Notes</h2><ul><li>Keys checked on 554 of 554 day(s) (key columns only, SQL aggregation).</li><li>Backfilled history: 460 day(s) processed on 2026-07-09; 5 day(s) processed on 2026-08-27; 7 day(s) processed on 2026-10-07. Point-in-time correctness of those days must be confirmed with the data team.</li><li>Rows per day: first 36,974, median 1,367,263, last 2,052,450. Days up to 2026-10-06 (the last closed day).</li><li>Used for: labels and value (T7, value at risk).</li></ul></main></body></html>

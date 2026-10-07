@@ -1,9 +1,7 @@
 feature,family,mean_abs_shap,rank_corr,direction
-n_active_days_last_30d,frequency,1.0763687411188956,-0.9647684864917191,"higher value, lower churn risk"
-days_since_last_deposit,recency,0.44372426086954103,0.82875750176724,"higher value, higher churn risk"
-max_prior_gap_days,tenure,0.3581729800485178,-0.8266224289004044,"higher value, lower churn risk"
-tenure_days_missing,tenure,0.3345463841320622,-0.794558395317143,"higher value, lower churn risk"
-stake_last_30d,monetary,0.2710700778086999,-0.8851059782632511,"higher value, lower churn risk"
-n_bonus_last_7d,frequency,0.23116592931055513,-0.9332076111966952,"higher value, lower churn risk"
-bonus_amount_trend_7,lag_trend,0.07698188171021937,0.2509412835024572,"non-monotonic, see the plot"
+active_days_l90d,frequency,1.2188405513453844,-0.9855859459833332,"higher value, lower churn risk"
+wagered_eur_l7d,monetary,0.4394325220146893,-0.907311111765355,"higher value, lower churn risk"
+days_since_last_bet,recency,0.38713322956160034,0.9226866887293237,"higher value, higher churn risk"
+days_since_first_bet,tenure,0.3505151227145362,-0.7980768561551713,"higher value, lower churn risk"
+engagement_score,mix,0.20079532407719886,-0.885730053872884,"higher value, lower churn risk"
 brandId,other,0.0,,categorical (brand)

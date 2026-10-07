@@ -32,17 +32,18 @@ import mlflow
 from mlflow.models import infer_signature
 import numpy as np
 import pandas as pd
-from lifelines.utils import concordance_index
 from matplotlib.figure import Figure
 from sklearn.calibration import calibration_curve
-from sklearn.isotonic import IsotonicRegression
-from sklearn.metrics import average_precision_score, brier_score_loss, log_loss, roc_auc_score, roc_curve
+from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score, roc_curve
 from sklearn.model_selection import StratifiedGroupKFold
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from evaluation.metrics import ECE_BINS, c_index, classification_metrics, expected_calibration_error  # noqa: E402
+
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from build_features import brand_label
-from build_training_features import _git_commit
+from build_survival_dataset import git_commit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import segments as segmentation
@@ -57,14 +58,14 @@ TARGET = "event_60d"
 DURATION, EVENT = "duration_days", "event_observed"
 BRAND = "brandId"
 # brandId is not a selectable feature: the model adds it itself (catalog brand_feature / brand_strata).
-NON_FEATURES = ["cutoff_date", "operator", BRAND, "partyId", TARGET, DURATION, EVENT]
+NON_FEATURES = ["cutoff_date", "tenant_id", BRAND, "player_id", TARGET, DURATION, EVENT]
 SPLITS = ("train", "valid", "test")
-N_TEST_CUTOFFS = 1  # the latest cutoff(s) are the test months
-VALID_SHARE = 0.15  # of the training-month players
+# Temporal split of the delivery plan: train = months 1-9, validation = month 10, test = months 11-12.
+N_VALID_CUTOFFS = 1
+N_TEST_CUTOFFS = 2
 SEED = 42
 # Single-feature reference: how far the model gets beyond "days since the last bet".
-BENCHMARK_FEATURE = "days_since_last_active"
-ECE_BINS = 10
+BENCHMARK_FEATURE = "days_since_last_bet"
 CALIBRATOR_ARTIFACT = "calibration/isotonic.joblib"
 # Isotonic regression gives exactly 0 or 1 at the tails (a validation bin with only one class).
 # A sure 0 or 1 is never true for a player and blows up log-loss on any miss, so bound it.
@@ -89,21 +90,22 @@ def instantiate(entry: dict, overrides: dict | None = None):
 
 
 def player_key(df: pd.DataFrame) -> pd.Series:
-    """One id per player: partyId is only unique within a brand (operators may reuse numbers)."""
-    return df[BRAND].astype("int64") * 10**10 + df["partyId"].astype("int64")
+    """One id per player: player_id is only unique within a tenant, and a tenant's brands never share a
+    player (gld-schemas.xlsx), so (brand, player_id) identifies one."""
+    return df[BRAND].astype("int64") * 10**10 + df["player_id"].astype("int64")
 
 
-def split_rows(df: pd.DataFrame, seed: int = SEED) -> pd.Series:
-    """'test' for the latest cutoff(s); 'train' / 'valid' by player for the earlier ones."""
+def split_rows(df: pd.DataFrame) -> pd.Series:
+    """By cutoff month: the last N_TEST_CUTOFFS are 'test', the N_VALID_CUTOFFS before them 'valid',
+    the earlier ones 'train'. Every tuning decision is made on the validation month."""
     cutoffs = sorted(df["cutoff_date"].unique())
-    if len(cutoffs) <= N_TEST_CUTOFFS:
-        raise ValueError(f"need more than {N_TEST_CUTOFFS} cutoff(s) for an out-of-time test, got {cutoffs}")
-    is_test = df["cutoff_date"].isin(cutoffs[-N_TEST_CUTOFFS:])
-    keys = player_key(df)
-    players = np.random.default_rng(seed).permutation(np.sort(keys[~is_test].unique()))
-    valid_players = set(players[: int(len(players) * VALID_SHARE)])
-    split = pd.Series(np.where(keys.isin(valid_players), "valid", "train"), index=df.index)
-    split[is_test] = "test"
+    n_held_out = N_VALID_CUTOFFS + N_TEST_CUTOFFS
+    if len(cutoffs) <= n_held_out:
+        raise ValueError(f"need more than {n_held_out} cutoffs (train, {N_VALID_CUTOFFS} validation, "
+                         f"{N_TEST_CUTOFFS} test), got {len(cutoffs)}: {cutoffs}")
+    split = pd.Series("train", index=df.index)
+    split[df["cutoff_date"].isin(cutoffs[-n_held_out:-N_TEST_CUTOFFS])] = "valid"
+    split[df["cutoff_date"].isin(cutoffs[-N_TEST_CUTOFFS:])] = "test"
     return split
 
 
@@ -189,28 +191,22 @@ def make_adapter(
 
     def fit(features):
         model = instantiate(entry, params)
-        # A constant column makes the Cox fit singular. cluster_col: a player shows up at
-        # several cutoffs, so use robust standard errors (one cluster per brand + partyId).
-        features = [f for f in features if f != BRAND and train[f].nunique() > 1]
-        frame = train[features + [DURATION, EVENT] + strata].assign(player_key=player_key(train))
+        # A constant column makes the Cox fit singular, and lifelines cannot use an empty value (the
+        # deposit features are empty before March 2026): both are left out of Cox (LightGBM keeps them).
+        # No cluster_col: robust (per player) standard errors give the same coefficients, but cost ~9 min
+        # per fit on 140k rows (0.7 s without). The hazard-ratio intervals are therefore too narrow
+        # (a player shows up at several cutoffs); the predictions and the c-index do not change.
+        features = [f for f in features if f != BRAND and train[f].nunique() > 1 and train[f].notna().all()]
+        frame = train[features + [DURATION, EVENT] + strata]
         frame = frame.assign(**{s: frame[s].astype("int64") for s in strata})
-        model.fit(frame, duration_col=DURATION, event_col=EVENT, cluster_col="player_key",
-                  strata=strata or None)
+        model.fit(frame, duration_col=DURATION, event_col=EVENT, strata=strata or None)
         return model
 
     def score(model, rows, features):
         # Higher hazard means an earlier churn, so the risk score is the negative hazard.
-        return concordance_index(rows[DURATION], -model.predict_partial_hazard(cox_input(model, rows)), rows[EVENT])
+        return c_index(rows[DURATION], model.predict_partial_hazard(cox_input(model, rows)), rows[EVENT])
 
     return selection.ModelAdapter(fit, score, "c_index", {**entry["default_params"], **(params or {})})
-
-
-def expected_calibration_error(y, p, n_bins: int = ECE_BINS) -> float:
-    """Mean |observed rate - mean prediction| over equal-size bins of the prediction, weighted by size."""
-    bins = pd.qcut(p, n_bins, labels=False, duplicates="drop")
-    frame = pd.DataFrame({"y": np.asarray(y), "p": p, "bin": bins})
-    per_bin = frame.groupby("bin").agg(y=("y", "mean"), p=("p", "mean"), n=("y", "size"))
-    return float((per_bin["n"] * (per_bin["y"] - per_bin["p"]).abs()).sum() / per_bin["n"].sum())
 
 
 def raw_probability(entry: dict, model, rows: pd.DataFrame, features: list[str]) -> np.ndarray:
@@ -550,11 +546,7 @@ def churn_probability(model, calibrator, rows: pd.DataFrame, columns: list[str])
     """The model's churn probability for `rows` (with a brandId column), calibrated per brand when
     there is a calibrator. `columns` are the model's input columns (feature_columns of the run)."""
     raw = model.predict_proba(model_input(rows, columns))[:, 1]
-    if calibrator is None:
-        return raw
-    if isinstance(calibrator, IsotonicRegression):  # runs from before the per-brand calibration
-        return calibrator.predict(raw)
-    return calibrator.predict(raw, rows[BRAND])
+    return raw if calibrator is None else calibrator.predict(raw, rows[BRAND])
 
 
 def load_calibrator(run_id: str):
@@ -563,18 +555,6 @@ def load_calibrator(run_id: str):
         return joblib.load(mlflow.artifacts.download_artifacts(f"runs:/{run_id}/{CALIBRATOR_ARTIFACT}"))
     except Exception:
         return None
-
-
-def _classification_metrics(y, p) -> dict:
-    return {
-        "roc_auc": roc_auc_score(y, p),
-        "pr_auc": average_precision_score(y, p),
-        "brier": brier_score_loss(y, p),
-        "log_loss": log_loss(y, p),
-        "ece": expected_calibration_error(y, p),
-        "mean_prediction": float(np.mean(p)),
-        "churn_rate": float(np.mean(y)),
-    }
 
 
 def _reliability(entry, data: pd.DataFrame, split: pd.Series, model, calibrator, features,
@@ -652,7 +632,7 @@ def _metrics_by_brand(data: pd.DataFrame, split: pd.Series, scores: dict[str, np
                 if rows[TARGET].nunique() == 2:
                     row["roc_auc"] = roc_auc_score(rows[TARGET], rows["_score"])
             elif rows[EVENT].sum() > 0:
-                row["c_index"] = concordance_index(rows[DURATION], -rows["_score"], rows[EVENT])
+                row["c_index"] = c_index(rows[DURATION], rows["_score"], rows[EVENT])
             out.append(row)
     return pd.DataFrame(out)
 
@@ -667,14 +647,14 @@ def evaluate(entry: dict, model, data: pd.DataFrame, split: pd.Series, features:
         for name in SPLITS:
             part = data[split == name]
             p = raw_probability(entry, model, part, features)
-            metrics.update({f"{name}_{k}": v for k, v in _classification_metrics(part[TARGET], p).items()})
+            metrics.update({f"{name}_{k}": v for k, v in classification_metrics(part[TARGET], p).items()})
             delivered[name] = p
             if calibrator is not None:
                 # Validation: cross-fitted, the calibrator was fitted on these rows (in-sample looks perfect).
                 p_cal = (cross_fitted_calibration(p, part, calibrator.method) if name == "valid"
                          else churn_probability(model, calibrator, part, columns))
                 metrics.update({f"{name}_calibrated_{k}": v
-                                for k, v in _classification_metrics(part[TARGET], p_cal).items()})
+                                for k, v in classification_metrics(part[TARGET], p_cal).items()})
                 delivered[name] = p_cal
         by_brand = _metrics_by_brand(data, split, {s: delivered[s] for s in ("valid", "test")}, "classifier")
         tables["metrics_by_brand.csv"] = by_brand
@@ -706,7 +686,7 @@ def evaluate(entry: dict, model, data: pd.DataFrame, split: pd.Series, features:
     for name in SPLITS:
         part = data[split == name]
         hazards[name] = np.asarray(model.predict_partial_hazard(cox_input(model, part)))
-        metrics[f"{name}_c_index"] = concordance_index(part[DURATION], -hazards[name], part[EVENT])
+        metrics[f"{name}_c_index"] = c_index(part[DURATION], hazards[name], part[EVENT])
         metrics[f"{name}_event_rate"] = float(part[EVENT].mean())
         metrics[f"{name}_max_event_day"] = int(part.loc[part[EVENT] == 1, DURATION].max())
     by_brand = _metrics_by_brand(data, split, {s: hazards[s] for s in ("valid", "test")}, "survival")
@@ -774,22 +754,15 @@ def train(
     needed = [DURATION, EVENT] if entry["task_type"] == "survival" else [TARGET]
     missing = [c for c in needed if c not in data.columns]
     if missing:
-        raise ValueError(f"{dataset_path.name} has no {missing}: rebuild it with `make labels dataset`")
+        raise ValueError(f"{dataset_path.name} has no {missing}: rebuild it with `make dataset`")
 
-    # One seed drives the randomness of a run: the train/validation split, the model (LightGBM samples
-    # rows and columns) and the Optuna search. Training with several seeds shows whether a result is
-    # stable or luck.
+    # One seed drives the randomness of a run: the model (LightGBM samples rows and columns) and the
+    # Optuna search. Training with several seeds shows whether a result is stable or luck.
     seed = SEED if seed is None else seed
-    split = split_rows(data, seed)
+    split = split_rows(data)
     if entry["interface"] == "sklearn_estimator":
         params = {**(params or {}), "random_state": seed}
-    segment_model = None
-    if segments:
-        # Unsupervised, but still fitted on the training months only, never the test month.
-        segment_model = segmentation.fit_segments(data[split != "test"])
-        data = segmentation.add_segment_features(data, segment_model)
-    features = [c for c in data.columns if c not in NON_FEATURES]
-    feature_source = None
+    source = None
     if entry.get("feature_set"):
         # Same feature set as another model (Cox PH uses LightGBM's): taken from that model's run on this
         # very dataset (`features_from_run`, default its latest run), with no Stage 2 selection of its own.
@@ -797,6 +770,16 @@ def train(
         if source["dataset_path"] != os.path.relpath(dataset_path, PROJECT_ROOT):
             raise ValueError(f"{entry['feature_set']} run {source['run_name']} was trained on "
                              f"{source['dataset_path']}, not on this dataset: train it first")
+    segment_model = None
+    if segments:
+        # Unsupervised, but still fitted on the training months only, never the test month. A model that
+        # takes another run's features takes its segments too (same dataset, same segments: no refit).
+        segment_model = ((source and segmentation.load_segment_model(source["run_id"]))
+                         or segmentation.fit_segments(data[split != "test"]))
+        data = segmentation.add_segment_features(data, segment_model)
+    features = [c for c in data.columns if c not in NON_FEATURES]
+    feature_source = None
+    if source:
         features = [f for f in source["features"] if f != BRAND]
         missing = [f for f in features if f not in data.columns]
         if missing:
@@ -931,7 +914,7 @@ def train(
     with mlflow.start_run(run_name=run_name) as run:
         mlflow.set_tag("timestamp_unix", timestamp_unix)
         mlflow.set_tag("timestamp_iso", datetime.fromtimestamp(timestamp_unix, tz=timezone.utc).isoformat())
-        mlflow.set_tag("git_commit", _git_commit())
+        mlflow.set_tag("git_commit", git_commit())
         mlflow.set_tag("user", getpass.getuser())
         mlflow.set_tag("host", socket.gethostname())
         mlflow.set_tag("source_script", "src/models/train.py")
@@ -961,8 +944,9 @@ def train(
             "categorical feature" if entry.get("brand_feature") == "categorical"
             else "Cox strata" if cox_strata(entry) else "none"))
         mlflow.log_param("test_cutoffs", sorted(str(c) for c in data.loc[split == "test", "cutoff_date"].unique()))
-        mlflow.log_param("split", f"test = last {N_TEST_CUTOFFS} cutoff(s); train/valid by partyId, "
-                                  f"valid {VALID_SHARE}, seed {seed}")
+        mlflow.log_param("split", f"by cutoff: test = last {N_TEST_CUTOFFS}, validation = the "
+                                  f"{N_VALID_CUTOFFS} before, train = the rest")
+        mlflow.log_param("valid_cutoffs", sorted(str(c) for c in data.loc[split == "valid", "cutoff_date"].unique()))
         mlflow.log_param("feature_selection", select)
         if feature_source:
             mlflow.log_param("feature_source", feature_source)
@@ -980,13 +964,13 @@ def train(
         mlflow.log_param("segments_k", segment_model.k if segment_model else 0)
         if segment_model:
             mlflow.log_metric("segments_silhouette", segment_model.silhouette[segment_model.k])
-        mlflow.log_param("calibration", f"{calibrator.method} (lowest test ECE of {list(candidates)}), fitted on "
-                                        f"valid, per brand with >= {calibrator.min_rows} rows "
+        mlflow.log_param("calibration", f"{calibrator.method} (lowest cross-fitted validation ECE of "
+                                        f"{list(candidates)}), fitted on valid, per brand with >= {calibrator.min_rows} rows "
                                         f"(all brands as fallback), bounded to [{CALIBRATION_BOUND}, "
                                         f"{1 - CALIBRATION_BOUND}]" if calibrator is not None else "none")
         if select:
             mlflow.log_params({f"selection__{k.lower()}": getattr(selection, k) for k in (
-                "MAX_MISSING_SHARE", "NZV_FREQ_RATIO", "NZV_UNIQUE_SHARE", "MAX_ABS_CORR",
+                "MAX_MISSING_SHARE", "NZV_MAX_MODE_SHARE", "MAX_ABS_CORR",
                 "ADV_AUC_THRESHOLD", "ADV_IMPORTANCE_SHARE", "MAX_ADV_ROUNDS", "MAX_METRIC_LOSS")})
 
         mlflow.log_metric("n_features", len(used_features))

@@ -1,109 +1,159 @@
-# Baseline Churn Definition v0.1 (brandId=64)
+# Baseline Churn Definition v0.2 (brandId=64, gold layer)
 
-## 0. Scope Change from v0: One Brand, Not All Brands
+## 0. What Changed from v0.1
 
-This version re-runs the whole analysis below for a single brand, **`brandId = 64`** (`primus` only, and I confirmed that `brandId` does not exist in `secundus`'s data), instead of pooling every brand together as the original v0 did. There are two reasons: each operator's landing data mixes several distinct brands (13 under `primus`, 8 to 9 under `secundus`, with no overlap between the two), and different brands behave differently, as the numbers below show directly. Working one brand at a time is also what lets this same methodology scale to every brand later without a rewrite, so I keep `brandId` explicit throughout instead of dropping it.
+v0.1 was built on the landing layer, with 104 days of history (2026-06-18 to 2026-09-29). This version re-runs the analysis on the **gold layer** (`org/40-gold`), the project's data source from now on, with **18 months of history** (2025-04-01 to 2026-10-06). The longer history changes the numbers a lot, mostly because a return after a long silence can now actually be observed. The decision (60 days) does not change, and it now rests on much stronger evidence.
 
-Where it is useful, the tables below keep the original all brands numbers side by side as a reference point, not because they still apply, but because the size of the difference is itself informative.
+Notebook: `eda/02_churn_definition.ipynb`. Tables and figures: `data/03_output/churn_definition/brand64/`.
 
-## 1. Executive Summary and Core Definition
+## 1. Summary and Core Definition
 
-This document defines **Player Churn** for the baseline scoring pipeline, for `brandId=64`.
+A player has **churned** when **60 days pass without a bet**. The activity event is a day with at least one bet, from any wallet (real money or bonus).
 
-Churn is an **inactivity threshold** on `bet` events: a player has churned after `N` days with no `bet`. I use `bet` as the activity signal, not `player` (profile changes, not play) and not `transaction` or payments (deposits and withdrawals, much rarer than bets, and a player can keep playing for days on existing balance without a new deposit).
+- After 60 days of silence, **13.0%** of players bet again within the next 60 days (9.6% for all brands). After 30 days of silence it would be 23.6%: one "churned" player in four would come back.
+- Going further than 60 days gains little: 8.7% come back after 90 days of silence, and from 60 days on each extra month of waiting removes less than 5 points of false churn.
+- The churn rate of the active population moves between **29.5% and 53.1%** from one monthly cutoff to the next, with clear seasons.
 
-I test three thresholds, `N = 14, 30, 60` days, side by side:
+## 2. Activity Data
 
-- **14 days**: an early signal. Easy to confirm, but noisy: 47.7% of players labelled "churned" under this rule later return (fair comparison, see Section 3), even noisier than the all brands figure (32.6%).
-- **30 days**: 21.1% of players still return after 30 days of silence (fair comparison), also higher than the all brands figure (14.8%).
-- **60 days**: the safest definition. Even so, 5.8% of players still return after this for `brandId=64`, higher than the 3.8% seen across all brands pooled together. With only around 104 days of history, this threshold also has the most missing information: 75.8% of this brand's players cannot be confirmed yet either way, noticeably higher than the all brands figure of 64.4%.
+I build player activity from `gld_player_gaming_daily`: one row per player, game, provider, day and currency with play that day. `src/features/gold_cache.py` (`activity` cache) sums it to one row per player and day with at least one bet, filtered to `brandId = 64` (126,581 players, 1,640,224 player-days). I use this table rather than `gld_player_signals_daily` because it carries `brand_id` on every row; `signals_daily` has no `brand_id` before July 2026 (see `docs/dq_reports/gold/`). Days are UTC days, as everywhere in gold.
 
-Every one of these numbers is less favourable for `brandId=64` than for the all brands pool, which is consistent with this brand's players being slower to confirm as churned in general (see the survival curve results in Section 3). This does not change the conclusion in Section 5, it changes how confident I should be when reading the number, 5.8% residual noise at 60 days instead of 3.8%.
+The cache is local and incremental, and it re-reads the last 7 days on every run, because gold reprocesses its last 7 days daily.
 
-## 2. Session Reconstruction Methodology
+## 3. Evidence
 
-There is no `session` table in `10-landing` (I checked for both operators, see `01_profiling.ipynb`). I rebuild player activity from `bet.dateTime`, filtered to `brandId = 64`, in two ways:
+### Return probability by days of silence
 
-**a) First and last bet per player**: one row per player, with `first_bet`, `last_bet`, `n_bets`. This is a simple `GROUP BY partyId` in DuckDB, run directly on the S3 files, with `WHERE brandId = 64` added to the query. I use this for the Kaplan Meier labels.
+For each number of silent days `d`: the share of players who bet again within the next 60 days. Only silences that reached day `d` at least 60 days before the end of the data count, so every value has the same chance to see a return (the "fair" rate).
 
-**b) Active days per player**: one row per (player, day with at least one bet), with the same `brandId` filter. I use this for the return after dormancy analysis.
+| Days of silence | Brand 64 | All brands |
+|---|---|---|
+| 7 | 56.9% | 44.2% |
+| 14 | 42.2% | 30.4% |
+| 30 | 23.6% | 17.0% |
+| **60** | **13.0%** | **9.6%** |
+| 90 | 8.7% | 6.5% |
+| 120 | 6.3% | 4.4% |
 
-Both cover the full history (`2026-06-18` to `2026-09-29`, 104 days). Unlike the original v0 pass, this only scans `primus` (`brandId=64` does not exist in `secundus`, which I confirmed before relying on it), so only one operator's files need to be opened, not both. The filter itself does not speed up the S3 scan (DuckDB still opens every small hourly file to check which rows match `brandId = 64`, and that cost is driven by file count, not by how selective the filter is, see `01_profiling.ipynb`), but skipping `secundus` entirely cuts the file opening cost roughly in half on its own. Everything downstream of the scan (the pandas DataFrame, the cached file, every fit after that) is also much smaller and faster with one brand's worth of data: **30,342 players**, versus 385,328 for all brands pooled. Both results are saved to local files (`player_activity_span_brand64.parquet`, `active_day_gaps_brand64.parquet`) after the first run, so this cost is paid only once.
+![Return probability by days of silence](../data/03_output/churn_definition/brand64/return_by_inactivity.png)
 
-## 3. Empirical Justification & Survival Analysis
+The curve has no sharp plateau, but it flattens: 30 more days of silence remove 10.6 points from 30 to 60 days, 4.3 points from 60 to 90 and 2.4 points from 90 to 120.
 
-### Return after Dormancy Analysis
+### Return after dormancy, raw
 
-For each threshold: of all the times a player went quiet for at least `N` days, how often did they come back later?
+Every silence that reached the threshold, with any later return (up to 18 months of follow-up); a silence still running counts as no return.
 
-First result (raw, brandId=64):
+| Threshold | Silences | Returned | Still dormant | Return rate (raw) | Return rate (fair, 60 days) |
+|---|---|---|---|---|---|
+| 14 days | 240,862 | 125,569 | 115,293 | 52.1% | 42.2% |
+| 30 days | 170,999 | 60,754 | 110,245 | 35.5% | 23.6% |
+| 60 days | 135,848 | 32,910 | 102,938 | 24.2% | 13.0% |
 
-| Threshold | Returns | Still dormant (no return) | Return rate (raw) |
+The raw rates are higher because a return can come months later. The fair rate is the one that matches how the label is used.
+
+### Kaplan-Meier: playing lifetime of new players
+
+New players (first bet after 2025-06-30, so that the first bet is really the first): 66,390. Lifetime = days from the first to the last bet; churn confirmed when the silence after the last bet reaches the threshold.
+
+| Threshold | Confirmed churns | Censored | Median lifetime |
 |---|---|---|---|
-| 14d | 11,553 | 19,615 | 37.1% |
-| 30d | 2,700 | 14,633 | 15.6% |
-| 60d | 464 | 7,516 | 5.8% |
+| 14 days | 59,793 | 9.9% | 0 days |
+| 30 days | 56,068 | 15.5% | 1 day |
+| 60 days | 50,225 | 24.3% | 1 day |
 
-**This raw comparison is not fair**, for the same reason as the original v0 analysis: a player only counts as "still dormant" at 60 days if their last bet was early enough in the window to allow 60 full days to pass, so each threshold is measured on a different slice of the timeline, not just a different silence length.
+![Kaplan-Meier lifetime](../data/03_output/churn_definition/brand64/km_lifetime.png)
 
-**Fixed comparison**: use the same player group for all three thresholds (only players whose last bet allows a full 60 day check):
+About half of the new players stop within a day of their first bet.
 
-| Threshold | Returns | Still dormant (no return) | Return rate (fair) | Return rate (fair, all brands, reference) |
-|---|---|---|---|---|
-| 14d | 6,851 | 7,516 | **47.7%** | 32.6% |
-| 30d | 2,007 | 7,516 | **21.1%** | 14.8% |
-| 60d | 464 | 7,516 | 5.8% | 3.8% |
+### Churn rate by monthly cutoff
 
-Fixing this does not weaken the finding, it makes it stronger, same as in the original v0 pass: the drop from 14 to 60 days is bigger this way (47.7% $\rightarrow$ 5.8%) than in the raw version (37.1% $\rightarrow$ 5.8%). The 60 day figure stays the same because its own rule already used this same fair group.
+Players with a bet in the 30 days up to the cutoff (the population of the features), and the share with no bet in the next 30 and 60 days.
 
-**In short**: for `brandId=64`, 60 days (5.8% return) is still the most reliable "this player is really gone" signal I have, same conclusion as before, but it is a noisier signal for this brand than it was for the all brands pool. Almost half of this brand's "14 day churned" players come back (47.7%), which is even more reason not to treat a 14 day or 30 day label as a final answer for this brand specifically.
-
-### Survival Curves (Kaplan-Meier)
-
-I fit one Kaplan Meier curve per threshold with `lifelines`, same method as before. `duration_days = last_bet - first_bet`. `event = 1` (churn confirmed) if `observation_end - last_bet >= N`; `event = 0` (**censored**) if not, meaning I simply do not know yet if that player will return.
-
-Share of `brandId=64` players still censored (unconfirmed), out of 30,342:
-
-| Threshold | Censored | Confirmed churns | Censored (all brands, reference) |
+| Cutoff | Players | No bet in 30 days | No bet in 60 days |
 |---|---|---|---|
-| 14d | 36.6% | 19,228 | 29.2% |
-| 30d | 52.6% | 14,391 | 42.9% |
-| 60d | 75.8% | 7,328 | 64.4% |
+| 2025-06-01 | 34,106 | 57.4% | 53.0% |
+| 2025-07-01 | 27,427 | 57.7% | 53.0% |
+| 2025-08-01 | 19,120 | 46.3% | 40.7% |
+| 2025-09-01 | 18,433 | 44.5% | 37.9% |
+| 2025-10-01 | 19,279 | 43.6% | 39.2% |
+| 2025-11-01 | 22,163 | 52.5% | 47.0% |
+| 2025-12-01 | 17,727 | 60.2% | 50.6% |
+| 2026-01-01 | 14,569 | 58.0% | 50.3% |
+| 2026-02-01 | 11,878 | 44.3% | 37.9% |
+| 2026-03-01 | 12,622 | 43.1% | 36.7% |
+| 2026-04-01 | 13,187 | 44.5% | 37.3% |
+| 2026-05-01 | 12,823 | 39.9% | 35.6% |
+| 2026-06-01 | 12,982 | 45.6% | 38.1% |
+| 2026-07-01 | 10,463 | 34.1% | 29.5% |
+| 2026-08-01 | 13,996 | 47.2% | 41.6% |
+| 2026-09-01 | 14,092 | 49.3% | not observable yet |
 
-![Kaplan-Meier Survival Curves, brandId=64](../data/03_output/survival_curves_brand64.png)
+![Churn rate by monthly cutoff](../data/03_output/churn_definition/brand64/monthly_churn.png)
 
-*Figure 1: Kaplan Meier survival function $S(t)$ for `brandId=64`, showing the probability of remaining inactive across duration $t$ (days), highlighting the drop in return probability at 14, 30, and 60 days.*
+## 4. Operational Label
 
-Median survival: 14d $\rightarrow$ 8.1 days; 30d $\rightarrow$ 27.0 days; 60d $\rightarrow$ not reached (over half the group is still censored, so the curve never gets there).
-
-**This is a real difference from the original v0 finding, not a restatement of it.** The original note on this said the all brands medians looked very low because half of all players only ever placed bets on one day (median `duration_days` = 0.13 days across everyone). That specific problem does **not** apply here: for `brandId=64`, median `duration_days` is 0.98 days and only 3.1% of players are one bet players (compare: roughly half, in the all brands pool). The much higher medians above (8.1 and 27.0 days, instead of 0.8 and 3.9) reflect genuinely more engaged player behaviour for this brand, not a one time player artifact being less diluted. This is itself a concrete example of why pooling all brands together in v0 was hiding real, brand specific behaviour, which is exactly the motivation given in Section 0.
-
-## 4. Operational Label Logic
-
-For a player, with a chosen threshold `N` (days), within `brandId = 64`:
+For a cutoff `c` (the "today" of a snapshot), within `brandId = 64`:
 
 ```
-duration_days        = last_bet − first_bet
-days_since_last_bet  = observation_end − last_bet
-event_Nd              = 1  if days_since_last_bet ≥ N   (churn confirmed)
-                       = 0  otherwise                    (censored, not known yet)
+population      = players with a bet in (c - 30, c]
+event_60d       = 1 if the player places no bet in (c, c + 60], else 0
+duration_days   = first day t >= c (the cutoff or a later active day) followed by 60 days without a bet
+event_observed  = 1 if that 60-day silence fits inside the data, else 0 (censored at the last active day)
 ```
 
-`event_Nd` is the churn label for threshold `N`. The same `duration_days` is used for all three curves, and only `event_Nd` changes. The query that builds `activity` and `gaps` now includes `brandId = 64` in its `WHERE` clause, and `brandId` is kept as an explicit column throughout rather than dropped once the filter has been applied, so the same code can loop over every brand later.
+`event_60d` is the classification target (LightGBM). `duration_days` and `event_observed` are the survival targets (Cox PH). A label is only usable when `c + 60` is on or before the last data day, and only final once `c + 60` is at least 7 days before it (gold reprocesses its last 7 days).
 
-For the return after dormancy check, the same `N` day rule applies to each player's active day list, with the fair comparison group used whenever I compare more than one threshold.
+**Known limits:**
+- **Left truncation**: history starts on 2025-04-01, so a player seen in the first months may have started earlier. The lifetime curves use new players only; the labels do not depend on the first bet.
+- **Bonus-only players**: the event is any bet, including bets placed only with bonus money. Gold's own "active day" excludes playable-bonus-only bets (`gld-schemas.xlsx`), so `active_days_*` in the gold signals can be lower than this definition. To review if bonus-only play should not count as activity.
+- **Backfilled history**: gold recomputed its history in July and August 2026. That the backfill only uses data up to each day must be confirmed with the data team (open question in the data card).
 
-**Known limits, not fixed in this version**:
+## 5. Decision: 60 Days
 
-- **Left truncation**: history starts `2026-06-18`. A player active before that has an unknown true first bet, so `first_bet` here means "first bet I can see", not "first bet ever". This is the same limit as v0, and it is unaffected by the brand filter.
-- **Short history vs. large thresholds**: with only around 104 days of data, the 60 day threshold has little room, and it bites harder for this brand than for the all brands pool (75.8% censored here, versus 64.4% for all brands). This improves on its own as more history builds up.
-- **The one time player caveat from v0 does not apply to this brand** (see Section 3), but this has only been checked for `brandId=64`. Each brand should be checked individually once this analysis is repeated for others, and I should not assume the same holds everywhere.
-- **No EUR conversion needed in this notebook.** The churn-definition labels here only use `partyId` and `dateTime`, no money amounts. The project-wide EUR conversion (see `src/fx_rates.py`) applies from `03_signal_explorer.ipynb` onward, where monetary features are built.
+I keep **60 days** as the churn threshold for `brandId=64`. The plan proposes 30 days as a provisional value; the evidence below is why I do not use it.
 
-## 5. Threshold Decision: Why 60 Days
+### What the threshold trades
 
-I choose **60 days** as the churn threshold for the training label for `brandId=64`, not 30 days, same decision as the original v0 pass.
+The threshold balances two costs:
 
-30 days is the common default, but it has a real cost for this brand: 21.1% of players labelled "churned" at 30 days later return, meaning the ground truth would be wrong roughly 1 in 5 times, worse odds than the all brands figure of about 1 in 7. 60 days brings that error down to 5.8%. That is higher than the 3.8% seen for the all brands pool, so this brand's 60 day label carries more residual noise than the original v0 estimate implied, but it is still by a wide margin the cleanest of the three options for this brand, and the gap to 30 days (21.1%) is, if anything, larger here than it was in the original analysis.
+- **A short threshold gives false churns.** A player called "churned" who then bets again is a wrong label, and the model learns from it. I measure this with the fair return rate: the share who bet again within the next 60 days.
+- **A long threshold gives late and fewer labels.** A label can only be known `threshold` days after the cutoff, so the newest model is trained on older data, the business learns that a player is gone later, and fewer cutoffs have a complete label.
 
-**Decision v0.1**: `event_60d` is the primary churn label for `brandId=64`. `event_14d` and `event_30d` stay in the notebook as earlier warning signals and for comparison, not as the training target. The 60 day cutoff leaves only 2 complete simulated "today" snapshots to train the early warning signals on in `03_signal_explorer.ipynb` (see that notebook for why), which is a direct and known consequence of combining a single brand's smaller population with this threshold and this much history, not a new problem introduced here.
+| Threshold | False churns (bet again within 60 days) | Reduction from 30 more days of waiting | Monthly cutoffs with a complete label |
+|---|---|---|---|
+| 14 days | 42.2% | 25.0 points (to 44 days) | 16 |
+| 30 days | 23.6% | 10.6 points | 16 |
+| 45 days | 16.9% | 6.5 points | 15 |
+| **60 days** | **13.0%** | **4.3 points** | **15** |
+| 75 days | 10.5% | 3.1 points | 14 |
+| 90 days | 8.7% | 2.4 points | 14 |
+
+### Why 60
+
+1. **It is where waiting stops paying.** Up to 60 days, each extra month of silence removes a large share of the false churns (10.6 points from 30 to 60 days). From 60 days on, an extra month removes less than 5 points (4.3 from 60 to 90, 3.1 from 75 to 105). The curve has no sharp elbow, so this is a judgement, but the change of pace is clear.
+2. **The error level is acceptable.** 13.0% of the players labelled churned come back within 60 days (9.6% for all brands). The return rate first drops below 15% at 52 days of silence and below 10% at 79 days. 60 days is the first standard window (30, 60, 90 days) below 15%, and windows of whole months are easier to explain and to operate than 52 days.
+3. **30 days is too noisy.** About one label in four (23.6%) would be wrong, nearly twice the 60-day rate.
+4. **90 days costs more than it gains.** It removes 4.3 more points of false churn, but every label arrives a month later, the training data is a month older (the behaviour of the players changes with the season, see the monthly churn rates), the business is told a month later, and one monthly cutoff is lost (14 instead of 15).
+5. **It is conservative for the other brands.** Their players return less often than brand 64's (9.6% vs 13.0% after 60 days of silence), so the same threshold gives them cleaner labels.
+
+### If an objective rule is preferred
+
+The threshold can also be fixed by a rule decided in advance, for example "the shortest silence after which fewer than X% of players come back within 60 days":
+
+| Rule | Threshold |
+|---|---|
+| fewer than 20% come back | 37 days |
+| fewer than 15% come back | 52 days |
+| fewer than 10% come back | 79 days |
+
+60 days sits between the 15% and the 10% rules, closer to the first.
+
+**Decision v0.2**: `event_60d` is the training target. The 30-day rate stays in the analysis as an earlier signal and for comparison. With 15 monthly cutoffs that have a complete 60-day label (2025-06-01 to 2026-08-01), the 12-cutoff rolling-origin backtest of the plan (T10) is possible.
+
+## 6. Sign-off
+
+| | |
+|---|---|
+| Proposed by | Javier, 2026-10-07 |
+| Reviewed by (supervisor) | |
+| Decision | ☐ approved ☐ changes requested |
