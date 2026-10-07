@@ -25,7 +25,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from anomalies import FEATURES_SPEC, LANDING_SPEC, detect_anomalies, load_player_day, save_anomaly_outputs
 from build_features import (
-    ALL_BRANDS, DATA_AVAILABLE_THROUGH, HISTORY_START, _discover_brand_ids, build_feature_store, parse_brand_id,
+    ALL_BRANDS, HISTORY_START, data_available_through, _discover_brand_ids, build_feature_store, parse_brand_id,
 )
 from build_training_features import DEFAULT_CUTOFF_DATES
 
@@ -37,7 +37,7 @@ def load_table(source: str, brand_id: int | str, cutoff_dates: list[str], input_
     if input_path:
         return pd.read_parquet(input_path)
     if source == "landing":
-        brands = ([b for _, b in _discover_brand_ids(DATA_AVAILABLE_THROUGH)] if brand_id == ALL_BRANDS
+        brands = ([b for _, b in _discover_brand_ids(data_available_through())] if brand_id == ALL_BRANDS
                   else [brand_id])
         return pd.concat([load_player_day(b, use_cache) for b in sorted(set(brands))], ignore_index=True)
     # Unscaled and unwinsorised on purpose: caps and IQR/MAD must be in raw EUR.
@@ -62,7 +62,7 @@ def main() -> None:
     df = load_table(args.source, args.brand_id, args.cutoff_dates, args.input, not args.no_cache)
     print(f"{spec.name}: {len(df):,} rows, {df['partyId'].nunique():,} players")
 
-    history = (HISTORY_START, DATA_AVAILABLE_THROUGH) if spec is LANDING_SPEC else (None, None)
+    history = (HISTORY_START, data_available_through()) if spec is LANDING_SPEC else (None, None)
     # One study per brand: thresholds and winsorisation caps are never pooled across brands.
     for brand, rows in df.groupby("brandId"):
         table, flagged, config = detect_anomalies(rows, spec, *history, brand_id=int(brand))

@@ -7,7 +7,7 @@ Call signature:
 `party_ids` is normally the partyId column from a build_feature_store() call
 for the same cutoff_date and brand_id, the population the label is for.
 
-Only data strictly after cutoff_date, through DATA_AVAILABLE_THROUGH, is ever
+Only data strictly after cutoff_date, through the last complete data day (data_available_through()), is ever
 read here, so this never overlaps with what build_feature_store() reads for
 the same cutoff. One scan gives every target:
 
@@ -20,7 +20,7 @@ duration_days + event_observed (survival, Cox PH). Day 0 is cutoff_date:
   60 days with no bet. event_observed=1 when that silence fits inside the data, and
   duration_days=t. Otherwise the player is censored (event_observed=0) at the last
   active day. duration_days=0 with event_observed=1 is the same as event_60d=1.
-  A churn day t can only be seen when t + 60 <= DATA_AVAILABLE_THROUGH, so recent
+  A churn day t can only be seen when t + 60 <= the last complete data day, so recent
   cutoffs only show churn days close to the cutoff.
 
 Whether event_60d is confirmable yet is build_feature_store()'s label_available_60d
@@ -40,7 +40,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (
-    DATA_AVAILABLE_THROUGH, LABEL_HORIZON_DAYS, LANDING_TABLES,
+    LABEL_HORIZON_DAYS, LANDING_TABLES, data_available_through,
     _daily_paths, _date_range, _landing_paths, _resolve_operators_for_brand, _s3_duckdb,
 )
 
@@ -108,12 +108,13 @@ def build_labels(
     data_end: str | dt.date | None = None,
 ) -> pd.DataFrame:
     """One row per partyId in `party_ids`, with every churn target for `cutoff_date`.
-    `data_end` is the last day the labels may look at (default DATA_AVAILABLE_THROUGH); a run
+    `data_end` is the last day the labels may look at (default: the last complete data day); a run
     "as of" an earlier date passes that date, so it never sees later data."""
     cutoff = pd.to_datetime(cutoff_date).date() if isinstance(cutoff_date, str) else cutoff_date
-    data_end = pd.to_datetime(data_end).date() if data_end else DATA_AVAILABLE_THROUGH
-    if data_end > DATA_AVAILABLE_THROUGH:
-        raise ValueError(f"data_end {data_end} is after DATA_AVAILABLE_THROUGH {DATA_AVAILABLE_THROUGH}")
+    available = data_available_through()
+    data_end = pd.to_datetime(data_end).date() if data_end else available
+    if data_end > available:
+        raise ValueError(f"data_end {data_end} is after the last complete data day {available}")
 
     cache_path = _label_cache_path(brand_id, cutoff, data_end)
     if use_cache and cache_path.exists():
@@ -157,7 +158,7 @@ def build_training_labels(features_path: str | Path | None = None, data_end: str
     )
     # A label whose 60-day window runs past the data we have (or past data_end) is not a real 0/1.
     # The survival columns stay: censoring already covers the end of the data.
-    end = pd.to_datetime(data_end).date() if data_end else DATA_AVAILABLE_THROUGH
+    end = pd.to_datetime(data_end).date() if data_end else data_available_through()
     window_fits = labels["cutoff_date"].map(lambda c: c + dt.timedelta(days=LABEL_HORIZON_DAYS) <= end)
     labels["label_available_60d"] = labels["label_available_60d"] & window_fits
     labels["event_60d"] = labels["event_60d"].astype("Int64").where(labels["label_available_60d"])

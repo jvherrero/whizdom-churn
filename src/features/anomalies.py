@@ -31,7 +31,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (
-    DATA_AVAILABLE_THROUGH, FX_RATES_CSV, HISTORY_START, LANDING_TABLES, LOOKBACK_DAYS, WINSOR_CONFIG_PATH,
+    data_available_through,
+    FX_RATES_CSV, HISTORY_START, LANDING_TABLES, LOOKBACK_DAYS, WINSOR_CONFIG_PATH,
     _date_range, _landing_paths, _resolve_operators_for_brand, _s3_duckdb,
 )
 from fx_rates import convert_amount_to_eur, load_fx_rates_eur
@@ -707,7 +708,7 @@ def _extract_operator(con, operator: str, brand_id: int, days: list) -> pd.DataF
     con.unregister("brand_players")
     bonuses["currency"] = dominant_currency
 
-    fx_rates = load_fx_rates_eur(FX_RATES_CSV, HISTORY_START, DATA_AVAILABLE_THROUGH)
+    fx_rates = load_fx_rates_eur(FX_RATES_CSV, HISTORY_START, data_available_through())
     parts = []
     for df, amounts in [
         (bets, {"stake_local": "stake_eur", "win_local": "win_eur"}),
@@ -716,7 +717,7 @@ def _extract_operator(con, operator: str, brand_id: int, days: list) -> pd.DataF
     ]:
         df["activity_date"] = pd.to_datetime(df["activity_date"])
 
-        df = df[df["activity_date"].between(pd.Timestamp(HISTORY_START), pd.Timestamp(DATA_AVAILABLE_THROUGH))].copy()
+        df = df[df["activity_date"].between(pd.Timestamp(HISTORY_START), pd.Timestamp(data_available_through()))].copy()
         for local, eur in amounts.items():
             df[eur] = convert_amount_to_eur(df, local, "currency", "activity_date", fx_rates)
         keep = [c for c in df.columns if c.startswith("n_")] + list(amounts.values())
@@ -735,11 +736,12 @@ def _extract_operator(con, operator: str, brand_id: int, days: list) -> pd.DataF
 
 def load_player_day(brand_id: int, use_cache: bool = True) -> pd.DataFrame:
     """Player-day table for one brand, from cache when available, else from S3."""
-    cache = Path(str(PLAYER_DAY_CACHE).format(brand_id=brand_id, end=DATA_AVAILABLE_THROUGH))
+    end = data_available_through()
+    cache = Path(str(PLAYER_DAY_CACHE).format(brand_id=brand_id, end=end))
     if use_cache and cache.exists():
         return pd.read_parquet(cache)
-    days = _date_range(HISTORY_START, DATA_AVAILABLE_THROUGH)
-    operators = _resolve_operators_for_brand(brand_id, DATA_AVAILABLE_THROUGH)
+    days = _date_range(HISTORY_START, end)
+    operators = _resolve_operators_for_brand(brand_id, end)
     con = _s3_duckdb()
     try:
         player_day = pd.concat(

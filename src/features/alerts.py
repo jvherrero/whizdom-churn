@@ -1,15 +1,18 @@
 """
 Data alerts: checks of the landing data and of the feature snapshot against a benchmark, with
-the thresholds of configs/eda_alerts.yaml. 
+the thresholds of configs/eda_alerts.yaml. Only the data the pipeline actually reads is checked:
+the used columns of each table (`used_columns`), the rows the daily tables keep and the features
+the models use.
 
     .venv/bin/python src/features/alerts.py --as-of 2026-10-04                  # landing + features
     .venv/bin/python src/features/alerts.py --as-of 2026-10-04 --stage landing --brand-id basel
 
 Checks
-    expectations     any pandera suite (eda/expectations/) failing
-    null_rate        null share of a column up more than N points vs the benchmark
-    row_count        rows per day outside +-N% of the benchmark's daily mean
-    new_categories   a value never seen in the benchmark (e.g. a new country or tranType)
+    expectations     any pandera suite (eda/expectations/) failing, on the used columns only
+    null_rate        null share of a used column up more than N points vs the benchmark
+    row_count        rows the pipeline uses per day (daily-table count, e.g. completed deposits)
+                     outside +-N% of the benchmark's daily mean
+    new_categories   a value never seen in the benchmark in a used column (e.g. a new tranType)
     daily_total      a daily total outside the rolling band (median +- n * MAD of the previous days)
     feature_drift    a feature whose distribution shifts (PSI) vs the training dataset
 
@@ -37,12 +40,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (
     ALL_BRANDS, BASELINE_FEATURES, HISTORY_START, LANDING_TABLES, LOOKBACK_DAYS,
     _date_range, _discover_brand_ids, _landing_paths, _resolve_operators_for_brand, _s3_duckdb,
-    parse_brand_id,
+    daily_path, parse_brand_id,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "eda"))
 import expectations  # noqa: E402  (pandera suites, eda/expectations/)
+from dq_lib import validate_dataframe  # noqa: E402
 
 CONFIG_PATH = PROJECT_ROOT / "configs/eda_alerts.yaml"
 PROFILE_DIR = PROJECT_ROOT / "data/02_intermediate/daily_profiles"
@@ -132,26 +136,55 @@ def daily_profile(con, operator: str, table: str, brand_id: int | None, day: dt.
 
 # ---------------------------------------------------------------- landing: checks
 
-def check_row_count(bench: list[dict], current: list[dict], rule: dict, **ctx) -> list[dict]:
-    base = np.mean([p["rows"] for p in bench]) if bench else 0
+def daily_column_counts(table: str, operator: str, brand_id: int | None, days: list[dt.date],
+                        column: str) -> dict[dt.date, float]:
+    """Rows the pipeline uses per landing day, from the daily tables (only the days whose file
+    exists): the sum of a count column (e.g. n_deposit = completed deposits) or, with "rows", the
+    number of daily-table rows."""
+    out = {}
+    for day in days:
+        path = daily_path(table, operator, day)
+        if path.exists():
+            wanted = [c for c in (["brandId"] if brand_id is not None else []) + [column] if c != "rows"]
+            frame = pd.read_parquet(path, columns=wanted or None)
+            if brand_id is not None:
+                frame = frame[frame["brandId"] == brand_id]
+            out[day] = float(len(frame) if column == "rows" else frame[column].sum())
+    return out
+
+
+def check_row_count(bench: list[dict], current: list[dict], rule: dict,
+                    counts: dict[dt.date, float] | None = None, **ctx) -> list[dict]:
+    """Rows per day vs the benchmark's daily mean. With rule["count_column"] and its daily-table
+    `counts`, only the rows the pipeline uses are judged (e.g. completed deposits, not every payment
+    status event); without a daily table for some day, the raw landing rows are used instead."""
     out = []
     for p in current:
-        if p["rows"] == 0:
-            out.append(_alert("row_count", "critical", f"no rows on {p['day']}", value=0, benchmark=base,
+        if p["rows"] == 0:  # no landing folder that day
+            out.append(_alert("row_count", "critical", f"no rows on {p['day']}", value=0,
                               threshold=rule["critical_relative_change"], **ctx))
-            continue
-        change = p["rows"] / base - 1 if base else np.inf
+    current = [p for p in current if p["rows"]]
+    column = rule.get("count_column")
+    days = [dt.date.fromisoformat(p["day"]) for p in bench + current]
+    if column and counts is not None and all(d in counts for d in days):
+        value = {p["day"]: counts[dt.date.fromisoformat(p["day"])] for p in bench + current}
+        label = column
+    else:
+        value, label, column = {p["day"]: p["rows"] for p in bench + current}, "rows", None
+    base = np.mean([value[p["day"]] for p in bench]) if bench else 0
+    for p in current:
+        change = value[p["day"]] / base - 1 if base else np.inf
         severity = _graded(abs(change), rule["warn_relative_change"], rule.get("critical_relative_change"))
         if severity:
-            out.append(_alert("row_count", severity, f"{p['day']}: {p['rows']:,} rows, {change:+.0%} vs the "
-                              f"benchmark daily mean {base:,.0f}", value=p["rows"], benchmark=base,
-                              threshold=rule["warn_relative_change"], **ctx))
+            out.append(_alert("row_count", severity, f"{p['day']}: {value[p['day']]:,.0f} {label}, {change:+.0%} "
+                              f"vs the benchmark daily mean {base:,.0f}", column=column, value=value[p["day"]],
+                              benchmark=base, threshold=rule["warn_relative_change"], **ctx))
     return out
 
 
 def check_null_rate(bench: list[dict], current: list[dict], rule: dict, used: set[str] | None = None,
                     **ctx) -> list[dict]:
-    """`used`: the columns the pipeline reads; a null jump elsewhere is capped at warn."""
+    """`used`: the columns the pipeline reads; the other columns are not checked."""
     def pooled(profiles):
         """Null share per column over the profiles that have that column (a profile built from the
         daily tables only covers the columns read there, so it says nothing about the others)."""
@@ -169,23 +202,23 @@ def check_null_rate(bench: list[dict], current: list[dict], rule: dict, used: se
         return []
     out = []
     for col, rate in cur.items():
-        if col not in base:
+        if col not in base or (used is not None and col not in used):
             continue  # a new column is a schema change: the expectations report it
         increase = (rate - base[col]) * 100
         severity = _graded(increase, rule["warn_increase_pts"], rule.get("critical_increase_pts"))
-        unused = used is not None and col not in used
         if severity:
-            if unused:
-                severity = "warn"
             out.append(_alert("null_rate", severity, f"null share {rate:.1%} vs {base[col]:.1%} in the benchmark "
-                              f"(+{increase:.1f} pts)" + (" (not used by the pipeline)" if unused else ""), column=col, value=rate, benchmark=base[col],
+                              f"(+{increase:.1f} pts)", column=col, value=rate, benchmark=base[col],
                               threshold=rule["warn_increase_pts"], **ctx))
     return out
 
 
-def check_new_categories(bench: list[dict], current: list[dict], rule: dict, **ctx) -> list[dict]:
+def check_new_categories(bench: list[dict], current: list[dict], rule: dict, columns: list[str],
+                         **ctx) -> list[dict]:
     out = []
-    for col in {c for p in current for c in p["categories"]}:
+    for col in [c for c in columns if any(c in p["categories"] for p in current)]:
+        if not any(col in p["categories"] for p in bench):
+            continue  # the column did not exist in the benchmark: nothing to compare with
         seen = {v for p in bench for v in p["categories"].get(col, [])}
         new = sorted({v for p in current for v in p["categories"].get(col, [])} - seen)
         if new:
@@ -216,8 +249,12 @@ def check_daily_totals(profiles: dict, current_days: list[dt.date], rule: dict, 
     return out
 
 
-def check_expectations(df: pd.DataFrame, suite: str, rule: dict, **ctx) -> list[dict]:
-    result = getattr(expectations, suite).validate(df)
+def check_expectations(df: pd.DataFrame, suite: str, rule: dict, columns: list[str] | None = None,
+                       **ctx) -> list[dict]:
+    """The pandera suite, restricted to `columns` (the used ones) when given."""
+    module = getattr(expectations, suite)
+    result = (module.validate(df) if columns is None
+              else validate_dataframe(df, [c for c in module.COLUMNS if c.name in columns]))
     return [_alert("expectations", rule["severity"], f"{suite}: {i.message}", column=i.column, **ctx)
             for i in result.issues]
 
@@ -255,26 +292,27 @@ def landing_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[d
                                              cfg["new_categories"]["max_values_per_column"], use_cache) for d in all_days}
                 bench = [profiles[d] for d in bench_days if d in profiles]
                 current = [profiles[d] for d in current_days]
-                row_rule = {**cfg["row_count"], **cfg["row_count"].get("per_table", {}).get(table, {})}
-                alerts += check_row_count(bench, current, row_rule, **ctx)
-                used = cfg["null_rate"].get("used_columns", {}).get(table)
-                alerts += check_null_rate(bench, current, cfg["null_rate"], set(used) if used else None, **ctx)
-                alerts += check_new_categories(bench, current, cfg["new_categories"], **ctx)
+                row_rule = {**cfg["row_count"], **cfg["row_count"].get("per_table", {}).get(table, {}),
+                            "count_column": cfg["row_count"].get("count_columns", {}).get(table)}
+                counts = (daily_column_counts(table, operator, scope, sorted(set(bench_days) | set(current_days)),
+                                              row_rule["count_column"]) if row_rule["count_column"] else None)
+                alerts += check_row_count(bench, current, row_rule, counts, **ctx)
+                used = cfg["used_columns"][table]
+                alerts += check_null_rate(bench, current, cfg["null_rate"], set(used), **ctx)
+                alerts += check_new_categories(bench, current, cfg["new_categories"], cats.get(table, []), **ctx)
                 alerts += check_daily_totals(profiles, current_days, cfg["daily_total"],
                                              cfg["daily_total"]["totals"].get(table, []), **ctx)
                 # Expectations on every row of the current days (no sample).
                 where = f"WHERE brandId = {scope}" if scope is not None else ""
                 paths = _landing_paths(operator, LANDING_TABLES[table], current_days)
                 try:
-                    rows = con.sql(f"SELECT * FROM read_parquet({paths}, union_by_name=True) {where}").df()
+                    # Only the used columns are read and checked (and no personal data is loaded).
+                    columns = ", ".join(f'"{c}"' for c in used)
+                    rows = con.sql(f"SELECT {columns} FROM read_parquet({paths}, union_by_name=True) {where}").df()
                 except duckdb.Error:
                     rows = None  # no file: row_count already says it, as critical
                 if rows is not None and len(rows):
-                    # Some suites expect the operator column the profiling loader adds; add it only for those.
-                    expects_operator = any(c.name == "operator" for c in getattr(expectations, table).COLUMNS)
-                    if expects_operator and "operator" not in rows:
-                        rows = rows.assign(operator=operator)
-                    alerts += check_expectations(rows, table, cfg["expectations"], **ctx)
+                    alerts += check_expectations(rows, table, cfg["expectations"], used, **ctx)
     finally:
         con.close()
     return pd.DataFrame([{"stage": "landing", **a} for a in alerts], columns=ALERT_COLUMNS)
@@ -303,8 +341,8 @@ def psi(expected: pd.Series, actual: pd.Series, bins: int = 10) -> float:
 def feature_alerts(benchmark: pd.DataFrame, snapshot: pd.DataFrame, config: dict | None = None,
                    model_features: set[str] | None = None) -> pd.DataFrame:
     """The feature snapshot being scored vs the training dataset, brand by brand: expectations,
-    player count and PSI per feature. With `model_features`, only a feature the models use can be
-    critical: drift in an unused one cannot hurt the scores, so it is capped at warn."""
+    player count and PSI per feature. With `model_features`, only the features the models use are
+    checked for drift: drift in an unused one cannot hurt the scores."""
     cfg = config or load_config()
     alerts = [{"table": "feature_snapshot", "brandId": "all", **a}
               for a in check_expectations(snapshot, "feature_snapshot", cfg["expectations"])]
@@ -323,15 +361,13 @@ def feature_alerts(benchmark: pd.DataFrame, snapshot: pd.DataFrame, config: dict
             alerts.append(_alert("row_count", severity, f"{len(snap):,} players, {change:+.0%} vs {base:,.0f} per "
                                  f"training cutoff", value=len(snap), benchmark=base,
                                  threshold=rule["warn_relative_change"], **ctx))
-        for feature in [f for f in BASELINE_FEATURES if f in snap and f in bench]:
+        checked = [f for f in BASELINE_FEATURES if f in snap and f in bench
+                   and (model_features is None or f in model_features)]
+        for feature in checked:
             value = psi(bench[feature], snap[feature], drift["bins"])
             severity = _graded(value, drift["warn_psi"], drift.get("critical_psi"))
-            unused = model_features is not None and feature not in model_features
             if severity:
-                if unused:
-                    severity = "warn"
-                alerts.append(_alert("feature_drift", severity, f"PSI {value:.3f} vs the training dataset"
-                                     + (" (not used by the models)" if unused else ""),
+                alerts.append(_alert("feature_drift", severity, f"PSI {value:.3f} vs the training dataset",
                                      column=feature, value=value, threshold=drift["warn_psi"], **ctx))
     return pd.DataFrame([{"stage": "features", **a} for a in alerts], columns=ALERT_COLUMNS)
 

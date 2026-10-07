@@ -257,7 +257,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
         raise ValueError(f"the two runs use different datasets: {lgbm['dataset_path']} vs {cox['dataset_path']}")
 
     data = pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"])
-    split = split_rows(data)
+    split = split_rows(data, lgbm["seed"])  # the same train/validation split the runs were trained with
     # The k-means segments each run was trained with (same dataset and seed, so the same segments).
     segments = {name: load_segment_model(info["run_id"]) for name, info in (("lgbm", lgbm), ("cox", cox))}
     if segments["lgbm"] is not None:

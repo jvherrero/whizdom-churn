@@ -1,7 +1,7 @@
 """Daily tables: the S3 landing data summarised once per landing day, every brand at once, and kept
 up to date day by day (only the days not yet built are read).
 
-    .venv/bin/python src/features/daily_tables.py                        # HISTORY_START .. DATA_AVAILABLE_THROUGH
+    .venv/bin/python src/features/daily_tables.py                        # HISTORY_START .. the last complete day in S3
     .venv/bin/python src/features/daily_tables.py --start 2026-10-01 --end 2026-10-04 --workers 32
 
 For each (operator, table, landing day):
@@ -44,8 +44,8 @@ from pyarrow import fs
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (
-    AWS_PROFILE, BUCKET, DATA_AVAILABLE_THROUGH, DAILY_DIR, HISTORY_START, LANDING_LEVEL, LANDING_TABLES,
-    OPERATORS, TIMEZONE, _date_range, daily_path,
+    AWS_PROFILE, BUCKET, DAILY_DIR, HISTORY_START, LANDING_LEVEL, LANDING_TABLES,
+    OPERATORS, TIMEZONE, _date_range, daily_path, latest_s3_complete_day,
 )
 import alerts
 
@@ -54,14 +54,9 @@ REGION = "eu-central-1"
 DEFAULT_WORKERS = 64       # parallel S3 file reads
 DEFAULT_UNIT_WORKERS = 8   # (operator, table, day) units at once; each bet day holds ~1 GB in memory
 
-# Columns read from S3: what the daily tables need, plus what the alert profiles watch.
-READ_COLUMNS = {
-    "bet": ["partyId", "brandId", "dateTime", "currency", "tranType", "amountReal", "rolledBack", "device", "os"],
-    "transaction": ["partyId", "brandId", "requestDate", "transactionType", "transactionMethod", "status",
-                    "processedAmount", "currency"],
-    "player": ["partyId", "brandId", "regdate", "country", "currency", "language", "kycStatus"],
-    "bonus": ["partyId", "changeStatusTimestamp", "amount", "status"],
-}
+# Columns read from S3: exactly what the daily tables (and so the features and labels) need. The
+# same list is what the data alerts check (configs/eda_alerts.yaml: used_columns), nothing else.
+READ_COLUMNS = alerts.load_config()["used_columns"]
 
 # One aggregation per table, over the rows of one landing day (`events`). They keep exactly what the
 # feature, label and activity queries need, so reading them gives the same rows as reading S3.
@@ -190,11 +185,18 @@ def build_day(s3, s3fs, pool: ThreadPoolExecutor, con, operator: str, table: str
             "status": "built"}
 
 
-def build(start: dt.date = HISTORY_START, end: dt.date = DATA_AVAILABLE_THROUGH, operators=OPERATORS,
+def build(start: dt.date = HISTORY_START, end: dt.date | None = None, operators=OPERATORS,
           tables=tuple(DAILY_SQL), workers: int = DEFAULT_WORKERS, unit_workers: int = DEFAULT_UNIT_WORKERS,
           overwrite: bool = False, verbose: bool = True) -> pd.DataFrame:
     """Build every missing (operator, table, day) in [start, end], `unit_workers` units at a time
     (each reading its files with the shared pool of `workers` threads). Returns one row per unit."""
+    # Never past the last complete day in S3: the newest folder may still be filling up, and a day
+    # built from half its files would stay wrong in the table.
+    complete = latest_s3_complete_day()
+    if end is None or end > complete:
+        if end is not None and verbose:
+            print(f"daily tables: {end} is not complete in S3 yet, building up to {complete}")
+        end = complete
     s3, s3fs = _clients()
     cfg = alerts.load_config()
     con = duckdb.connect()
@@ -232,7 +234,7 @@ def build(start: dt.date = HISTORY_START, end: dt.date = DATA_AVAILABLE_THROUGH,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build the daily tables from S3 (only the missing days).")
     parser.add_argument("--start", type=dt.date.fromisoformat, default=HISTORY_START)
-    parser.add_argument("--end", type=dt.date.fromisoformat, default=DATA_AVAILABLE_THROUGH)
+    parser.add_argument("--end", type=dt.date.fromisoformat, help="default: the last complete day in S3")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument("--unit-workers", type=int, default=DEFAULT_UNIT_WORKERS)
     parser.add_argument("--overwrite", action="store_true", help="rebuild days that already exist")

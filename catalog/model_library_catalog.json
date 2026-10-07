@@ -315,8 +315,8 @@
           "platt"
         ],
         "fit_on": "valid",
-        "choose_by": "test_ece",
-        "notes": "isotonic and Platt are fitted on the validation rows (per brand, all brands as the fallback); the one with the lowest ECE on the test month is kept"
+        "choose_by": "valid_ece_cross_fitted",
+        "notes": "isotonic and Platt are fitted on the validation rows (per brand, all brands as the fallback); each is scored by its out-of-fold ECE on the validation rows (5-fold cross-fitting, grouped by player) and the lowest one is kept, refitted on all the validation rows; the test month is only reported"
       },
       "class_balance_selection": "calibrated_log_loss",
       "class_balance_min_gain": 0.002,

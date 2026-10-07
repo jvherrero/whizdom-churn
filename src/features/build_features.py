@@ -47,7 +47,6 @@ LANDING_TABLES = {
 OPERATORS = ["primus", "secundus"]
 
 HISTORY_START = dt.date(2026, 6, 18)  
-DATA_AVAILABLE_THROUGH = dt.date(2026, 10, 4)  # last complete landing day; update when new data lands
 LABEL_HORIZON_DAYS = 60  
 # Every feature (and the population) only looks at (cutoff - LOOKBACK_DAYS, cutoff], so a
 # feature means the same at every cutoff, whatever history exists before that window.
@@ -111,6 +110,55 @@ def _daily_paths(table: str, operator: str, days: list[dt.date]) -> list[str] | 
     """The daily-table files for these landing days, or None if any day is missing (then use S3)."""
     paths = [daily_path(table, operator, d) for d in days]
     return [str(p) for p in paths] if all(p.exists() for p in paths) else None
+
+
+def latest_local_day() -> dt.date | None:
+    """The last landing day that is complete in the daily tables: every table of every operator
+    has it. No S3 call."""
+    per_operator = []
+    for operator in OPERATORS:
+        days = None
+        for table in LANDING_TABLES:
+            found = {dt.date.fromisoformat(f.name.split("_v")[0])
+                     for f in (DAILY_DIR / table / operator).glob(f"*_v{DAILY_VERSION}.parquet")}
+            days = found if days is None else days & found
+        if not days:
+            return None
+        per_operator.append(max(days))
+    return min(per_operator)
+
+
+def latest_s3_complete_day() -> dt.date:
+    """The last complete landing day in S3: the day before the newest `bet` folder (that one may
+    still be filling up), the earliest across operators."""
+    import boto3
+
+    s3 = boto3.Session(profile_name=AWS_PROFILE).client("s3")
+
+    def newest(prefix):
+        names = [p["Prefix"].rstrip("/").split("/")[-1]
+                 for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=prefix, Delimiter="/")
+                 for p in page.get("CommonPrefixes", [])]
+        return max(names)
+
+    days = []
+    for operator in OPERATORS:
+        base = f"{LANDING_LEVEL}/{operator}/{LANDING_TABLES['bet']}/"
+        year = newest(base)
+        month = newest(f"{base}{year}/")
+        day = newest(f"{base}{year}/{month}/")
+        days.append(dt.date(int(year), int(month), int(day)) - dt.timedelta(days=1))
+    return min(days)
+
+
+def data_available_through() -> dt.date:
+    """The last day with complete data, used for labels, label availability and the AS_OF check:
+    the DATA_AVAILABLE_THROUGH environment variable if set, else the last complete day of the daily
+    tables (no S3 call), else the last complete day in S3."""
+    override = os.environ.get("DATA_AVAILABLE_THROUGH")
+    if override:
+        return dt.date.fromisoformat(override)
+    return latest_local_day() or latest_s3_complete_day()
 
 
 def _date_range(start: dt.date, end: dt.date) -> list[dt.date]:
@@ -645,8 +693,8 @@ def build_feature_store(
     if not frames:
         raise ValueError(f"no data found for brand_id={brand_id!r} as of {cutoff}")
     result = pd.concat(frames, ignore_index=True)
-    # Computed here, not cached, so it follows DATA_AVAILABLE_THROUGH when that moves.
-    result.insert(3, "label_available_60d", cutoff + dt.timedelta(days=LABEL_HORIZON_DAYS) <= DATA_AVAILABLE_THROUGH)
+    # Computed here, not cached, so it follows the data as new days land.
+    result.insert(3, "label_available_60d", cutoff + dt.timedelta(days=LABEL_HORIZON_DAYS) <= data_available_through())
     # The cache holds unwinsorised values, so new caps apply without rebuilding it.
     if winsorise:
         result = _winsorise(result, winsor_config)

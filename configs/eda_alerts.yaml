@@ -7,6 +7,14 @@ version: 1
 current_window_days: 1
 tables: [bet, transaction, player, bonus]
 
+# Only what the pipeline actually reads is checked. These are the columns the daily tables and the
+# feature/label queries use: null rate, expectations and new categories ignore every other column.
+used_columns:
+  bet: [partyId, brandId, dateTime, currency, tranType, amountReal, rolledBack]
+  transaction: [partyId, brandId, requestDate, transactionType, status, processedAmount, currency]
+  player: [partyId, brandId, regdate]
+  bonus: [partyId, changeStatusTimestamp, amount, status]
+
 expectations:
   severity: critical
 
@@ -14,16 +22,20 @@ null_rate:
   warn_increase_pts: 5
   critical_increase_pts: 20
   min_rows: 100              # Minimum number of rows in the current window to check null rate.
-  used_columns:
-    bet: [partyId, brandId, dateTime, currency, tranType, amountReal, rolledBack]
-    transaction: [partyId, brandId, requestDate, transactionType, status, processedAmount, currency]
-    player: [partyId, brandId, regdate]
-    bonus: [partyId, changeStatusTimestamp, amount, status]
 
-# Rows per day, current vs the benchmark's daily mean.
+# Rows the pipeline uses per day, current vs the benchmark's daily mean. The count comes from the
+# daily tables (count_columns), not from the raw landing rows: e.g. `transaction` logs every status
+# change of a payment (pending, failed, retried, completed) and only completed deposits are used
+# (on 2026-10-06 the raw rows were +64% with new IS_V2_* payment methods). "rows" = daily-table rows.
+# Without a daily table for some day, the raw landing rows are compared instead.
 row_count:
   warn_relative_change: 0.20     # outside +-20%
   critical_relative_change: 0.50 # outside +-50%, or a day with no data at all
+  count_columns:
+    bet: n_rows                  # bet events
+    transaction: n_deposit       # completed deposits
+    player: rows                 # players with their registration date
+    bonus: n_events              # bonus status events
   # Per-table overrides. `player` logs profile changes (registrations, KYC, edits), which swing a
   # lot from month to month (+91% in October vs August), and the pipeline only reads regdate from it.
   per_table:
@@ -31,14 +43,13 @@ row_count:
       warn_relative_change: 0.50
       critical_relative_change: 1.50
 
-# tranType / device / os are the closest; country is in player.
+# Used categorical columns only (the values the queries filter or convert on).
 new_categories:
   severity: warn
   max_values_per_column: 500
   columns:
-    bet: [tranType, currency, device, os]
-    player: [country, currency, language, kycStatus]
-    transaction: [transactionType, transactionMethod, status, currency]
+    bet: [tranType, currency]
+    transaction: [transactionType, status, currency]
     bonus: [status]
 
 # Daily totals vs a rolling band: median of the previous `window_days` days +- n * MAD.
@@ -49,8 +60,7 @@ daily_total:
   critical_n_mad: 6
   totals:
     bet: [rows, n_players, stake_local]
-    transaction: [rows, n_players, deposits_local]
-    player: [rows, n_players]
+    transaction: [deposits_local]          # completed deposits; raw rows / players count every status event
     bonus: [rows, n_players, bonus_amount]
 
 # Feature distribution shift, scoring snapshot vs training dataset (Population Stability Index).

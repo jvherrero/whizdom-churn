@@ -237,23 +237,30 @@ def fit_calibrator(entry: dict, model, valid: pd.DataFrame, features: list[str],
 
 
 def choose_calibrator(entry: dict, model, data: pd.DataFrame, split: pd.Series, features: list[str]):
-    """Every catalog calibration method fitted on the validation rows; the one with the lowest
-    expected calibration error on the test month is kept (catalog: calibration.choose_by)."""
-    candidates = {m: fit_calibrator(entry, model, data[split == "valid"], features, m)
-                  for m in calibration_methods(entry)}
-    if not candidates:
+    """Every catalog calibration method is scored on the validation rows with out-of-fold (cross-fitted)
+    probabilities, so isotonic is not judged on the rows it memorised; the lowest validation ECE is
+    kept and refitted on all the validation rows. The test month is only reported, never used to choose
+    (catalog: calibration.choose_by)."""
+    methods = calibration_methods(entry)
+    if not methods:
         return None, None, {}
+    valid = data[split == "valid"]
+    raw_valid = raw_probability(entry, model, valid, features)
+    candidates = {m: fit_calibrator(entry, model, valid, features, m) for m in methods}
     columns = model_columns(entry, features)
+    test = data[split == "test"]
     rows = []
     for method, calibrator in candidates.items():
-        row = {"method": method}
-        for name in ("valid", "test"):
-            part = data[split == name]
-            p = churn_probability(model, calibrator, part, columns)
-            row.update({f"{name}_ece": expected_calibration_error(part[TARGET], p),
-                        f"{name}_log_loss": log_loss(part[TARGET], p), f"{name}_brier": brier_score_loss(part[TARGET], p)})
-        rows.append(row)
-    table = pd.DataFrame(rows).sort_values("test_ece").reset_index(drop=True)
+        oof = cross_fitted_calibration(raw_valid, valid, method)
+        p_test = churn_probability(model, calibrator, test, columns)
+        rows.append({"method": method,
+                     "valid_ece_cv": expected_calibration_error(valid[TARGET], oof),
+                     "valid_log_loss_cv": log_loss(valid[TARGET], oof),
+                     "valid_brier_cv": brier_score_loss(valid[TARGET], oof),
+                     "test_ece": expected_calibration_error(test[TARGET], p_test),
+                     "test_log_loss": log_loss(test[TARGET], p_test),
+                     "test_brier": brier_score_loss(test[TARGET], p_test)})
+    table = pd.DataFrame(rows).sort_values("valid_ece_cv").reset_index(drop=True)
     table["chosen"] = table.index == 0
     return candidates[table.loc[0, "method"]], table, candidates
 
@@ -352,7 +359,7 @@ def tune_hyperparameters(entry: dict, base_params: dict, train: pd.DataFrame, va
     pruner = search.get("pruner", {})
     study = optuna.create_study(
         direction="minimize",
-        sampler=optuna.samplers.TPESampler(seed=search.get("seed", SEED)),
+        sampler=optuna.samplers.TPESampler(seed=base_params.get("random_state", search.get("seed", SEED))),
         pruner=optuna.pruners.MedianPruner(n_startup_trials=pruner.get("n_startup_trials", 5),
                                            n_warmup_steps=pruner.get("n_warmup_steps", 0)),
     )
@@ -573,16 +580,21 @@ def _classification_metrics(y, p) -> dict:
 def _reliability(entry, data: pd.DataFrame, split: pd.Series, model, calibrator, features,
                  candidates: dict | None = None) -> tuple[Figure, pd.DataFrame]:
     """Reliability curve (observed churn rate vs mean prediction per bin): raw and every calibration
-    candidate, the chosen one marked."""
+    candidate, the chosen one marked. On validation the calibrated curves are cross-fitted (each
+    fold calibrated on the others), the same probabilities the choice is made on: a calibrator
+    scored on the rows it was fitted on looks perfect (isotonic memorises them)."""
     fig = Figure(figsize=(11, 4.8))
     axes = fig.subplots(1, 2)
     rows = []
+    columns = model_columns(entry, features)
     for ax, name in zip(axes, ("valid", "test")):
         part = data[split == name]
-        curves = {"raw": raw_probability(entry, model, part, features)}
+        raw = raw_probability(entry, model, part, features)
+        curves = {"raw": raw}
         for method, cal in (candidates or ({"calibrated": calibrator} if calibrator is not None else {})).items():
             label = f"{method} (chosen)" if cal is calibrator and candidates else method
-            curves[label] = churn_probability(model, cal, part, model_columns(entry, features))
+            curves[label] = (cross_fitted_calibration(raw, part, cal.method) if name == "valid"
+                             else churn_probability(model, cal, part, columns))
         ax.plot([0, 1], [0, 1], color="grey", linestyle="--", linewidth=1, label="perfect")
         for label, p in curves.items():
             observed, predicted = calibration_curve(part[TARGET], p, n_bins=ECE_BINS, strategy="quantile")
@@ -590,10 +602,10 @@ def _reliability(entry, data: pd.DataFrame, split: pd.Series, model, calibrator,
             ax.plot(predicted, observed, marker="o", label=f"{label} (ECE {ece:.3f})")
             rows += [{"split": name, "probabilities": label, "bin": i, "mean_prediction": pp, "observed_rate": oo}
                      for i, (pp, oo) in enumerate(zip(predicted, observed))]
-        ax.set_title(f"{name} ({'fit here' if name == 'valid' else 'out of time'})")
+        ax.set_title("valid (calibration cross-fitted: used to choose)" if name == "valid" else "test (out of time: reported only)")
         ax.set_xlabel("mean predicted churn probability"); ax.set_ylabel("observed churn rate")
         ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.legend(loc="upper left")
-    fig.suptitle("Reliability curve, LightGBM: raw vs calibrated (fitted on validation, chosen by test ECE)")
+    fig.suptitle("Reliability curve, LightGBM: raw vs calibrated (chosen by cross-fitted validation ECE)")
     fig.tight_layout()
     return fig, pd.DataFrame(rows)
 
@@ -658,7 +670,9 @@ def evaluate(entry: dict, model, data: pd.DataFrame, split: pd.Series, features:
             metrics.update({f"{name}_{k}": v for k, v in _classification_metrics(part[TARGET], p).items()})
             delivered[name] = p
             if calibrator is not None:
-                p_cal = churn_probability(model, calibrator, part, columns)
+                # Validation: cross-fitted, the calibrator was fitted on these rows (in-sample looks perfect).
+                p_cal = (cross_fitted_calibration(p, part, calibrator.method) if name == "valid"
+                         else churn_probability(model, calibrator, part, columns))
                 metrics.update({f"{name}_calibrated_{k}": v
                                 for k, v in _classification_metrics(part[TARGET], p_cal).items()})
                 delivered[name] = p_cal
@@ -738,13 +752,14 @@ def run_info(run_id: str) -> dict:
         "params": model_params, "metrics": run.data.metrics,
         # Brands the run was trained on (None for runs from before brands were logged).
         "brands": ast.literal_eval(params["brands"]) if "brands" in params else None,
+        "seed": int(params["seed"]) if "seed" in params else SEED,
     }
 
 
 def train(
     model_id: str, dataset_path: str | Path | None = None, params: dict | None = None, select: bool = True,
     segments: bool = True, tune: bool = True, n_trials: int | None = None, reference: bool = False,
-    features_from_run: str | None = None, tags: dict | None = None,
+    features_from_run: str | None = None, tags: dict | None = None, seed: int | None = None,
 ) -> str:
     """Train `model_id` on a train_dataset file (default: the latest one). Returns the MLflow run id."""
     start = time.time()
@@ -761,7 +776,13 @@ def train(
     if missing:
         raise ValueError(f"{dataset_path.name} has no {missing}: rebuild it with `make labels dataset`")
 
-    split = split_rows(data)
+    # One seed drives the randomness of a run: the train/validation split, the model (LightGBM samples
+    # rows and columns) and the Optuna search. Training with several seeds shows whether a result is
+    # stable or luck.
+    seed = SEED if seed is None else seed
+    split = split_rows(data, seed)
+    if entry["interface"] == "sklearn_estimator":
+        params = {**(params or {}), "random_state": seed}
     segment_model = None
     if segments:
         # Unsupervised, but still fitted on the training months only, never the test month.
@@ -870,7 +891,7 @@ def train(
     metrics, tables, figures = evaluate(entry, model, data, split, features, calibrator, candidates)
     if steps:
         steps.append({"step": 6, "model": model, "features": list(features), "params": params_of(adapter),
-                      "calibrator": calibrator, "note": f"chosen: {calibrator.method} (lowest test ECE)"})
+                      "calibrator": calibrator, "note": f"chosen: {calibrator.method} (lowest cross-fitted validation ECE)"})
         steps.append({"step": 9, "model": model, "features": list(features), "params": params_of(adapter),
                       "calibrator": calibrator, "extra": inference,
                       "note": (f"tree cap {inference['inference_tree_cap']}" if inference.get("inference_tree_cap")
@@ -878,6 +899,7 @@ def train(
     if calibration_table is not None:
         tables["calibration_comparison.csv"] = calibration_table
         for r in calibration_table.itertuples():
+            metrics[f"calibration_{r.method}_valid_ece_cv"] = r.valid_ece_cv
             metrics[f"calibration_{r.method}_test_ece"] = r.test_ece
     if select:
         tables["feature_selection.csv"] = report
@@ -917,7 +939,7 @@ def train(
         mlflow.set_tag("role", "reference" if reference else "optimised")
         if tags:
             mlflow.set_tags(tags)  # e.g. the backtest and scenario this run belongs to
-        mlflow.log_param("seed", SEED)
+        mlflow.log_param("seed", seed)
         mlflow.log_dict(entry, "config/catalog_entry.json")  # the exact model configuration used
         # The training dataset, linked to the run under its brand-named MLflow dataset name.
         mlflow.log_input(mlflow.data.from_pandas(
@@ -940,7 +962,7 @@ def train(
             else "Cox strata" if cox_strata(entry) else "none"))
         mlflow.log_param("test_cutoffs", sorted(str(c) for c in data.loc[split == "test", "cutoff_date"].unique()))
         mlflow.log_param("split", f"test = last {N_TEST_CUTOFFS} cutoff(s); train/valid by partyId, "
-                                  f"valid {VALID_SHARE}, seed {SEED}")
+                                  f"valid {VALID_SHARE}, seed {seed}")
         mlflow.log_param("feature_selection", select)
         if feature_source:
             mlflow.log_param("feature_source", feature_source)
@@ -1039,7 +1061,23 @@ if __name__ == "__main__":
     parser.add_argument("--no-tuning", action="store_true", help="skip the Optuna search, use the catalog parameters")
     parser.add_argument("--n-trials", type=int, help="Optuna trials (default: the catalog's)")
     parser.add_argument("--features-from-run", help="run id whose features to use (catalog feature_set; default its latest run)")
+    parser.add_argument("--no-importance", action="store_true",
+                        help="do not compute the feature importance report after training")
     args = parser.parse_args()
-    train(args.model_id, args.dataset_path, args.params, select=not args.no_selection,
-          segments=not args.no_segments, tune=not args.no_tuning, n_trials=args.n_trials,
-          features_from_run=args.features_from_run)
+    run_id = train(args.model_id, args.dataset_path, args.params, select=not args.no_selection,
+                   segments=not args.no_segments, tune=not args.no_tuning, n_trials=args.n_trials,
+                   features_from_run=args.features_from_run)
+    # Importance (permutation, SHAP, family ablation) compares LightGBM and Cox PH, so it runs once
+    # both exist on the same dataset: with this run and the latest run of the other model.
+    other = {"lightgbm_classifier": "cox_ph", "cox_ph": "lightgbm_classifier"}.get(args.model_id)
+    if other and not args.no_importance:
+        try:
+            partner = latest_run(other)
+        except LookupError:
+            partner = None
+        if partner is not None and run_info(partner.run_id)["dataset_path"] == run_info(run_id)["dataset_path"]:
+            import feature_importance
+            ids = {args.model_id: run_id, other: partner.run_id}
+            feature_importance.run(ids["lightgbm_classifier"], ids["cox_ph"])
+        else:
+            print(f"feature importance skipped: no {other} run on this dataset yet (train it to get the report)")

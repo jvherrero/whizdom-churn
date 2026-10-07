@@ -12,13 +12,13 @@ This document reports three importance measures together for the two baseline mo
 
 | | LightGBM | Cox PH |
 |---|---|---|
-| MLflow run | `lightgbm_classifier_brand64_1791295189` | `cox_ph_brand64_1791295253` |
+| MLflow run | `lightgbm_classifier_brand64_1791355570` | `cox_ph_brand64_1791355643` |
 | Target | `event_60d` (churn in the next 60 days) | `duration_days` + `event_observed` (churn day) |
 | Features (after Stage 2 selection) | 8 | 7 |
-| Test score (last cutoff) | AUC 0.8738 | c-index 0.8651 |
+| Test score (last cutoff) | AUC 0.8767 | c-index 0.8677 |
 
-- Dataset: `data/processed/train_dataset_64_2026-07-18_2026-07-27_2026-08-05_1791295132.parquet`.
-- Rows: train 22,634, validation 4,007, test 14,687. The test month is 2026-08-05.
+- Dataset: `data/processed/train_dataset_64_2026-07-20_2026-07-29_2026-08-07_1791355499.parquet`.
+- Rows: train 23,039, validation 4,082, test 14,894. The test month is 2026-08-07.
 - With only 3 cutoffs there is no separate validation month. The validation rows are 15% of the players of the training months, never seen in training. Permutation importance and SHAP use them.
 - Brands: LightGBM gets `brandId` as a categorical feature and Cox PH is stratified by brand (one baseline per brand), so `brandId` never appears in the Cox tables. With one brand it is constant and its importance is 0. Ablation does not drop it: the model always adds it.
 - Every number here comes from the models logged in those two runs. The script checks that they reproduce the logged test score before it measures anything.
@@ -35,13 +35,13 @@ I shuffle one feature at a time on the validation rows, 10 times, and measure ho
 
 | feature | family | AUC drop [95% CI] | Brier rise [95% CI] | ECE rise [95% CI] |
 |---|---|---|---|---|
-| n_active_days_last_30d | frequency | 0.0760 [0.0732, 0.0788] | 0.0367 [0.0354, 0.0381] | 0.0135 [0.0113, 0.0157] |
-| stake_last_30d | monetary | 0.0364 [0.0336, 0.0392] | 0.0236 [0.0221, 0.0252] | 0.0416 [0.0372, 0.0459] |
-| tenure_days_missing | tenure | 0.0217 [0.0203, 0.0231] | 0.0123 [0.0116, 0.0131] | 0.0104 [0.0085, 0.0124] |
-| days_since_last_deposit | recency | 0.0149 [0.0134, 0.0164] | 0.0076 [0.0067, 0.0085] | -0.0043 [-0.0060, -0.0027] |
-| max_prior_gap_days | tenure | 0.0145 [0.0129, 0.0160] | 0.0086 [0.0079, 0.0094] | 0.0043 [0.0022, 0.0065] |
-| n_bonus_last_7d | frequency | 0.0133 [0.0121, 0.0144] | 0.0074 [0.0068, 0.0081] | 0.0098 [0.0080, 0.0116] |
-| bonus_amount_trend_7 | lag_trend | 0.0081 [0.0072, 0.0090] | 0.0039 [0.0034, 0.0043] | 0.0010 [-0.0013, 0.0032] |
+| n_active_days_last_30d | frequency | 0.0797 [0.0763, 0.0830] | 0.0408 [0.0392, 0.0424] | 0.0269 [0.0240, 0.0298] |
+| tenure_days_missing | tenure | 0.0230 [0.0215, 0.0245] | 0.0140 [0.0132, 0.0149] | 0.0217 [0.0192, 0.0242] |
+| days_since_last_deposit | recency | 0.0192 [0.0177, 0.0206] | 0.0106 [0.0098, 0.0115] | 0.0090 [0.0080, 0.0100] |
+| stake_last_30d | monetary | 0.0141 [0.0124, 0.0158] | 0.0094 [0.0085, 0.0104] | 0.0238 [0.0216, 0.0261] |
+| max_prior_gap_days | tenure | 0.0120 [0.0110, 0.0130] | 0.0076 [0.0071, 0.0080] | 0.0112 [0.0088, 0.0135] |
+| n_bonus_last_7d | frequency | 0.0093 [0.0079, 0.0108] | 0.0052 [0.0047, 0.0057] | 0.0102 [0.0081, 0.0124] |
+| bonus_amount_trend_7 | lag_trend | 0.0040 [0.0034, 0.0045] | 0.0016 [0.0014, 0.0019] | 0.0054 [0.0039, 0.0068] |
 | brandId | other | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] |
 
 ![Permutation importance, LightGBM](../data/03_output/feature_importance/brand64/permutation_lightgbm.png)
@@ -52,13 +52,13 @@ The Cox model gives a risk ranking, not a probability, so only the c-index is me
 
 | feature | family | c-index drop [95% CI] |
 |---|---|---|
-| n_active_days_last_30d | frequency | 0.1114 [0.1069, 0.1158] |
-| tenure_days_missing | tenure | 0.0142 [0.0130, 0.0154] |
-| stake_last_30d | monetary | 0.0141 [0.0127, 0.0156] |
-| max_prior_gap_days | tenure | 0.0113 [0.0100, 0.0126] |
-| days_since_last_deposit | recency | 0.0065 [0.0052, 0.0078] |
-| n_bonus_last_7d | frequency | 0.0049 [0.0042, 0.0056] |
-| bonus_amount_trend_7 | lag_trend | 0.0009 [0.0005, 0.0012] |
+| n_active_days_last_30d | frequency | 0.0864 [0.0836, 0.0892] |
+| max_prior_gap_days | tenure | 0.0176 [0.0162, 0.0189] |
+| tenure_days_missing | tenure | 0.0168 [0.0156, 0.0179] |
+| stake_last_30d | monetary | 0.0135 [0.0120, 0.0150] |
+| n_bonus_last_7d | frequency | 0.0063 [0.0051, 0.0075] |
+| days_since_last_deposit | recency | 0.0059 [0.0047, 0.0071] |
+| bonus_amount_trend_7 | lag_trend | 0.0000 [-0.0003, 0.0003] |
 
 ![Permutation importance, Cox PH](../data/03_output/feature_importance/brand64/permutation_cox.png)
 
@@ -74,13 +74,13 @@ SHAP splits each player's score into one part per feature. The parts add up to t
 
 | feature | family | mean_abs_shap | rank_corr | direction |
 |---|---|---|---|---|
-| n_active_days_last_30d | frequency | 1.1166 | -0.9648 | higher value, lower churn risk |
-| days_since_last_deposit | recency | 0.4053 | 0.7697 | higher value, higher churn risk |
-| max_prior_gap_days | tenure | 0.3456 | -0.8303 | higher value, lower churn risk |
-| stake_last_30d | monetary | 0.3309 | -0.8804 | higher value, lower churn risk |
-| tenure_days_missing | tenure | 0.3249 | -0.7884 | higher value, lower churn risk |
-| n_bonus_last_7d | frequency | 0.2744 | -0.9336 | higher value, lower churn risk |
-| bonus_amount_trend_7 | lag_trend | 0.1193 | 0.1139 | non-monotonic, see the plot |
+| n_active_days_last_30d | frequency | 1.0764 | -0.9648 | higher value, lower churn risk |
+| days_since_last_deposit | recency | 0.4437 | 0.8288 | higher value, higher churn risk |
+| max_prior_gap_days | tenure | 0.3582 | -0.8266 | higher value, lower churn risk |
+| tenure_days_missing | tenure | 0.3345 | -0.7946 | higher value, lower churn risk |
+| stake_last_30d | monetary | 0.2711 | -0.8851 | higher value, lower churn risk |
+| n_bonus_last_7d | frequency | 0.2312 | -0.9332 | higher value, lower churn risk |
+| bonus_amount_trend_7 | lag_trend | 0.0770 | 0.2509 | non-monotonic, see the plot |
 | brandId | other | 0.0000 |  | categorical (brand) |
 
 ![Global SHAP, LightGBM](../data/03_output/feature_importance/brand64/shap_global_lightgbm.png)
@@ -93,13 +93,13 @@ Dependence plots for the top 8 features (all the features the model uses). The x
 
 | feature | family | mean_abs_shap | rank_corr | direction |
 |---|---|---|---|---|
-| n_active_days_last_30d | frequency | 0.6307 | -1.0000 | higher value, lower churn risk |
-| stake_last_30d | monetary | 0.2232 | -1.0000 | higher value, lower churn risk |
-| tenure_days_missing | tenure | 0.2106 | -1.0000 | higher value, lower churn risk |
-| max_prior_gap_days | tenure | 0.2038 | -1.0000 | higher value, lower churn risk |
-| days_since_last_deposit | recency | 0.1583 | 1.0000 | higher value, higher churn risk |
-| n_bonus_last_7d | frequency | 0.1421 | -1.0000 | higher value, lower churn risk |
-| bonus_amount_trend_7 | lag_trend | 0.0184 | 1.0000 | higher value, higher churn risk |
+| n_active_days_last_30d | frequency | 0.5278 | -1.0000 | higher value, lower churn risk |
+| max_prior_gap_days | tenure | 0.2371 | -1.0000 | higher value, lower churn risk |
+| stake_last_30d | monetary | 0.2359 | -1.0000 | higher value, lower churn risk |
+| tenure_days_missing | tenure | 0.2192 | -1.0000 | higher value, lower churn risk |
+| days_since_last_deposit | recency | 0.1437 | 1.0000 | higher value, higher churn risk |
+| n_bonus_last_7d | frequency | 0.1368 | -1.0000 | higher value, lower churn risk |
+| bonus_amount_trend_7 | lag_trend | 0.0172 | 1.0000 | higher value, higher churn risk |
 
 ![Global SHAP, Cox PH](../data/03_output/feature_importance/brand64/shap_global_cox.png)
 
@@ -111,11 +111,11 @@ How much each group of features matters, with two measures side by side. **SHAP 
 
 | family | lightgbm_shap_share | cox_shap_share | lightgbm_auc_lost | cox_c_index_lost |
 |---|---|---|---|---|
-| frequency | 0.4769 | 0.4869 | 0.0035 | 0.0072 |
-| tenure | 0.2299 | 0.2611 | 0.0198 | 0.0184 |
-| recency | 0.1389 | 0.0997 | 0.0032 | 0.0022 |
-| monetary | 0.1135 | 0.1406 | 0.0057 | 0.0025 |
-| lag_trend | 0.0409 | 0.0116 | 0.0004 | -0.0002 |
+| frequency | 0.4683 | 0.4379 | 0.0052 | 0.0069 |
+| tenure | 0.2481 | 0.3007 | 0.0240 | 0.0212 |
+| recency | 0.1589 | 0.0947 | 0.0052 | 0.0028 |
+| monetary | 0.0971 | 0.1554 | 0.0036 | 0.0016 |
+| lag_trend | 0.0276 | 0.0113 | 0.0007 | 0.0000 |
 
 ![Importance by family](../data/03_output/feature_importance/brand64/importance_by_family.png)
 
@@ -123,19 +123,19 @@ How much each group of features matters, with two measures side by side. **SHAP 
 
 I retrain the model without every feature of one family and compare it with the full model (same features otherwise, same parameters, same rows). A negative delta means the family helps. A family with no feature in the model is left empty.
 
-Full model: LightGBM AUC valid 0.8822, test 0.8738. Cox c-index valid 0.8518, test 0.8651.
+Full model: LightGBM AUC valid 0.8776, test 0.8767. Cox c-index valid 0.8491, test 0.8677.
 
 | family | LightGBM features | LightGBM AUC delta, valid | LightGBM AUC delta, test | Cox features | Cox c-index delta, valid | Cox c-index delta, test |
 |---|---|---|---|---|---|---|
-| recency | days_since_last_deposit | -0.0043 | -0.0032 | days_since_last_deposit | -0.0010 | -0.0022 |
-| frequency | n_active_days_last_30d, n_bonus_last_7d | -0.0093 | -0.0035 | n_active_days_last_30d, n_bonus_last_7d | -0.0107 | -0.0072 |
-| monetary | stake_last_30d | -0.0036 | -0.0057 | stake_last_30d | -0.0039 | -0.0025 |
-| lag_trend | bonus_amount_trend_7 | -0.0053 | -0.0004 | bonus_amount_trend_7 | -0.0001 | 0.0002 |
-| tenure | tenure_days_missing, max_prior_gap_days | -0.0117 | -0.0198 | tenure_days_missing, max_prior_gap_days | -0.0106 | -0.0184 |
+| recency | days_since_last_deposit | -0.0050 | -0.0052 | days_since_last_deposit | -0.0028 | -0.0028 |
+| frequency | n_active_days_last_30d, n_bonus_last_7d | -0.0043 | -0.0052 | n_active_days_last_30d, n_bonus_last_7d | -0.0098 | -0.0069 |
+| monetary | stake_last_30d | -0.0010 | -0.0036 | stake_last_30d | -0.0011 | -0.0016 |
+| lag_trend | bonus_amount_trend_7 | -0.0027 | -0.0007 | bonus_amount_trend_7 | 0.0003 | -0.0000 |
+| tenure | tenure_days_missing, max_prior_gap_days | -0.0171 | -0.0240 | tenure_days_missing, max_prior_gap_days | -0.0162 | -0.0212 |
 | mix |  |  |  |  |  |  |
 | segment |  |  |  |  |  |  |
 
-The most valuable family on the test month is **tenure** for LightGBM (AUC -0.0198 without it) and **tenure** for Cox (c-index -0.0184 without it).
+The most valuable family on the test month is **tenure** for LightGBM (AUC -0.0240 without it) and **tenure** for Cox (c-index -0.0212 without it).
 
 ## 5. Known Limits
 

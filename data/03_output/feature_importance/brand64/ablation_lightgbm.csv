@@ -1,8 +1,8 @@
 family,features_in_model,valid_delta,test_delta
-recency,days_since_last_deposit,-0.0043412447566612,-0.0031842486990110164
-frequency,"n_active_days_last_30d, n_bonus_last_7d",-0.009309025205336385,-0.003466757045095137
-monetary,stake_last_30d,-0.0036042458386412735,-0.005734721509630503
-lag_trend,bonus_amount_trend_7,-0.005349271662251853,-0.0004430474803036599
-tenure,"tenure_days_missing, max_prior_gap_days",-0.011728289778753953,-0.01984220327911579
+recency,days_since_last_deposit,-0.005019209682045944,-0.005227458217752501
+frequency,"n_active_days_last_30d, n_bonus_last_7d",-0.004293442769693345,-0.005186233942434115
+monetary,stake_last_30d,-0.000988075451277548,-0.003557870481782688
+lag_trend,bonus_amount_trend_7,-0.0026688590557604197,-0.0006979879692249336
+tenure,"tenure_days_missing, max_prior_gap_days",-0.01713193903354515,-0.02403219341685292
 mix,,,
 segment,,,

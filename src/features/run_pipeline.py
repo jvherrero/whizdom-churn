@@ -38,7 +38,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from anomalies import FEATURES_SPEC, detect_anomalies, save_anomaly_outputs
 from build_features import (
-    DATA_AVAILABLE_THROUGH, HISTORY_START, LABEL_HORIZON_DAYS, MIN_CUTOFF, build_feature_store, parse_brand_id,
+    HISTORY_START, data_available_through, LABEL_HORIZON_DAYS, MIN_CUTOFF, build_feature_store, parse_brand_id,
 )
 from alerts import benchmark_days, check_expectations, feature_alerts, landing_alerts, load_config, report
 from build_labels import build_training_labels
@@ -108,7 +108,7 @@ def build_training_data(
 
 def run_pipeline(
     as_of: str | None = None, cutoff_dates: list[str] | None = None, brand_id: int | str = 64,
-    skip_anomalies: bool = False, use_cache: bool = True, skip_alerts: bool = False,
+    skip_anomalies: bool = False, use_cache: bool = True, skip_alerts: bool = False, backtest: bool = False,
 ) -> Path:
     """Without `as_of`: data steps 1-5 only. With it: every step, returns the player scores file.
     Data alerts (configs/eda_alerts.yaml) run on the landing data first and on the scoring snapshot
@@ -120,18 +120,19 @@ def run_pipeline(
         return dataset
 
     as_of_date = dt.date.fromisoformat(as_of)
-    if as_of_date > DATA_AVAILABLE_THROUGH:
-        raise ValueError(f"AS_OF {as_of} is after DATA_AVAILABLE_THROUGH ({DATA_AVAILABLE_THROUGH}): "
-                         "update it in src/features/build_features.py when new complete days have landed")
+    # The daily tables are topped up first (only the new complete days in S3), then AS_OF is checked.
+    print(f"[-1] daily tables: S3 landing -> daily per-player tables, only the days not built yet (up to {as_of})")
+    import daily_tables
+    daily_tables.build(HISTORY_START, as_of_date, verbose=False)
+    available = data_available_through()
+    if as_of_date > available:
+        raise ValueError(f"AS_OF {as_of} is after the last complete data day ({available}): S3 has no complete "
+                         "data for it yet")
     cutoffs = cutoff_dates or training_cutoffs(as_of_date)
     late = [c for c in cutoffs if dt.date.fromisoformat(c) + dt.timedelta(days=LABEL_HORIZON_DAYS) > as_of_date]
     if late:
         raise ValueError(f"the 60-day label of {late} does not fit before AS_OF {as_of}")
     print(f"as of {as_of}: training cutoffs {cutoffs}")
-
-    print(f"[-1] daily tables: S3 landing -> daily per-player tables, only the days not built yet (up to {as_of})")
-    import daily_tables
-    daily_tables.build(HISTORY_START, as_of_date, verbose=False)
 
     if skip_alerts:
         print("[0] landing alerts SKIPPED (--skip-alerts): use only while developing")
@@ -165,6 +166,11 @@ def run_pipeline(
 
     print(f"[9] scores as of {as_of}")
     scores = score.score(as_of, brand_id, lgbm_run, cox_run)
+    if backtest:
+        # Optional: walk-forward backtest (several periods x seeds), docs/backtest_brand{id}.md + MLflow charts.
+        print(f"[10] backtest as of {as_of}")
+        import backtest as walk_forward
+        walk_forward.run(as_of, brand_id)
     print(f"pipeline done in {(time.time() - start) / 60:.1f} min")
     return scores
 
@@ -177,6 +183,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip-anomalies", action="store_true")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--skip-alerts", action="store_true", help="skip the data alerts (development only)")
+    parser.add_argument("--backtest", action="store_true", help="also run the walk-forward backtest at the end")
     args = parser.parse_args()
     run_pipeline(args.as_of, args.cutoff_dates, args.brand_id, args.skip_anomalies, not args.no_cache,
-                 args.skip_alerts)
+                 args.skip_alerts, args.backtest)
