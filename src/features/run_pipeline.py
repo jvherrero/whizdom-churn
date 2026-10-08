@@ -1,31 +1,35 @@
 """The whole project in series, "as of" one date:
 
     .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06
+    .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06 --backtest         # + T10, about 45 min more
     .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06 --skip-anomalies   # keep the current caps
     .venv/bin/python src/features/run_pipeline.py --cutoff-dates 2026-07-01 2026-08-01  # data steps only
 
-Source: the gold layer (src/features/build_features.py). AS_OF is the "today" of the run: nothing
+Source: the S3 data lake, org/40-gold (src/features/build_features.py). AS_OF is the "today" of the run: nothing
 after it is read. The training cutoffs come from it: N_TRAINING_CUTOFFS monthly cutoffs (the first
 day of each month), the last one being the latest whose 60-day label ends by AS_OF, never before
 MIN_CUTOFF. train.py splits them by month: train = months 1-9, validation = month 10, test = 11-12.
 
 Data
--1. gold caches topped up to AS_OF (activity, and financial + payments for the brand)
- 0. gold alerts: the caches on AS_OF vs the training days (rows, nulls, daily totals, expectations)
- 1. raw features per cutoff (gold, in EUR), not winsorised, not scaled
+-1. daily caches topped up to AS_OF (activity, and financial + payments for the brand)
+ 0. source alerts: the caches on AS_OF vs the training days (rows, nulls, daily totals, expectations)
+ 1. raw features per cutoff (in EUR), not winsorised, not scaled
  2. winsorisation caps from them: configs/winsorisation_features_brand{id}.yaml (the full
     anomaly study is EDA: make anomalies-features)
  3. training features: the same raw rows winsorised + sign-log, checked with the pandera feature
     snapshot suite
  4. churn labels for exactly those rows, looking at data up to AS_OF only
- 5. survival dataset: features joined with the labels (build_survival_dataset.py)
+ 5. survival dataset: features joined with the labels (build_survival_dataset.py), then EDA stage 4:
+    the snapshot vs the previous dataset of the brand (eda/summary.py, docs/eda_summary_brand{id}.md)
 Models (only with --as-of)
  6. LightGBM (churn probability) and Cox PH (churn day), with segments, selection and calibration,
     then evaluated with 95% bootstrap intervals logged into each run (src/evaluation)
  7. reports: docs/player_segments_brand{id}.md and docs/feature_importance_brand{id}.md
- 8. feature alerts: the snapshot as of AS_OF vs the training dataset (PSI, players, expectations);
-    a critical data-quality alert stops the run, feature drift is only reported (delivery plan)
- 9. scores of every player as of AS_OF: data/03_output/player_scores_*.parquet
+ 8. with --backtest: the rolling-origin backtest (T10), docs/backtest_v0_brand{id}.md; then the model
+    card from the runs and the latest backtest of the brand (docs/model_card_v0_brand{id}.html)
+ 9. scores of every active player as of AS_OF (T11, src/models/score.py), after the feature alerts
+    (snapshot vs training dataset): a critical data-quality alert stops the run with no scores written,
+    critical feature drift sets drift_flag (delivery plan) -> data/03_output/player_scores/run_date=AS_OF/
 
 Each step gets the exact file or MLflow run the previous one produced, never "the latest one".
 """
@@ -41,12 +45,12 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gold_cache
+import daily_cache
 from build_features import (
-    LABEL_HORIZON_DAYS, MIN_CUTOFF, build_feature_store, data_available_through, finalise,
+    LABEL_HORIZON_DAYS, MIN_CUTOFF, PLATFORM_SCORE, data_available_through, finalise,
     parse_brand_id, raw_features,
 )
-from alerts import benchmark_days, check_expectations, feature_alerts, gold_alerts, load_config, report
+from alerts import benchmark_days, check_expectations, source_alerts, load_config, report
 from build_survival_dataset import DEFAULT_CUTOFF_DATES, PROJECT_ROOT, build_survival_dataset
 from winsorisation import write_feature_caps
 
@@ -90,9 +94,15 @@ def build_training_data(
                  "threshold", "message"],
     )
     report(snapshot_alerts, "training_features", str(brand_id), str(data_end or cutoff_dates[-1]))
+    # The platform's churn score rides along as a reference column (finalise keeps the row order of raw).
+    features[PLATFORM_SCORE] = raw["churn_score"].astype("float64").to_numpy()
 
     print("[4-5] churn labels + survival dataset")
-    return build_survival_dataset(features, data_end)
+    dataset = build_survival_dataset(features, data_end)
+    sys.path.insert(0, str(PROJECT_ROOT / "eda"))
+    import summary as eda_summary
+    eda_summary.run(dataset)  # EDA stage 4: reported, never stops the run
+    return dataset
 
 
 def run_pipeline(
@@ -102,7 +112,7 @@ def run_pipeline(
     """Without `as_of`: data steps 1-5 only. With it: every step, returns the player scores file.
     Data alerts (configs/eda_alerts.yaml): expectations on the training features and drift of the
     scoring snapshot before scoring; a critical alert stops the run (alerts.CriticalAlert), except
-    feature drift, which is only reported. The gold tables themselves are checked by `make gold-profile` (T2)."""
+    feature drift, which is only reported. The source tables themselves are checked by `make profile` (T2)."""
     start = time.time()
     if as_of is None:
         dataset = build_training_data(cutoff_dates or DEFAULT_CUTOFF_DATES, brand_id, skip_anomalies)
@@ -110,20 +120,20 @@ def run_pipeline(
         return dataset
 
     as_of_date = dt.date.fromisoformat(as_of)
-    # The gold caches are topped up first (only the missing days, plus the last 7 gold reprocesses).
-    print(f"[-1] gold caches up to {as_of}")
-    gold_cache.top_up(as_of_date, brand_id)
+    # The daily caches are topped up first (only the missing days, plus the last 7, which the source reprocesses).
+    print(f"[-1] daily caches up to {as_of}")
+    daily_cache.top_up(as_of_date, brand_id)
     available = data_available_through()
     if as_of_date > available:
-        raise ValueError(f"AS_OF {as_of} is after the last day with gold data ({available})")
+        raise ValueError(f"AS_OF {as_of} is after the last day with data ({available})")
     cutoffs = cutoff_dates or training_cutoffs(as_of_date)
     late = [c for c in cutoffs if dt.date.fromisoformat(c) + dt.timedelta(days=LABEL_HORIZON_DAYS) > as_of_date]
     if late:
         raise ValueError(f"the 60-day label of {late} does not fit before AS_OF {as_of}")
     print(f"as of {as_of}: training cutoffs {cutoffs}")
     if not skip_alerts:
-        print(f"[0] gold alerts: caches on {as_of} vs the training days")
-        report(gold_alerts(brand_id, as_of, benchmark_days(cutoffs)), "gold", str(brand_id), as_of)
+        print(f"[0] source alerts: caches on {as_of} vs the training days")
+        report(source_alerts(brand_id, as_of, benchmark_days(cutoffs)), "source", str(brand_id), as_of)
 
     dataset = build_training_data(cutoffs, brand_id, skip_anomalies, data_end=as_of)
 
@@ -145,20 +155,17 @@ def run_pipeline(
     segments.run_report(dataset, lgbm_run)
     feature_importance.run(lgbm_run, cox_run)
 
-    if not skip_alerts:
-        print(f"[8] feature alerts: snapshot as of {as_of} vs the training dataset")
-        from train import run_info
-        used = set(run_info(lgbm_run)["features"]) | set(run_info(cox_run)["features"])
-        report(feature_alerts(pd.read_parquet(dataset), build_feature_store(as_of, brand_id),
-                              model_features=used), "features", str(brand_id), as_of)
-
-    print(f"[9] scores as of {as_of}")
-    scores = score.score(as_of, brand_id, lgbm_run, cox_run)
     if backtest:
-        # Optional: temporal robustness on earlier windows of the same dataset (training spec, point 8).
-        print("[10] temporal robustness (backtest.py)")
-        import backtest as robustness
-        robustness.run(dataset)
+        # Optional (about 45 min): the rolling-origin backtest of T10, in the plan's order (before scoring).
+        print(f"[8] rolling-origin backtest as of {as_of}")
+        import backtest as rolling_origin
+        rolling_origin.run(as_of=as_of, brand_id=brand_id)
+
+    import model_card
+    model_card.run(brand_id, lgbm_run, cox_run)
+
+    print(f"[9] feature alerts + scores as of {as_of}")
+    scores = score.score(as_of, brand_id, lgbm_run, cox_run, check_alerts=not skip_alerts)
     print(f"pipeline done in {(time.time() - start) / 60:.1f} min")
     return scores
 
@@ -170,6 +177,6 @@ if __name__ == "__main__":
     parser.add_argument("--brand-id", type=parse_brand_id, default=64, help="brandId, or 'basel' for every brand")
     parser.add_argument("--skip-anomalies", action="store_true")
     parser.add_argument("--skip-alerts", action="store_true", help="skip the data alerts (development only)")
-    parser.add_argument("--backtest", action="store_true", help="also run the temporal robustness check at the end")
+    parser.add_argument("--backtest", action="store_true", help="also run the rolling-origin backtest (T10) at the end")
     args = parser.parse_args()
     run_pipeline(args.as_of, args.cutoff_dates, args.brand_id, args.skip_anomalies, args.skip_alerts, args.backtest)

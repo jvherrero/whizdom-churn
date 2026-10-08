@@ -1,0 +1,32 @@
+# Rolling-origin backtest (T10), read by src/models/backtest.py (make backtest).
+
+version: 1
+
+# Test cutoffs: the first day of each of the last n_test_cutoffs months whose 60-day label is complete
+# by AS_OF. valid_cutoffs: how many of the latest earlier months with a known label are the validation
+# months (early stopping, tuning and calibration), as in normal training. A cutoff with fewer than
+# min_train_cutoffs such months (and at least one train month) is skipped and reported.
+n_test_cutoffs: 12
+valid_cutoffs: 1
+min_train_cutoffs: 2
+
+# The models retrained at every cutoff, exactly as in normal training except for these settings.
+models:
+  n_trials: 20      # Optuna trials of the optimised LightGBM (normal training: the catalog's 100)
+  max_trees: 500    # delivery plan: cap training at 500 trees for the backtest
+  seed: 42
+
+top_share: 0.10     # the top risk decile
+
+# Retention campaign replay: the top N players by value at risk (optimised model) vs the same N chosen
+# by the incumbent churn_score, by recency alone and at random.
+targeting_replay:
+  contacts: 1000    # N: the players the CRM team can contact per campaign (to agree with them)
+
+# Delivery plan: a model that fails any of these is not promoted.
+pass_conditions:
+  top_decile_precision_vs_recency: 1.5   # mean top-decile precision >= 1.5 x the recency rule
+  min_auc: 0.70                          # AUC never below this at any cutoff
+  max_ece: 0.08                          # calibration error never above this in any month
+
+bootstrap_resamples: 200   # CI of the mean across cutoffs

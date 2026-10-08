@@ -57,7 +57,7 @@ def _near_zero_variance(s: pd.Series) -> bool:
 
 
 def single_feature_auc(x: pd.Series, y: pd.Series) -> float:
-    """Direction-free AUC of one feature on its own, on the rows where it has a value (gold features
+    """Direction-free AUC of one feature on its own, on the rows where it has a value (features
     can be empty, e.g. deposits before March 2026). 0.5 when it cannot be measured."""
     known = x.notna()
     if known.sum() < 2 or y[known].nunique() < 2 or x[known].nunique() < 2:

@@ -1,7 +1,7 @@
 [project]
 name = "whizdom-churn"
 version = "0.1.0"
-description = "Add your description here"
+description = "Player churn prediction: features, LightGBM + Cox PH, backtest and daily scores"
 readme = "README.md"
 authors = [
     { name = "Javier", email = "javier.herrero@whizdom.ai.com" }
@@ -13,12 +13,19 @@ dependencies = [
     "duckdb==1.5.6",
     "lifelines>=0.30.3",
     "lightgbm>=4.7.0",
+    "matplotlib>=3.11.2",
     "mlflow>=3.16.1",
+    "numpy>=2.5.3",
     "optuna>=5.0.0",
+    "pandas>=2.3.3",
     "pandera>=0.33.1",
     "pre-commit>=4.6.2",
+    "pyarrow>=25.0.1",
     "pytest>=9.1.1",
+    "pyyaml>=6.0.3",
     "ruff>=0.16.9",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
 ]
 
 [project.scripts]

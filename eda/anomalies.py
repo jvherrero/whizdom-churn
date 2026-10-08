@@ -1,14 +1,14 @@
 """EDA stage 2, outliers and anomalies: the study of one table, and its outputs.
 
-    .venv/bin/python eda/anomalies.py --source gold
+    .venv/bin/python eda/anomalies.py --source daily
     .venv/bin/python eda/anomalies.py --source features
     .venv/bin/python eda/anomalies.py --source features --cutoff-dates 2026-07-18 2026-07-25
     .venv/bin/python eda/anomalies.py --source features --brand-id basel   # one study per brand
     .venv/bin/python eda/anomalies.py --source features --input some_unscaled_features.parquet
 
 Any table described by an AnomalySpec can be studied. Two specs ship with it:
-    GOLD_SPEC      one row per (tenant_id, player_id, day) with a bet or a payment, EUR amounts, from the
-                   local gold caches (activity + payments, src/features/gold_cache.py) by load_player_day()
+    DAILY_SPEC      one row per (tenant_id, player_id, day) with a bet or a payment, EUR amounts, from the
+                   local daily caches (activity + payments, src/features/daily_cache.py) by load_player_day()
     FEATURES_SPEC  one row per (player_id, cutoff_date), the output of raw_features(); every
                    detector uses only the spec columns actually present
 
@@ -38,7 +38,7 @@ from sklearn.ensemble import IsolationForest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
-import gold_cache  # noqa: E402
+import daily_cache  # noqa: E402
 from build_features import (  # noqa: E402
     ALL_BRANDS, DEPOSITS_VALID_FROM, LOOKBACK_DAYS, data_available_through, parse_brand_id, raw_features,
 )
@@ -265,7 +265,7 @@ def temporal_outliers(df, spec) -> list[dict]:
 
 def withdrawal_without_prior_deposit(df, history_start):
     """Flag players whose first withdrawal has no deposit on or before that day. Only players first
-    seen on or after `history_start` are evaluated (gold has completed deposits only from
+    seen on or after `history_start` are evaluated (the source has completed deposits only from
     DEPOSITS_VALID_FROM, and no reliable registration date: an older player may have deposited before)."""
     required = ("tenant_id", "player_id", "day", "withdraw_count", "deposit_count", "withdraw_eur")
     if any(column not in df.columns for column in required):
@@ -284,7 +284,7 @@ def withdrawal_without_prior_deposit(df, history_start):
         f"No deposit on or before the first withdrawal; player first seen >= {pd.Timestamp(history_start).date()}",
         f"Players with withdrawals not evaluated (first seen before {pd.Timestamp(history_start).date()}): "
         f"{int((~eligible).sum())}. Examples ranked by first-day withdrawal EUR.",
-        _examples(df, df["withdraw_eur"], df["withdraw_eur"], flag, GOLD_SPEC),
+        _examples(df, df["withdraw_eur"], df["withdraw_eur"], flag, DAILY_SPEC),
     )
     return [row], {flag.name: flag}
 
@@ -350,11 +350,11 @@ def _feature_monotonic_rule(base, tolerance=0.0):
     return rule
 
 
-GOLD_KEYS = ("tenant_id", "player_id", "day")
-GOLD_SPEC = AnomalySpec(
-    name="gold",
+DAILY_KEYS = ("tenant_id", "player_id", "day")
+DAILY_SPEC = AnomalySpec(
+    name="daily",
     grain="player_day",
-    key_columns=GOLD_KEYS,
+    key_columns=DAILY_KEYS,
     date_column="day",
     monetary_columns=("turnover_eur", "ggr_eur", "deposit_eur", "withdraw_eur"),
     count_columns=("bets", "rounds", "deposit_count", "withdraw_count", "failed_deposit_count"),
@@ -364,7 +364,7 @@ GOLD_SPEC = AnomalySpec(
     temporal_active_column="bets",
     structural_rules=(
         withdrawal_without_prior_deposit,
-        *(_bound_rule("negative_amount", column, 0, keys=GOLD_KEYS)
+        *(_bound_rule("negative_amount", column, 0, keys=DAILY_KEYS)
           for column in ("turnover_eur", "deposit_eur", "withdraw_eur")),
     ),
     winsor_applies_to="daily EUR amounts (study only: the pipeline caps the features)",
@@ -414,7 +414,7 @@ def structural_outliers(df, spec, history_start) -> tuple[list[dict], dict[str, 
 
 def save_anomaly_outputs(table, flagged, config, source, brand_id) -> dict[str, Path]:
     """Write the anomaly table and the flagged rows; for the features, also the winsorisation YAML
-    that build_feature_store() reads (the gold study's caps are only reported in the table)."""
+    that build_feature_store() reads (the daily study's caps are only reported in the table)."""
     suffix = f"{source}_brand{brand_id}"
     paths = {
         "table": PROJECT_ROOT / f"data/03_output/anomaly_table_{suffix}.csv",
@@ -483,26 +483,26 @@ def detect_anomalies(
 
 
 def load_player_day(brand_id: int) -> pd.DataFrame:
-    """Player-day table of one brand from the local gold caches: bets (activity) and payments, EUR."""
-    activity = gold_cache.read("activity", brand_id, columns="tenant_id, brand_id, player_id, day, bets, rounds, "
+    """Player-day table of one brand from the local daily caches: bets (activity) and payments, EUR."""
+    activity = daily_cache.read("activity", brand_id, columns="tenant_id, brand_id, player_id, day, bets, rounds, "
                                                               "turnover_eur, ggr_eur")
-    payments = gold_cache.read("payments", brand_id, columns="tenant_id, player_id, day, deposit_count, deposit_eur, "
+    payments = daily_cache.read("payments", brand_id, columns="tenant_id, player_id, day, deposit_count, deposit_eur, "
                                                               "withdraw_count, withdraw_eur, failed_deposit_count")
-    player_day = activity.drop(columns="brand_id").merge(payments, on=list(GOLD_KEYS), how="outer")
+    player_day = activity.drop(columns="brand_id").merge(payments, on=list(DAILY_KEYS), how="outer")
     player_day[player_day.columns[3:]] = player_day[player_day.columns[3:]].fillna(0)
     player_day["day"] = pd.to_datetime(player_day["day"])
     return player_day.assign(brandId=brand_id)
 
 
-SPECS = {"gold": GOLD_SPEC, "features": FEATURES_SPEC}
+SPECS = {"daily": DAILY_SPEC, "features": FEATURES_SPEC}
 
 
 def load_table(source: str, brand_id: int | str, cutoff_dates: list[str], input_path: str | None):
     """The table to study: a parquet given on the command line, or built for the source."""
     if input_path:
         return pd.read_parquet(input_path)
-    if source == "gold":
-        brands = (sorted(gold_cache.read("activity", None, columns="DISTINCT brand_id")["brand_id"])
+    if source == "daily":
+        brands = (sorted(daily_cache.read("activity", None, columns="DISTINCT brand_id")["brand_id"])
                   if brand_id == ALL_BRANDS else [brand_id])
         return pd.concat([load_player_day(int(b)) for b in brands], ignore_index=True)
     # Unscaled and unwinsorised on purpose: caps and IQR/MAD must be in raw EUR.
@@ -526,8 +526,8 @@ def main() -> None:
     df = load_table(args.source, args.brand_id, args.cutoff_dates, args.input)
     print(f"{spec.name}: {len(df):,} rows, {len(df[['tenant_id', 'player_id']].drop_duplicates()):,} players")
 
-    # Gold: withdrawal_without_prior_deposit only judges players first seen once deposits are complete.
-    history = (DEPOSITS_VALID_FROM, data_available_through()) if spec is GOLD_SPEC else (None, None)
+    # Daily: withdrawal_without_prior_deposit only judges players first seen once deposits are complete.
+    history = (DEPOSITS_VALID_FROM, data_available_through()) if spec is DAILY_SPEC else (None, None)
     # One study per brand: thresholds and winsorisation caps are never pooled across brands.
     for brand, rows in df.groupby("brandId"):
         table, flagged, config = detect_anomalies(rows, spec, *history, brand_id=int(brand))

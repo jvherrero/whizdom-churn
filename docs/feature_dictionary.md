@@ -1,22 +1,22 @@
-# Feature Dictionary v1 (brandId=64, gold layer)
+# Feature Dictionary v1 (brandId=64)
 
-The features T6 builds from the gold layer (`build_features --as-of DATE`), one row per player and cutoff. It replaces `docs/feature_dictionary_v0.md`, which describes the landing-based pipeline. Every signal promoted in T4 (`docs/churn_signals_v0.md`) is in it; the rest are standard RFM and lag features, marked "not tested", which T6's selection keeps or drops.
+The features T6 builds from the S3 data lake (`build_features --as-of DATE`), one row per player and cutoff. Every signal promoted in T4 (`docs/churn_signals_v0.md`) is in it; the rest are standard RFM and lag features, marked "not tested", which T6's selection keeps or drops.
 
 ## 0. How to Read It
 
-- **Cutoff**: the "today" of a row. A feature uses only data **up to and including the cutoff day** (UTC days, as in gold); nothing after it.
+- **Cutoff**: the "today" of a row. A feature uses only data **up to and including the cutoff day** (UTC days, as in the source tables); nothing after it.
 - **Population**: players of the brand with a bet in the 30 days up to the cutoff.
 - **Window**: how many days before the cutoff the feature looks at. **Lag**: how far back the window ends (0 = it ends on the cutoff day; 7 d = days 8 to 14 before it).
 - **T4**: the result in the signal explorer (promoted / rejected / not tested), with the single-signal AUC for 60-day churn.
-- **Sources.** `gld_player_signals_daily` is read on the cutoff day (its windows are already computed). The other sources are the local daily caches of `src/features/gold_cache.py`. Money is in EUR (gold converts it).
+- **Sources.** `gld_player_signals_daily` is read on the cutoff day (its windows are already computed). The other sources are the local daily caches of `src/features/daily_cache.py`. Money is in EUR (converted in the source tables).
 - **Scaling.** Monetary features are winsorised at p99.5 (p0.5 too for signed ones) per brand, then sign-log scaled, as in v0.
 
 ## 1. Leakage Rules
 
 - Features: data up to the cutoff only. `gld_player_signals_daily` at `snapshot_date = cutoff` includes the cutoff day itself, which is closed (as of end of day).
 - Labels (section 3): data strictly after the cutoff only. Never an input.
-- **Backfilled history.** Gold recomputed its whole history in July and August 2026. That each past `snapshot_date` uses only data up to that day is assumed, and must be confirmed with the data team.
-- **Gold's last 7 days are reprocessed daily.** A feature computed at scoring time can change slightly later; the training data always uses days older than that.
+- **Backfilled history.** The source tables were recomputed over their whole history in July and August 2026. That each past `snapshot_date` uses only data up to that day is assumed, and must be confirmed with the data team.
+- **The last 7 days are reprocessed daily in the source.** A feature computed at scoring time can change slightly later; the training data always uses days older than that.
 - A test (pytest) checks that no feature changes when data after the cutoff changes (T6).
 
 ## 2. Features (39 plus the brand)
@@ -25,7 +25,7 @@ The features T6 builds from the gold layer (`build_features --as-of DATE`), one 
 
 | Feature | Definition | Source | Window | Lag | T4 | Notes |
 |---|---|---|---|---|---|---|
-| `days_since_last_bet` | Days from the last day with a bet to the cutoff | activity cache (`gld_player_gaming_daily`) | all history | 0 | promoted (AUC 0.758) | Replaces gold `days_since_bet`, which is broken. |
+| `days_since_last_bet` | Days from the last day with a bet to the cutoff | activity cache (`gld_player_gaming_daily`) | all history | 0 | promoted (AUC 0.758) | Replaces `days_since_bet` of `gld_player_signals_daily`, which is broken. |
 | `days_since_last_deposit` | Days from the last completed deposit to the cutoff, capped at 31 (none in 30 days) | payments cache (`gld_player_payments_daily`) | 30 d | 0 | promoted (AUC 0.774) |  Deposit data: empty before its window is fully after 2026-03-01. |
 
 ### Frequency (9)
@@ -74,7 +74,7 @@ The features T6 builds from the gold layer (`build_features --as-of DATE`), one 
 
 | Feature | Definition | Source | Window | Lag | T4 | Notes |
 |---|---|---|---|---|---|---|
-| `days_since_first_bet` | Days since the first bet seen in the activity, capped at 150 | activity cache (`gld_player_gaming_daily`) | since 2025-04-01, capped at 150 d | 0 | replaces gold `tenure_days` (AUC 0.68 to 0.80 per cutoff) | Gold `tenure_days` is not consistent across days in the backfilled history (see section 4). Capped so it means the same at every cutoff: each has at least 153 days of history. |
+| `days_since_first_bet` | Days since the first bet seen in the activity, capped at 150 | activity cache (`gld_player_gaming_daily`) | since 2025-04-01, capped at 150 d | 0 | replaces `tenure_days` (AUC 0.68 to 0.80 per cutoff) | `tenure_days` of the signals table is not consistent across days in the backfilled history (see section 4). Capped so it means the same at every cutoff: each has at least 153 days of history. |
 | `prior_dormancy_spells_14d` | Returns after 14 or more silent days, last 180 days | activity cache (`gld_player_gaming_daily`) | 180 d | 0 | promoted (AUC 0.354) | Activity proxy (T4). |
 | `days_since_last_return` | Days since the last return after 14 or more silent days, capped at 181 | activity cache (`gld_player_gaming_daily`) | 180 d | 0 | promoted (AUC 0.605) |  |
 
@@ -82,13 +82,13 @@ The features T6 builds from the gold layer (`build_features --as-of DATE`), one 
 
 | Feature | Definition | Source | Window | Lag | T4 | Notes |
 |---|---|---|---|---|---|---|
-| `engagement_score` | Gold composite of active days, sessions and play time, 0 to 100 | `gld_player_signals_daily` `engagement_score` | 30 d | 0 | promoted (AUC 0.181) | Gold formula: 0.4 active days + 0.3 sessions + 0.3 play time (gld-schemas.xlsx). |
+| `engagement_score` | Composite of active days, sessions and play time, 0 to 100 | `gld_player_signals_daily` `engagement_score` | 30 d | 0 | promoted (AUC 0.181) | Source formula: 0.4 active days + 0.3 sessions + 0.3 play time (gld-schemas.xlsx). |
 | `games_breadth_30d` | Distinct games played, last 30 days | `gld_player_signals_daily` `games_breadth_l30d` | 30 d | 0 | promoted (AUC 0.287) |  |
 | `games_breadth_ratio` | (distinct games last 30 days + 1) / (same 30 days before) | `gld_player_signals_daily` `games_breadth_l30d` at the cutoff and 30 days before | 30 d vs 30 d | 0 / 30 d | promoted (AUC 0.663) | High for new players (no previous month). |
 | `bonus_stake_share_30d` | Share of the stake from bonus money, last 30 days | `gld_player_signals_daily` `wagered_bonus_eur_l30d` / `wagered_eur_l30d` | 30 d | 0 | promoted (AUC 0.639) |  |
 | `losing_streak` | Consecutive latest playing days with a net loss (last 90 days) | financial cache (`gld_player_financial_daily`) | 90 d | 0 | promoted (AUC 0.322) | Activity proxy (T4). |
 | `avg_bet_eur_l30d` | Average bet, EUR, last 30 days | `gld_player_signals_daily` `avg_bet_eur_l30d` | 30 d | 0 | not tested | Winsorised. |
-| `night_play_index` | Share of play at night | `gld_player_signals_daily` `tp_night_index` | gold window | 0 | not tested |  |
+| `night_play_index` | Share of play at night | `gld_player_signals_daily` `tp_night_index` | source window | 0 | not tested |  |
 
 ### Deposit and outcome (5)
 
@@ -97,7 +97,7 @@ The features T6 builds from the gold layer (`build_features --as-of DATE`), one 
 | `deposited_within_3d` | A completed deposit in the last 3 days | payments cache (`gld_player_payments_daily`) | 3 d | 0 | promoted (AUC 0.355) |  Deposit data: empty before its window is fully after 2026-03-01. |
 | `deposited_within_7d` | A completed deposit in the last 7 days | payments cache (`gld_player_payments_daily`) | 7 d | 0 | promoted (AUC 0.309) |  Deposit data: empty before its window is fully after 2026-03-01. |
 | `deposited_within_14d` | A completed deposit in the last 14 days | payments cache (`gld_player_payments_daily`) | 14 d | 0 | promoted (AUC 0.286) |  Deposit data: empty before its window is fully after 2026-03-01. |
-| `deposit_frequency_score` | Gold: deposits last 7 days against the last 30, 0 to 100 | `gld_player_signals_daily` `deposit_frequency_score` | 7 d vs 30 d | 0 | promoted (AUC 0.320) |  Deposit data: empty before its window is fully after 2026-03-01. |
+| `deposit_frequency_score` | Deposits last 7 days against the last 30, 0 to 100 (source score) | `gld_player_signals_daily` `deposit_frequency_score` | 7 d vs 30 d | 0 | promoted (AUC 0.320) |  Deposit data: empty before its window is fully after 2026-03-01. |
 | `failed_deposits_14d` | Failed deposit attempts, last 14 days | payments cache (`gld_player_payments_daily`) | 14 d | 0 | promoted (AUC 0.341) |  Deposit data: empty before its window is fully after 2026-03-01. Activity proxy (T4). |
 
 
@@ -117,24 +117,25 @@ The features T6 builds from the gold layer (`build_features --as-of DATE`), one 
 | `event_60d` | 1 = no bet in (cutoff, cutoff + 60 days] | activity cache, after the cutoff |
 | `duration_days` | Days to the start of the first 60-day silence (Cox PH) | same |
 | `event_observed` | 1 = that silence fits in the data, 0 = censored | same |
+| `churn_within_7d`, `_14d`, `_30d` | 1 = the churn starts within 7 / 14 / 30 days of the cutoff (`duration_days` <= h); empty until cutoff + h + 60 days is in the data | same |
 | activity and GGR after the cutoff | For value at risk (T11) | same |
 
 ## 4. Not Used, and Why
 
 | Column or signal | Why |
 |---|---|
-| `days_since_bet` (gold) | Broken: 0 for most players (`docs/dq_reports/gold/semantic_checks_brand64.md`). Replaced by `days_since_last_bet`. |
-| `churn_score`, `churn_band` (gold) | The platform's current rule: kept as the **comparator** of the backtest (T10), not as an input, so the comparison stays fair. Also built on the broken recency. |
-| `lifecycle_stage` (gold) | Built from the broken `days_since_bet`. |
-| `tenure_days` (gold) | Not consistent across days in the backfilled history: between two monthly snapshots it grows by the elapsed days for only 11% to 22% of the players (99% in the live period from August 2026). Replaced by `days_since_first_bet`. |
+| `days_since_bet` (signals table) | Broken: 0 for most players (`docs/dq_reports/semantic_checks_brand64.md`). Replaced by `days_since_last_bet`. |
+| `churn_score`, `churn_band` (signals table) | The platform's current rule: kept as the **comparator** of the backtest (T10), not as an input, so the comparison stays fair. Also built on the broken recency. |
+| `lifecycle_stage` (signals table) | Built from the broken `days_since_bet`. |
+| `tenure_days` (signals table) | Not consistent across days in the backfilled history: between two monthly snapshots it grows by the elapsed days for only 11% to 22% of the players (99% in the live period from August 2026). Replaced by `days_since_first_bet`. |
 | `cutoff_day_of_week` (calendar) | With monthly training cutoffs it is constant inside a cutoff, so it only identifies the month: the adversarial validation of the selection separates train and test months with it alone (AUC 0.998). |
 | Deposits from `gld_player_financial_daily` | Only filled from June 2026 (always 0 before); deposits come from `gld_player_payments_daily`, which has them from March 2026. |
 | Week-on-week session and active-day ratios | Rejected in T4: the effect flips side at 2 of 12 cutoffs. |
-| Loss chasing, heavy-loss flag, bonus granted, gold's deposit recency score | Rejected in T4: AUC within 0.05 of 0.5. |
+| Loss chasing, heavy-loss flag, bonus granted, the source's deposit recency score | Rejected in T4: AUC within 0.05 of 0.5. |
 | Big win then withdrawal, withdrawal without redeposit | Rejected in T4: too rare to separate (AUC near 0.5), although strong where present. |
 
 ## 5. Data Limits That Shape the Features
 
-- **Deposit features exist only from March 2026.** Before it gold has almost no completed deposits. They are empty (unknown, not 0) at earlier cutoffs. LightGBM handles empty values; for Cox PH they need an explicit choice in T6 (missing indicator, or train Cox on the cutoffs from April 2026).
+- **Deposit features exist only from March 2026.** Before it the source has almost no completed deposits. They are empty (unknown, not 0) at earlier cutoffs. LightGBM handles empty values; for Cox PH they need an explicit choice in T6 (missing indicator, or train Cox on the cutoffs from April 2026).
 - **`sessions_*` and `tenure_days` are not validated** against an independent source; the activity and money windows are.
 - **Several risk signals measure activity volume** (losing streak, net loss, failed deposits, prior dormancy, withdrawal share): they predict churn because they go with playing more. They stay as candidates; T6's selection decides whether they add anything beyond the activity features.

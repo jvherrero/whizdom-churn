@@ -1,22 +1,22 @@
 """
-Data alerts: checks of the gold data the pipeline reads and of the feature snapshot against a
+Data alerts: checks of the source data the pipeline reads and of the feature snapshot against a
 benchmark, with the thresholds of configs/eda_alerts.yaml (EDA stage 3).
 
-    .venv/bin/python src/features/alerts.py --as-of 2026-10-06                  # gold + features
-    .venv/bin/python src/features/alerts.py --as-of 2026-10-06 --stage gold --brand-id basel
+    .venv/bin/python src/features/alerts.py --as-of 2026-10-06                  # source + features
+    .venv/bin/python src/features/alerts.py --as-of 2026-10-06 --stage source --brand-id basel
 
-Gold checks run on the local daily caches (src/features/gold_cache.py: activity, financial and
+Source checks run on the local daily caches (src/features/daily_cache.py: activity, financial and
 payments of the brand), the exact rows the features and labels are built from, with one SQL
 aggregation per cache and no S3 read. The benchmark is the days the training features were built
 from; the current window is the last current_window_days up to AS_OF.
-    expectations     a pandera suite failing (eda/expectations/gold_*.py), on the current days
+    expectations     a pandera suite failing (eda/expectations/{activity,financial,payments}.py), on the current days
     row_count        rows per day (players with a bet, with money moving, with a payment) outside
                      +-N% of the benchmark's daily mean; a day with no rows is critical
     null_rate        null share of a cache column up more than N points vs the benchmark
     daily_total      a daily total (bets, EUR, deposits) outside the rolling band (median +- n * MAD
                      of the previous days)
 Feature checks: the scoring snapshot vs the training dataset (expectations, players, PSI drift).
-New categorical values are not checked: the caches have no categorical column (gold already maps
+New categorical values are not checked: the caches have no categorical column (the source tables already map
 games, currencies and payment types; money is in EUR).
 """
 
@@ -38,7 +38,7 @@ import pandas as pd
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gold_cache  # noqa: E402
+import daily_cache  # noqa: E402
 from build_features import ALL_BRANDS, FEATURES, LOOKBACK_DAYS, parse_brand_id  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -82,14 +82,14 @@ def _days(start: dt.date, end: dt.date) -> list[dt.date]:
     return [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
 
 
-# ---------------------------------------------------------------- gold caches: daily profiles
+# ---------------------------------------------------------------- daily caches: profiles
 
 def daily_profiles(cache: str, brand_id: int, days: list[dt.date], totals: list[str]) -> dict[dt.date, dict]:
     """Rows, null share per column and the `totals` (sums of cache columns, "rows" = row count) of
     every day of one cache and brand, in one SQL aggregation. A day without a cache file has 0 rows."""
-    scoped = gold_cache.CACHES[cache]["brand_scoped"]
-    folder = gold_cache.cache_dir(cache, brand_id if scoped else None)
-    cached = set(gold_cache.cached_days(cache, brand_id if scoped else None))
+    scoped = daily_cache.CACHES[cache]["brand_scoped"]
+    folder = daily_cache.cache_dir(cache, brand_id if scoped else None)
+    cached = set(daily_cache.cached_days(cache, brand_id if scoped else None))
     files = [str(folder / f"{d}.parquet") for d in days if d in cached]
     empty = {"rows": 0, "null_rate": {}, "totals": {}}
     if not files:
@@ -115,7 +115,7 @@ def daily_profiles(cache: str, brand_id: int, days: list[dt.date], totals: list[
     return out
 
 
-# ---------------------------------------------------------------- gold caches: checks
+# ---------------------------------------------------------------- daily caches: checks
 
 def check_row_count(bench: list[dict], current: list[dict], rule: dict, **ctx) -> list[dict]:
     """Rows per current day vs the benchmark's daily mean; a day with no rows is critical."""
@@ -194,15 +194,15 @@ def benchmark_days(cutoffs: list[str]) -> list[dt.date]:
     return _days(dates[0] - dt.timedelta(days=LOOKBACK_DAYS - 1), dates[-1])
 
 
-def gold_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt.date],
+def source_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt.date],
                 config: dict | None = None) -> pd.DataFrame:
-    """Every gold-cache check for `brand_id` ("basel" = every brand with a bet on `as_of`): the last
-    current_window_days up to `as_of` vs the benchmark days. Local caches only (gold_cache.top_up first)."""
+    """Every daily-cache check for `brand_id` ("basel" = every brand with a bet on `as_of`): the last
+    current_window_days up to `as_of` vs the benchmark days. Local caches only (daily_cache.top_up first)."""
     cfg = config or load_config()
     as_of = dt.date.fromisoformat(str(as_of))
     current_days = _days(as_of - dt.timedelta(days=cfg["current_window_days"] - 1), as_of)
     band = cfg["daily_total"]
-    brands = ([int(b) for b in gold_cache.read("activity", None, start=as_of, end=as_of,
+    brands = ([int(b) for b in daily_cache.read("activity", None, start=as_of, end=as_of,
                                                columns="DISTINCT brand_id")["brand_id"]]
               if brand_id == ALL_BRANDS else [int(brand_id)])
     alerts = []
@@ -222,9 +222,9 @@ def gold_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt.d
             alerts += check_daily_totals({d: p for d, p in profiles.items() if d >= valid_from}, current_days,
                                          band, spec["totals"], **ctx)
             if any(p["rows"] for p in current):  # every row of the current days, no sample
-                rows = gold_cache.read(cache, brand, start=current_days[0], end=current_days[-1])
-                alerts += check_expectations(rows, f"gold_{cache}", cfg["expectations"], **ctx)
-    return pd.DataFrame([{"stage": "gold", **a} for a in alerts], columns=ALERT_COLUMNS)
+                rows = daily_cache.read(cache, brand, start=current_days[0], end=current_days[-1])
+                alerts += check_expectations(rows, cache, cfg["expectations"], **ctx)
+    return pd.DataFrame([{"stage": "source", **a} for a in alerts], columns=ALERT_COLUMNS)
 
 
 # ---------------------------------------------------------------- features
@@ -361,7 +361,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Data alerts as of one date (thresholds: configs/eda_alerts.yaml).")
     parser.add_argument("--as-of", required=True)
     parser.add_argument("--brand-id", type=parse_brand_id, default=64, help="brandId, or 'basel' for every brand")
-    parser.add_argument("--stage", choices=["gold", "features", "all"], default="all")
+    parser.add_argument("--stage", choices=["source", "features", "all"], default="all")
     args = parser.parse_args()
 
     from build_features import build_feature_store
@@ -370,9 +370,9 @@ def main() -> None:
     label = str(args.brand_id)
     cutoffs = training_cutoffs(dt.date.fromisoformat(args.as_of))
     failed = False
-    if args.stage in ("gold", "all"):
-        alerts = gold_alerts(args.brand_id, args.as_of, benchmark_days(cutoffs))
-        failed |= _report_no_raise(alerts, "gold", label, args.as_of)
+    if args.stage in ("source", "all"):
+        alerts = source_alerts(args.brand_id, args.as_of, benchmark_days(cutoffs))
+        failed |= _report_no_raise(alerts, "source", label, args.as_of)
     if args.stage in ("features", "all"):
         dataset = max((PROJECT_ROOT / "data/processed").glob(f"train_dataset_{label}_*.parquet"),
                       key=lambda p: p.stat().st_mtime)
@@ -381,7 +381,7 @@ def main() -> None:
         sys.path.insert(0, str(PROJECT_ROOT / "src" / "models"))
         from train import latest_run, run_info
         try:
-            used = {f for m in ("lightgbm_classifier", "cox_ph") for f in run_info(latest_run(m).run_id)["features"]}
+            used = {f for m in ("lightgbm_classifier", "cox_ph") for f in run_info(latest_run(m, label).run_id)["features"]}
         except LookupError:
             used = None
         failed |= _report_no_raise(feature_alerts(pd.read_parquet(dataset), snapshot, model_features=used),

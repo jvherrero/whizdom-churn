@@ -1,8 +1,8 @@
-# Baseline Churn Definition v0.2 (brandId=64, gold layer)
+# Baseline Churn Definition v0 (brandId=64)
 
-## 0. What Changed from v0.1
+## 0. Data
 
-v0.1 was built on the landing layer, with 104 days of history (2026-06-18 to 2026-09-29). This version re-runs the analysis on the **gold layer** (`org/40-gold`), the project's data source from now on, with **18 months of history** (2025-04-01 to 2026-10-06). The longer history changes the numbers a lot, mostly because a return after a long silence can now actually be observed. The decision (60 days) does not change, and it now rests on much stronger evidence.
+The S3 data lake (`org/40-gold`), with **18 months of history** (2025-04-01 to 2026-10-06), long enough to observe returns after long silences.
 
 Notebook: `eda/02_churn_definition.ipynb`. Tables and figures: `data/03_output/churn_definition/brand64/`.
 
@@ -16,9 +16,9 @@ A player has **churned** when **60 days pass without a bet**. The activity event
 
 ## 2. Activity Data
 
-I build player activity from `gld_player_gaming_daily`: one row per player, game, provider, day and currency with play that day. `src/features/gold_cache.py` (`activity` cache) sums it to one row per player and day with at least one bet, filtered to `brandId = 64` (126,581 players, 1,640,224 player-days). I use this table rather than `gld_player_signals_daily` because it carries `brand_id` on every row; `signals_daily` has no `brand_id` before July 2026 (see `docs/dq_reports/gold/`). Days are UTC days, as everywhere in gold.
+I build player activity from `gld_player_gaming_daily`: one row per player, game, provider, day and currency with play that day. `src/features/daily_cache.py` (`activity` cache) sums it to one row per player and day with at least one bet, filtered to `brandId = 64` (126,581 players, 1,640,224 player-days). I use this table rather than `gld_player_signals_daily` because it carries `brand_id` on every row; `signals_daily` has no `brand_id` before July 2026 (see `docs/dq_reports/`). Days are UTC days, as in every source table.
 
-The cache is local and incremental, and it re-reads the last 7 days on every run, because gold reprocesses its last 7 days daily.
+The cache is local and incremental, and it re-reads the last 7 days on every run, because the source reprocesses its last 7 days daily.
 
 ## 3. Evidence
 
@@ -99,14 +99,16 @@ population      = players with a bet in (c - 30, c]
 event_60d       = 1 if the player places no bet in (c, c + 60], else 0
 duration_days   = first day t >= c (the cutoff or a later active day) followed by 60 days without a bet
 event_observed  = 1 if that 60-day silence fits inside the data, else 0 (censored at the last active day)
+churn_within_Nd = 1 if the churn starts within N days (duration_days <= N), N = 7, 14, 30;
+                  known once c + N + 60 is in the data (event_60d is churn_within_0d)
 ```
 
-`event_60d` is the classification target (LightGBM). `duration_days` and `event_observed` are the survival targets (Cox PH). A label is only usable when `c + 60` is on or before the last data day, and only final once `c + 60` is at least 7 days before it (gold reprocesses its last 7 days).
+`event_60d` is the classification target (LightGBM). `duration_days` and `event_observed` are the survival targets (Cox PH). `churn_within_7d/14d/30d` are the plan's 7 / 14 / 30-day labels for this definition: the Cox PH horizon probabilities (`p_churn_7d/14d/30d` in `player_scores`) are calibrated and checked against them. A label is only usable when `c + 60` is on or before the last data day, and only final once `c + 60` is at least 7 days before it (the source reprocesses its last 7 days).
 
 **Known limits:**
 - **Left truncation**: history starts on 2025-04-01, so a player seen in the first months may have started earlier. The lifetime curves use new players only; the labels do not depend on the first bet.
-- **Bonus-only players**: the event is any bet, including bets placed only with bonus money. Gold's own "active day" excludes playable-bonus-only bets (`gld-schemas.xlsx`), so `active_days_*` in the gold signals can be lower than this definition. To review if bonus-only play should not count as activity.
-- **Backfilled history**: gold recomputed its history in July and August 2026. That the backfill only uses data up to each day must be confirmed with the data team (open question in the data card).
+- **Bonus-only players**: the event is any bet, including bets placed only with bonus money. The source's own "active day" excludes playable-bonus-only bets (`gld-schemas.xlsx`), so `active_days_*` in the signals table can be lower than this definition. To review if bonus-only play should not count as activity.
+- **Backfilled history**: the source tables were recomputed in July and August 2026. That the backfill only uses data up to each day must be confirmed with the data team (open question in the data card).
 
 ## 5. Decision: 60 Days
 
@@ -148,7 +150,7 @@ The threshold can also be fixed by a rule decided in advance, for example "the s
 
 60 days sits between the 15% and the 10% rules, closer to the first.
 
-**Decision v0.2**: `event_60d` is the training target. The 30-day rate stays in the analysis as an earlier signal and for comparison. With 15 monthly cutoffs that have a complete 60-day label (2025-06-01 to 2026-08-01), the 12-cutoff rolling-origin backtest of the plan (T10) is possible.
+**Decision v0**: `event_60d` is the training target. The 30-day rate stays in the analysis as an earlier signal and for comparison. With 15 monthly cutoffs that have a complete 60-day label (2025-06-01 to 2026-08-01), the 12-cutoff rolling-origin backtest of the plan (T10) is possible.
 
 ## 6. Sign-off
 

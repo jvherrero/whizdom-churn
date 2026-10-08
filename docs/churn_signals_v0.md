@@ -1,8 +1,8 @@
-# Churn Signals v0.2 (brandId=64, gold layer)
+# Churn Signals v0 (brandId=64)
 
-## 0. What Changed from v0.1
+## 0. Scope
 
-v0.1 tested 14 signals on the landing layer with 2 weekly cutoffs. This version tests the plan's full hypothesis table on the **gold layer**, with **12 monthly cutoffs** (2025-06-01 to 2026-05-01, training months only; the later months are kept for the test month and the backtest). Notebook: `eda/03_signal_explorer.ipynb`; module: `eda/signal_explorer.py`; tables and figures: `data/03_output/signals/brand64/`.
+The plan's full hypothesis table, tested on the S3 data lake (`org/40-gold`) with **12 monthly cutoffs** (2025-06-01 to 2026-05-01, training months only; the later months are kept for the test month and the backtest). Notebook: `eda/03_signal_explorer.ipynb`; module: `eda/signal_explorer.py`; tables and figures: `data/03_output/signals/brand64/`.
 
 ## 1. Method
 
@@ -12,11 +12,11 @@ v0.1 tested 14 signals on the landing layer with 2 weekly cutoffs. This version 
 - **Decision rule.** PROMOTED when the hazard-ratio interval excludes 1, the AUC is at least 0.05 away from 0.5, the effect never flips side across the cutoffs, and lift, hazard ratio and AUC point the same way. Otherwise REJECTED.
 - **Known limit of the intervals.** Players repeat across cutoffs, so the intervals are slightly too narrow. A player-clustered interval was the same to two decimals on a test signal and 40 times slower, so it is not used.
 
-## 2. Data Problems Found on Gold
+## 2. Data Problems Found in the Source Tables
 
-These change what can be tested, and are reported to the data team (`docs/dq_reports/gold/semantic_checks_brand64.md`):
+These change what can be tested, and are reported to the data team (`docs/dq_reports/semantic_checks_brand64.md`):
 
-1. **`gld_player_signals_daily.days_since_bet` is broken.** It is 0 for most players: it matches the recency recomputed from the daily activity for only 16% of the players (median over 18 months). Recomputed recency has an AUC of 0.758; gold's column has 0.500. I compute recency from the activity (`days_since_last_bet`). The other activity and money windows of the signals table match the recomputation for 95% to 100% of the players.
+1. **`gld_player_signals_daily.days_since_bet` is broken.** It is 0 for most players: it matches the recency recomputed from the daily activity for only 16% of the players (median over 18 months). Recomputed recency has an AUC of 0.758; the signals table's column has 0.500. I compute recency from the activity (`days_since_last_bet`). The other activity and money windows of the signals table match the recomputation for 95% to 100% of the players.
 2. **Completed deposits and withdrawals only exist from March 2026.** From April to November 2025 no betting player has a completed deposit; the share is 1% to 8% in December and January, 34% in February, and 62% to 75% from March 2026. `gld_player_financial_daily` only has them from June 2026. Deposit and withdrawal signals are therefore left **empty (unknown, not 0)** at every cutoff whose window starts before 2026-03-01, and can only be tested on **2 cutoffs** (2026-04-01 and 2026-05-01): their effect is clear, but their stability over time cannot be checked yet.
 
 3. **`tenure_days` is not consistent in the backfilled history.** Between two monthly snapshots, a player's tenure should grow by the days in between; it does for only 11% to 22% of the players before August 2026, and for 99% from August to September 2026 (the live period). It drifts strongly over time (adversarial AUC 0.95 in T6). The T4 result for `tenure_days` below is kept for the record, but the features use `days_since_first_bet` (days since the first bet seen, capped at 150 days), which is consistent: single-signal AUC 0.68 to 0.80 at every cutoff.
@@ -51,7 +51,7 @@ These change what can be tested, and are reported to the data team (`docs/dq_rep
 
 ### Reference: the platform's current rule
 
-`churn_score` (gold): AUC 0.621, lift 1.77, hazard ratio 1.22. **19 signals separate churners better than it**, recency alone among them (AUC 0.758). Half of its formula is the broken recency column, which explains most of the gap.
+`churn_score` (signals table): AUC 0.621, lift 1.77, hazard ratio 1.22. **19 signals separate churners better than it**, recency alone among them (AUC 0.758). Half of its formula is the broken recency column, which explains most of the gap.
 
 ### Rejected (11)
 
@@ -79,7 +79,7 @@ These change what can be tested, and are reported to the data team (`docs/dq_rep
 
 ## 4. Findings
 
-1. **Engagement and recency are the strongest families.** The gold engagement score (active days, sessions and play time over 30 days) has an AUC of 0.181: 7.8% churn in its top quartile against 77.1% in its bottom one. Bet recency alone reaches 0.758, with 5 times more churn in the most recent-inactive quartile. Both are stable at every cutoff.
+1. **Engagement and recency are the strongest families.** The engagement score of the signals table (active days, sessions and play time over 30 days) has an AUC of 0.181: 7.8% churn in its top quartile against 77.1% in its bottom one. Bet recency alone reaches 0.758, with 5 times more churn in the most recent-inactive quartile. Both are stable at every cutoff.
 2. **Deposit behaviour is as strong as expected, where the data exists.** Deposit days in the last 30 days (AUC 0.211) and days since the last deposit (AUC 0.774) are among the strongest signals, in the direction the plan expected, on the 2 cutoffs with deposits.
 3. **New players churn most** (tenure, AUC 0.232), as the churn definition already showed.
 4. **Product breadth works, but as breadth, not as narrowing.** Players on more games churn less (AUC 0.287). The narrowing ratio points the opposite way to the hypothesis because a new player has no previous month to compare with.
@@ -104,11 +104,11 @@ Many of them overlap (engagement, recency, breadth and the volume proxies all me
 
 ## 6. Signals Rejected (do not test again without new data)
 
-Week-on-week session and active-day ratios (unstable), 30-day prior dormancy (unstable, weak), heavy-loss flag, gold's loss-chasing indicator, bonus granted, gold's deposit recency score, the 30-vs-30 deposit-days ratio (one cutoff, contradictory), and the two rare flags (big win then withdrawal, withdrawal without redeposit). Reasons in the table above.
+Week-on-week session and active-day ratios (unstable), 30-day prior dormancy (unstable, weak), heavy-loss flag, the source's loss-chasing indicator, bonus granted, the source's deposit recency score, the 30-vs-30 deposit-days ratio (one cutoff, contradictory), and the two rare flags (big win then withdrawal, withdrawal without redeposit). Reasons in the table above.
 
 ## 7. Known Limits
 
 - **Deposit signals rest on 2 cutoffs.** Their stability must be re-checked when more months with deposit data join the training window.
 - **Univariate only.** Each signal is tested alone; overlaps between them are left to T6.
-- **The first cutoff (2025-06-01) had only 61 days of gold history**, so its 90-day windows were incomplete. The feature pipeline (T6) starts at 2025-06-30 (90 days of history); removing that cutoff does not change any of the other 11 cutoffs' values (checked).
-- **Hypotheses not testable with gold today:** vertical mix (casino, sports, live) and session length decay in minutes beyond the 7-day ratio; days since the last bonus (no daily bonus history cached).
+- **The first cutoff (2025-06-01) had only 61 days of history**, so its 90-day windows were incomplete. The feature pipeline (T6) starts at 2025-06-30 (90 days of history); removing that cutoff does not change any of the other 11 cutoffs' values (checked).
+- **Hypotheses not testable with the source tables today:** vertical mix (casino, sports, live) and session length decay in minutes beyond the 7-day ratio; days since the last bonus (no daily bonus history cached).

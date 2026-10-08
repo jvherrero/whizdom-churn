@@ -134,7 +134,7 @@ def _describe(z: pd.Series, n: int = 3) -> str:
         or "close to the average player"
 
 
-def _use_in_models() -> str:
+def _use_in_models(brand: str) -> str:
     """What Stage 2 decided about the segment features in the latest run of each baseline model."""
     import mlflow
 
@@ -143,7 +143,7 @@ def _use_in_models() -> str:
     lines = []
     for model_id in ("lightgbm_classifier", "cox_ph"):
         try:
-            run = latest_run(model_id)
+            run = latest_run(model_id, brand)
             table = pd.read_csv(mlflow.artifacts.download_artifacts(f"runs:/{run.run_id}/feature_selection.csv"))
         except Exception:
             lines.append(f"- **{model_id}**: no training run with a feature selection report yet.")
@@ -268,7 +268,7 @@ Share of players in each segment, per cutoff (the last two are the test months):
 
 Stage 2 decision for the segment features in the latest training run of each model (read from MLflow when this file is generated, so run `make train-baseline` before `make segments`):
 
-{_use_in_models()}
+{_use_in_models(label)}
 
 When the segment is dropped at step 4, the model already gets the same information from the raw features it is built from (active days, stake, deposits). The segment is still useful to describe players: `make score` adds it to every player's score.
 

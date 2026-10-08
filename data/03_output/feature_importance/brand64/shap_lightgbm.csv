@@ -1,7 +1,7 @@
 feature,family,mean_abs_shap,rank_corr,direction
-active_days_l90d,frequency,1.2188405513453844,-0.9855859459833332,"higher value, lower churn risk"
-wagered_eur_l7d,monetary,0.4394325220146893,-0.907311111765355,"higher value, lower churn risk"
-days_since_last_bet,recency,0.38713322956160034,0.9226866887293237,"higher value, higher churn risk"
-days_since_first_bet,tenure,0.3505151227145362,-0.7980768561551713,"higher value, lower churn risk"
-engagement_score,mix,0.20079532407719886,-0.885730053872884,"higher value, lower churn risk"
+active_days_l90d,frequency,1.0711162259221139,-0.9761349165755593,"higher value, lower churn risk"
+wagered_eur_l7d,monetary,0.34619258706247635,-0.9084505810310933,"higher value, lower churn risk"
+days_since_first_bet,tenure,0.28626069219839123,-0.7922740642555567,"higher value, lower churn risk"
+days_since_last_bet,recency,0.24944981962135476,0.9308130052456898,"higher value, higher churn risk"
+engagement_score,mix,0.15219674494387908,-0.8912942542856821,"higher value, lower churn risk"
 brandId,other,0.0,,categorical (brand)

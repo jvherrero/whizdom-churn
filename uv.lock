@@ -3047,12 +3047,19 @@ dependencies = [
     { name = "duckdb" },
     { name = "lifelines" },
     { name = "lightgbm" },
+    { name = "matplotlib" },
     { name = "mlflow" },
+    { name = "numpy" },
     { name = "optuna" },
+    { name = "pandas" },
     { name = "pandera" },
     { name = "pre-commit" },
+    { name = "pyarrow" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
 ]
 
 [package.dev-dependencies]
@@ -3067,12 +3074,19 @@ requires-dist = [
     { name = "duckdb", specifier = "==1.5.6" },
     { name = "lifelines", specifier = ">=0.30.3" },
     { name = "lightgbm", specifier = ">=4.7.0" },
+    { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "mlflow", specifier = ">=3.16.1" },
+    { name = "numpy", specifier = ">=2.5.3" },
     { name = "optuna", specifier = ">=5.0.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
     { name = "pandera", specifier = ">=0.33.1" },
     { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pyarrow", specifier = ">=25.0.1" },
     { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "ruff", specifier = ">=0.16.9" },
+    { name = "scikit-learn", specifier = ">=1.9.1" },
+    { name = "scipy", specifier = ">=1.18.1" },
 ]
 
 [package.metadata.requires-dev]

@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 from sklearn.calibration import calibration_curve
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score, roc_curve
 from sklearn.model_selection import StratifiedGroupKFold
 
@@ -42,8 +43,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from evaluation.metrics import ECE_BINS, c_index, classification_metrics, expected_calibration_error  # noqa: E402
 
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
-from build_features import brand_label
-from build_survival_dataset import git_commit
+from build_features import PLATFORM_SCORE, brand_label
+from build_survival_dataset import LABEL_COLUMNS, git_commit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import segments as segmentation
@@ -58,7 +59,7 @@ TARGET = "event_60d"
 DURATION, EVENT = "duration_days", "event_observed"
 BRAND = "brandId"
 # brandId is not a selectable feature: the model adds it itself (catalog brand_feature / brand_strata).
-NON_FEATURES = ["cutoff_date", "tenant_id", BRAND, "player_id", TARGET, DURATION, EVENT]
+NON_FEATURES = ["cutoff_date", "tenant_id", BRAND, "player_id", *LABEL_COLUMNS, PLATFORM_SCORE]
 SPLITS = ("train", "valid", "test")
 # Temporal split of the delivery plan: train = months 1-9, validation = month 10, test = months 11-12.
 N_VALID_CUTOFFS = 1
@@ -66,11 +67,17 @@ N_TEST_CUTOFFS = 2
 SEED = 42
 # Single-feature reference: how far the model gets beyond "days since the last bet".
 BENCHMARK_FEATURE = "days_since_last_bet"
+# What the model is compared with on the test months: recency alone and the platform's current churn score.
+BASELINES = {BENCHMARK_FEATURE: "Days since last bet", PLATFORM_SCORE: "Platform churn_score"}
 CALIBRATOR_ARTIFACT = "calibration/isotonic.joblib"
 # Isotonic regression gives exactly 0 or 1 at the tails (a validation bin with only one class).
 # A sure 0 or 1 is never true for a player and blows up log-loss on any miss, so bound it.
 CALIBRATION_BOUND = 0.005
 CALIBRATION_FOLDS = 5  # cross-fitting folds to score "log-loss after calibration" on the validation rows
+# Cox PH: P(churn starts within h days) = 1 - S(h) for the player_scores table (T11), calibrated per
+# horizon with isotonic regression on the validation month (the raw Cox curve is not calibrated).
+HORIZONS = (7, 14, 30)
+HORIZON_CALIBRATOR_ARTIFACT = "calibration/horizons.joblib"
 
 
 def load_catalog_entry(model_id: str) -> tuple[dict, dict, str]:
@@ -95,17 +102,18 @@ def player_key(df: pd.DataFrame) -> pd.Series:
     return df[BRAND].astype("int64") * 10**10 + df["player_id"].astype("int64")
 
 
-def split_rows(df: pd.DataFrame) -> pd.Series:
-    """By cutoff month: the last N_TEST_CUTOFFS are 'test', the N_VALID_CUTOFFS before them 'valid',
-    the earlier ones 'train'. Every tuning decision is made on the validation month."""
+def split_rows(df: pd.DataFrame, n_test: int = N_TEST_CUTOFFS, n_valid: int = N_VALID_CUTOFFS) -> pd.Series:
+    """By cutoff month: the last `n_test` are 'test', the `n_valid` before them 'valid', the earlier
+    ones 'train'. Every tuning decision is made on the validation month(s). The backtest passes
+    n_test=1 (one scored month per origin)."""
     cutoffs = sorted(df["cutoff_date"].unique())
-    n_held_out = N_VALID_CUTOFFS + N_TEST_CUTOFFS
+    n_held_out = n_valid + n_test
     if len(cutoffs) <= n_held_out:
-        raise ValueError(f"need more than {n_held_out} cutoffs (train, {N_VALID_CUTOFFS} validation, "
-                         f"{N_TEST_CUTOFFS} test), got {len(cutoffs)}: {cutoffs}")
+        raise ValueError(f"need more than {n_held_out} cutoffs (train, {n_valid} validation, "
+                         f"{n_test} test), got {len(cutoffs)}: {cutoffs}")
     split = pd.Series("train", index=df.index)
-    split[df["cutoff_date"].isin(cutoffs[-n_held_out:-N_TEST_CUTOFFS])] = "valid"
-    split[df["cutoff_date"].isin(cutoffs[-N_TEST_CUTOFFS:])] = "test"
+    split[df["cutoff_date"].isin(cutoffs[-n_held_out:-n_test])] = "valid"
+    split[df["cutoff_date"].isin(cutoffs[-n_test:])] = "test"
     return split
 
 
@@ -542,6 +550,63 @@ def search_penalizer(entry: dict, params: dict | None, train: pd.DataFrame, vali
     return model, adapter, table
 
 
+def horizon_label(rows: pd.DataFrame, h: int) -> pd.Series:
+    """1 = the churn started within h days of the cutoff, 0 = it did not, empty = unknown: the dataset's
+    churn_within_{h}d label (churn_labels.py), or the same from duration and event for an older dataset."""
+    if f"churn_within_{h}d" in rows:
+        return rows[f"churn_within_{h}d"].astype("float")
+    churned = (rows[EVENT] == 1) & (rows[DURATION] <= h)
+    known = churned | (rows[DURATION] > h)
+    return churned.astype(float).where(known)
+
+
+def raw_horizon_probability(model, rows: pd.DataFrame) -> pd.DataFrame:
+    """1 - S(h) of the Cox model at every horizon in HORIZONS, one column per horizon."""
+    surv = model.predict_survival_function(cox_input(model, rows), times=list(HORIZONS))
+    return pd.DataFrame((1 - surv.to_numpy()).T, columns=list(HORIZONS), index=rows.index)
+
+
+def horizon_probability(model, calibrators: dict | None, rows: pd.DataFrame) -> pd.DataFrame:
+    """Calibrated P(churn within h days) per horizon (raw for a horizon without a calibrator), made
+    non-decreasing in h."""
+    p = raw_horizon_probability(model, rows)
+    for h, calibrator in (calibrators or {}).items():
+        p[h] = calibrator.predict(p[h].to_numpy())
+    return p.cummax(axis=1)
+
+
+def fit_horizon_calibrators(model, data: pd.DataFrame, split: pd.Series) -> tuple[dict, dict]:
+    """Isotonic regression per horizon on the validation month, and the test ECE before and after it.
+    A horizon whose label is not known yet in the validation month (the backtest: its data ends at the
+    test cutoff, and churn within h days needs h + 60 days after the cutoff) gets no calibrator: its
+    probability stays raw, and calibration_{h}d_valid_rows = 0 says so."""
+    calibrators, metrics = {}, {}
+    raw = {name: raw_horizon_probability(model, data[split == name]) for name in ("valid", "test")}
+    for h in HORIZONS:
+        y = horizon_label(data[split == "valid"], h)
+        known = y.notna()
+        metrics[f"calibration_{h}d_valid_rows"] = int(known.sum())
+        if known.sum() and y[known].nunique() == 2:
+            calibrators[h] = IsotonicRegression(y_min=CALIBRATION_BOUND, y_max=1 - CALIBRATION_BOUND,
+                                                out_of_bounds="clip").fit(raw["valid"].loc[known, h], y[known])
+        y_test = horizon_label(data[split == "test"], h)
+        known = y_test.notna()
+        if known.sum() and y_test[known].nunique() == 2:
+            p = raw["test"].loc[known, h].to_numpy()
+            metrics[f"test_p_churn_{h}d_ece_raw"] = expected_calibration_error(y_test[known], p)
+            if h in calibrators:
+                metrics[f"test_p_churn_{h}d_ece"] = expected_calibration_error(y_test[known], calibrators[h].predict(p))
+    return calibrators, metrics
+
+
+def load_horizon_calibrators(run_id: str) -> dict | None:
+    """The per-horizon calibrators logged with a Cox run, or None for a run without them."""
+    try:
+        return joblib.load(mlflow.artifacts.download_artifacts(f"runs:/{run_id}/{HORIZON_CALIBRATOR_ARTIFACT}"))
+    except Exception:
+        return None
+
+
 def churn_probability(model, calibrator, rows: pd.DataFrame, columns: list[str]) -> np.ndarray:
     """The model's churn probability for `rows` (with a brandId column), calibrated per brand when
     there is a calibrator. `columns` are the model's input columns (feature_columns of the run)."""
@@ -618,6 +683,46 @@ def _roc(entry, data: pd.DataFrame, split: pd.Series, model, features) -> tuple[
     return fig, pd.DataFrame(rows)
 
 
+def _top_decile_point(y: np.ndarray, score: np.ndarray) -> tuple[float, float]:
+    """(false positive rate, true positive rate) when the top 10% of the scores is flagged."""
+    top = np.zeros(len(score), dtype=bool)
+    top[np.argsort(-score, kind="stable")[: max(1, int(round(len(score) * 0.1)))]] = True
+    return float((top & (y == 0)).sum() / max((y == 0).sum(), 1)), float((top & (y == 1)).sum() / max((y == 1).sum(), 1))
+
+
+def _roc_vs_baselines(entry, data: pd.DataFrame, split: pd.Series, model, calibrator, features) -> tuple[Figure, pd.DataFrame, dict]:
+    """ROC on the test months of the model against the baselines in BASELINES (the ones in the dataset),
+    each with its top-decile point: what a campaign on the riskiest 10% would catch."""
+    test = data[split == "test"]
+    y = test[TARGET].to_numpy()
+    scores = {"This model": churn_probability(model, calibrator, test, model_columns(entry, features))}
+    scores.update({name: test[col].to_numpy(dtype=float) for col, name in BASELINES.items() if col in test})
+    fig = Figure(figsize=(6.8, 6.2))
+    ax = fig.subplots()
+    ax.plot([0, 1], [0, 1], color="grey", linestyle=":", linewidth=1, label="random (AUC 0.5)")
+    rows, metrics = [], {}
+    colours = {"This model": "#1f77b4", "Days since last bet": "#d62728", "Platform churn_score": "#9467bd"}
+    for name, s in scores.items():
+        fpr, tpr, _ = roc_curve(y, s)
+        auc = roc_auc_score(y, s)
+        fx, ty = _top_decile_point(y, s)
+        ax.plot(fpr, tpr, color=colours[name], linewidth=2.5 if name == "This model" else 1.5,
+                label=f"{name} (AUC {auc:.3f}; top 10% catches {ty:.0%})")
+        ax.scatter([fx], [ty], color=colours[name], s=45, zorder=3)
+        key = {"This model": "model", "Days since last bet": "recency", "Platform churn_score": "platform"}[name]
+        metrics.update({f"test_roc_auc_{key}": auc, f"test_top_decile_recall_{key}": ty})
+        step = max(1, len(fpr) // 200)
+        rows += [{"score": name, "false_positive_rate": f, "true_positive_rate": t} for f, t in zip(fpr[::step], tpr[::step])]
+    ax.set_xlabel("false positive rate (non-churners flagged)"); ax.set_ylabel("true positive rate (churners caught)")
+    ax.set_title("ROC on the test months: model vs today's alternatives\n(dots: the riskiest 10% of players)")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.legend(loc="lower right", fontsize=8)
+    if PLATFORM_SCORE in test:
+        fig.text(0.01, 0.005, "Platform churn_score: gld_player_signals_daily, built on its days_since_bet column "
+                 "(see docs/dq_reports).", fontsize=7, color="grey")
+    fig.tight_layout(rect=(0, 0.02, 1, 1))
+    return fig, pd.DataFrame(rows), metrics
+
+
 def _metrics_by_brand(data: pd.DataFrame, split: pd.Series, scores: dict[str, np.ndarray], kind: str) -> pd.DataFrame:
     """The same metrics, brand by brand: a good global number can hide a brand where the model fails."""
     out = []
@@ -665,6 +770,9 @@ def evaluate(entry: dict, model, data: pd.DataFrame, split: pd.Series, features:
         figures["reliability_curve.png"], tables["reliability_curve.csv"] = _reliability(
             entry, data, split, model, calibrator, features, calibration_candidates)
         figures["roc_curve.png"], tables["roc_curve.csv"] = _roc(entry, data, split, model, features)
+        figures["roc_vs_baselines.png"], tables["roc_vs_baselines.csv"], baseline_metrics = _roc_vs_baselines(
+            entry, data, split, model, calibrator, features)
+        metrics.update(baseline_metrics)
         # Overfitting check: how much better the model ranks the players it was trained on.
         metrics["overfit_gap_train_valid_roc_auc"] = metrics["train_roc_auc"] - metrics["valid_roc_auc"]
         test = data[split == "test"]
@@ -703,12 +811,19 @@ ADAPTED_INTERFACES = ("sklearn_estimator", "lifelines_survival")
 MLFLOW_FLAVORS = {"lightgbm": mlflow.lightgbm, "xgboost": mlflow.xgboost}
 
 
-def latest_run(model_id: str) -> pd.Series:
-    """The most recent training run of `model_id` in MLFLOW_EXPERIMENT."""
+def latest_run(model_id: str, brand: str | None = None) -> pd.Series:
+    """The most recent optimised training run of `model_id` in MLFLOW_EXPERIMENT (of `brand`, the brand
+    label of the run, when given), leaving out the reference runs (make results) and the runs of a
+    backtest or robustness check (tag backtest_id)."""
+    brand_filter = f" and tags.brand_id = '{brand}'" if brand is not None else ""
     runs = mlflow.search_runs(
-        experiment_names=[MLFLOW_EXPERIMENT], filter_string=f"params.model_id = '{model_id}'",
-        order_by=["attributes.start_time DESC"], max_results=1,
+        experiment_names=[MLFLOW_EXPERIMENT], filter_string=f"params.model_id = '{model_id}'{brand_filter}",
+        order_by=["attributes.start_time DESC"], max_results=500,
     )
+    if not runs.empty:
+        runs = runs[runs.get("tags.role", pd.Series("optimised", index=runs.index)).fillna("optimised") != "reference"]
+        if "tags.backtest_id" in runs:
+            runs = runs[runs["tags.backtest_id"].isna()]
     if runs.empty:
         raise LookupError(f"no {model_id} run in {MLFLOW_EXPERIMENT}: run `make train-baseline` first")
     return runs.iloc[0]
@@ -733,6 +848,8 @@ def run_info(run_id: str) -> dict:
         # Brands the run was trained on (None for runs from before brands were logged).
         "brands": ast.literal_eval(params["brands"]) if "brands" in params else None,
         "seed": int(params["seed"]) if "seed" in params else SEED,
+        "n_test_cutoffs": int(params.get("n_test_cutoffs", N_TEST_CUTOFFS)),
+        "n_valid_cutoffs": int(params.get("n_valid_cutoffs", N_VALID_CUTOFFS)),
     }
 
 
@@ -740,6 +857,7 @@ def train(
     model_id: str, dataset_path: str | Path | None = None, params: dict | None = None, select: bool = True,
     segments: bool = True, tune: bool = True, n_trials: int | None = None, reference: bool = False,
     features_from_run: str | None = None, tags: dict | None = None, seed: int | None = None,
+    n_test_cutoffs: int = N_TEST_CUTOFFS, n_valid_cutoffs: int = N_VALID_CUTOFFS,
 ) -> str:
     """Train `model_id` on a train_dataset file (default: the latest one). Returns the MLflow run id."""
     start = time.time()
@@ -759,14 +877,15 @@ def train(
     # One seed drives the randomness of a run: the model (LightGBM samples rows and columns) and the
     # Optuna search. Training with several seeds shows whether a result is stable or luck.
     seed = SEED if seed is None else seed
-    split = split_rows(data)
+    split = split_rows(data, n_test_cutoffs, n_valid_cutoffs)
     if entry["interface"] == "sklearn_estimator":
         params = {**(params or {}), "random_state": seed}
     source = None
     if entry.get("feature_set"):
         # Same feature set as another model (Cox PH uses LightGBM's): taken from that model's run on this
         # very dataset (`features_from_run`, default its latest run), with no Stage 2 selection of its own.
-        source = run_info(features_from_run or latest_run(entry["feature_set"]).run_id)
+        source = run_info(features_from_run
+                          or latest_run(entry["feature_set"], brand_label(data[BRAND].unique())).run_id)
         if source["dataset_path"] != os.path.relpath(dataset_path, PROJECT_ROOT):
             raise ValueError(f"{entry['feature_set']} run {source['run_name']} was trained on "
                              f"{source['dataset_path']}, not on this dataset: train it first")
@@ -872,6 +991,10 @@ def train(
         choose_calibrator(entry, model, data, split, features) if entry["interface"] == "sklearn_estimator"
         else (None, None, {}))
     metrics, tables, figures = evaluate(entry, model, data, split, features, calibrator, candidates)
+    horizon_calibrators = None
+    if entry["interface"] == "lifelines_survival":
+        horizon_calibrators, horizon_metrics = fit_horizon_calibrators(model, data, split)
+        metrics.update(horizon_metrics)
     if steps:
         steps.append({"step": 6, "model": model, "features": list(features), "params": params_of(adapter),
                       "calibrator": calibrator, "note": f"chosen: {calibrator.method} (lowest cross-fitted validation ECE)"})
@@ -944,8 +1067,9 @@ def train(
             "categorical feature" if entry.get("brand_feature") == "categorical"
             else "Cox strata" if cox_strata(entry) else "none"))
         mlflow.log_param("test_cutoffs", sorted(str(c) for c in data.loc[split == "test", "cutoff_date"].unique()))
-        mlflow.log_param("split", f"by cutoff: test = last {N_TEST_CUTOFFS}, validation = the "
-                                  f"{N_VALID_CUTOFFS} before, train = the rest")
+        mlflow.log_params({"n_test_cutoffs": n_test_cutoffs, "n_valid_cutoffs": n_valid_cutoffs})
+        mlflow.log_param("split", f"by cutoff: test = last {n_test_cutoffs}, validation = the "
+                                  f"{n_valid_cutoffs} before, train = the rest")
         mlflow.log_param("valid_cutoffs", sorted(str(c) for c in data.loc[split == "valid", "cutoff_date"].unique()))
         mlflow.log_param("feature_selection", select)
         if feature_source:
@@ -998,6 +1122,10 @@ def train(
                 joblib.dump(calibrator, Path(tmp) / Path(CALIBRATOR_ARTIFACT).name)
                 mlflow.log_artifact(str(Path(tmp) / Path(CALIBRATOR_ARTIFACT).name),
                                     artifact_path=str(Path(CALIBRATOR_ARTIFACT).parent))
+            if horizon_calibrators is not None:
+                joblib.dump(horizon_calibrators, Path(tmp) / Path(HORIZON_CALIBRATOR_ARTIFACT).name)
+                mlflow.log_artifact(str(Path(tmp) / Path(HORIZON_CALIBRATOR_ARTIFACT).name),
+                                    artifact_path=str(Path(HORIZON_CALIBRATOR_ARTIFACT).parent))
             if entry["interface"] == "sklearn_estimator":
                 # Each library's own MLflow flavor: the sklearn one rejects non-sklearn classes.
                 flavor = MLFLOW_FLAVORS.get(entry["import_path"].split(".")[0], mlflow.sklearn)
@@ -1006,9 +1134,12 @@ def train(
                 example = model_input(data, used_features).head(100)
                 signature = infer_signature(example.assign(**{BRAND: example[BRAND].astype("int64")})
                                             if BRAND in example else example, model.predict_proba(example)[:, 1])
-                # Also registered as a versioned model named after the brand (Models tab in MLflow).
+                # The optimised runs of normal training are also registered as a versioned model named
+                # after the brand (Models tab in MLflow): the --model-version that scoring loads. Reference
+                # runs and backtest / robustness runs are not candidates, so they are not registered.
+                register = not reference and not (tags or {}).get("backtest_id")
                 flavor.log_model(model, name="model", signature=signature,
-                                 registered_model_name=f"churn_{model_id}_brand{brand}")
+                                 registered_model_name=f"churn_{model_id}_brand{brand}" if register else None)
             else:
                 joblib.dump(model, Path(tmp) / "model.joblib")
                 mlflow.log_artifact(str(Path(tmp) / "model.joblib"), artifact_path="model")
@@ -1056,7 +1187,7 @@ if __name__ == "__main__":
     other = {"lightgbm_classifier": "cox_ph", "cox_ph": "lightgbm_classifier"}.get(args.model_id)
     if other and not args.no_importance:
         try:
-            partner = latest_run(other)
+            partner = latest_run(other, mlflow.get_run(run_id).data.tags.get("brand_id"))
         except LookupError:
             partner = None
         if partner is not None and run_info(partner.run_id)["dataset_path"] == run_info(run_id)["dataset_path"]:

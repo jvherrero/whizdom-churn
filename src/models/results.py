@@ -58,6 +58,11 @@ def write_doc(lgbm: dict, cox: dict, lgbm_res: dict, cox_res: dict, data: pd.Dat
     test_events = data.loc[(split == "test") & (data["event_observed"] == 1), "duration_days"]
     p = lgbm["params"]
     horizons = [k.removeprefix("td_auc_").removesuffix("d") for k in cox_res["test"] if k.startswith("td_auc_")]
+    na = (float("nan"), None)
+    baseline_rows = "".join(
+        f"| Baseline | AUC, {name} | {_fmt(lgbm_res['valid'].get(key, na))} | {_fmt(lgbm_res['test'].get(key, na))} |\n"
+        for key, name in (("auc_recency", "days since last bet alone"), ("auc_platform", "platform churn_score (today's rule)"))
+        if key in lgbm_res["test"])
     survival_rows = "".join(
         f"| Cox PH | Time-dependent AUC, day {h} | {_fmt(cox_res['valid'].get(f'td_auc_{h}d', (float('nan'), None)))} "
         f"| {_fmt(cox_res['test'][f'td_auc_{h}d'])} |\n"
@@ -92,7 +97,7 @@ Confidence intervals: 95% percentile intervals over {N_BOOTSTRAP} bootstrap resa
 | LightGBM | ECE (raw model output) | {_fmt(lgbm_res['valid']['ece_raw'])} | {_fmt(lgbm_res['test']['ece_raw'])} |
 | LightGBM | Log-loss (calibrated) | {_fmt(lgbm_res['valid']['log_loss'])} | {_fmt(lgbm_res['test']['log_loss'])} |
 | LightGBM | Top-decile precision (lift) | {_fmt(lgbm_res['valid']['top_decile_precision'])} ({lgbm_res['valid']['top_decile_lift'][0]:.2f}x) | {_fmt(lgbm_res['test']['top_decile_precision'])} ({lgbm_res['test']['top_decile_lift'][0]:.2f}x) |
-| Cox PH | C-index | {_fmt(cox_res['valid']['c_index'])} | **{_fmt(cox_res['test']['c_index'])}** |
+{baseline_rows}| Cox PH | C-index | {_fmt(cox_res['valid']['c_index'])} | **{_fmt(cox_res['test']['c_index'])}** |
 | Cox PH | IBS (days 0 to {cox_res['test']['horizon']}) | {_fmt(cox_res['valid']['ibs'])} | **{_fmt(cox_res['test']['ibs'])}** |
 {survival_rows}
 Churn in 60 days: validation {lgbm_res['valid']['churn_rate']:.1%}, test {lgbm_res['test']['churn_rate']:.1%}.

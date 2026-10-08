@@ -1,7 +1,7 @@
 # Data alert thresholds (EDA stage 3).
 #
-# Read by src/features/alerts.py: the pipeline checks the local gold caches after topping them up
-# (stage "gold") and the feature snapshot before scoring (stage "features"). A critical alert stops
+# Read by src/features/alerts.py: the pipeline checks the local daily caches after topping them up
+# (stage "source") and the feature snapshot before scoring (stage "features"). A critical alert stops
 # the pipeline, except feature drift, which is only reported. The same thresholds are reused by the
 # drift monitor in Week 2.
 
@@ -10,7 +10,7 @@ version: 2
 # Days checked, ending on AS_OF. The benchmark is the days the training features were built from.
 current_window_days: 1
 
-# The local gold caches (src/features/gold_cache.py) and the daily totals watched in each: "rows" =
+# The local daily caches (src/features/daily_cache.py) and the daily totals watched in each: "rows" =
 # players with a bet (activity), with money moving (financial) or with a payment (payments) that day.
 # valid_from: the cache is only complete from that day (payments: completed deposits from March 2026),
 # so the benchmark and the rolling band use the later days only.

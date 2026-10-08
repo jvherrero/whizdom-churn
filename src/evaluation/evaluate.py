@@ -34,6 +34,8 @@ from evaluation.metrics import (  # noqa: E402
     ipcw_weights, one_calibration, time_dependent_auc, top_decile_precision,
 )
 from segments import add_segment_features, load_segment_model  # noqa: E402
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
+from build_features import PLATFORM_SCORE  # noqa: E402
 from train import (  # noqa: E402
     DURATION, EVENT, TARGET, churn_probability, cox_input, cross_fitted_calibration, load_calibrator, model_input,
     run_info, split_rows,
@@ -60,6 +62,9 @@ def lightgbm_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
             "log_loss": (log_loss(y, p), bootstrap_ci(len(y), lambda i: log_loss(y[i], p[i], labels=[0, 1]))),
             "top_decile_precision": (top, bootstrap_ci(len(y), lambda i: top_decile_precision(y[i], p[i]))),
             "top_decile_lift": (top / y.mean(), None),
+            # The baselines on the same rows: recency alone and the platform's churn score, when in the dataset.
+            **{f"auc_{key}": (roc_auc_score(y, part[col]), bootstrap_ci(len(y), lambda i, c=col: roc_auc_score(y[i], part[c].to_numpy()[i])))
+               for key, col in (("recency", "days_since_last_bet"), ("platform", PLATFORM_SCORE)) if col in part},
             "churn_rate": float(y.mean()), "n": len(y),
         }
     return out
@@ -114,7 +119,7 @@ def log_results(info: dict, results: dict) -> None:
 def run_data(info: dict) -> tuple[pd.DataFrame, pd.Series]:
     """The run's dataset (with its segment features, if any) and its train/valid/test split."""
     data = pd.read_parquet(PROJECT_ROOT / info["dataset_path"])
-    split = split_rows(data)
+    split = split_rows(data, info["n_test_cutoffs"], info["n_valid_cutoffs"])
     segment_model = load_segment_model(info["run_id"])
     if segment_model is not None:
         data = add_segment_features(data, segment_model)

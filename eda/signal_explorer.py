@@ -1,4 +1,4 @@
-"""Churn signal explorer (T4): every behavioural hypothesis, tested the same way on gold data.
+"""Churn signal explorer (T4): every behavioural hypothesis, tested the same way.
 
     frame = build_frame(TRAINING_CUTOFFS, brand_id=64, data_end=...)   # player x cutoff, signals + labels
     table = evaluate_all(frame)                                         # the same numbers for every signal
@@ -20,11 +20,11 @@ A signal is PROMOTED when its hazard-ratio interval excludes 1, |AUC - 0.5| >= M
 flips side and lift, hazard ratio and AUC point the same way; otherwise it is REJECTED with the reason.
 To add a hypothesis: add a column in `_signals()` or `_history_signals()` and a Signal in SIGNALS.
 
-Data-quality limits found on gold (docs/dq_reports/gold/semantic_checks_brand64.csv):
+Data-quality limits found in the source tables (docs/dq_reports/semantic_checks_brand64.csv):
 - gld_player_signals_daily.days_since_bet is broken (0 for most players): recency is computed here
   from the activity cache instead (days_since_last_bet).
 - Completed deposits and withdrawals are only reliable from DEPOSITS_VALID_FROM (2026-03-01): before,
-  gold has almost none (gld_player_financial_daily has none before June 2026). Deposit and withdrawal history comes
+  the source has almost none (gld_player_financial_daily has none before June 2026). Deposit and withdrawal history comes
   from gld_player_payments_daily, and a deposit signal is empty (unknown, not 0) at a cutoff whose
   window starts before that day.
 """
@@ -45,7 +45,7 @@ from sklearn.metrics import roc_auc_score
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 import build_features  # noqa: E402
-import gold_labels  # noqa: E402
+import churn_labels  # noqa: E402
 from build_features import DEPOSIT_WINDOWS, DEPOSITS_VALID_FROM  # noqa: E402,F401  (documented here)
 
 KEY = ["tenant_id", "player_id"]
@@ -71,13 +71,13 @@ SIGNALS = [
     Signal("n_deposit_days_30d", "Deposit frequency", "continuous", "-", "days with a deposit in the last 30 days"),
     Signal("deposit_days_ratio_30_vs_prior30", "Deposit frequency", "continuous", "-",
            "(deposit days, last 30 + 1) / (deposit days, previous 30 + 1)"),
-    Signal("deposit_frequency_score", "Deposit frequency", "continuous", "-", "gold: deposits last 7 vs last 30 days, 0-100"),
+    Signal("deposit_frequency_score", "Deposit frequency", "continuous", "-", "signals table: deposits last 7 vs last 30 days, 0-100"),
     # Deposit recency
     Signal("days_since_last_deposit", "Deposit recency", "continuous", "+", "days since the last deposit (31 = none in 30 days)"),
     Signal("deposited_within_3d", "Deposit recency", "flag", "-", "a deposit in the last 3 days"),
     Signal("deposited_within_7d", "Deposit recency", "flag", "-", "a deposit in the last 7 days"),
     Signal("deposited_within_14d", "Deposit recency", "flag", "-", "a deposit in the last 14 days"),
-    Signal("deposit_recency_score", "Deposit recency", "continuous", "-", "gold: deposit recency, 0-100"),
+    Signal("deposit_recency_score", "Deposit recency", "continuous", "-", "signals table: deposit recency, 0-100"),
     # Deposit size trend
     Signal("deposit_size_trend", "Deposit size trend", "continuous", "-",
            "mean deposit per deposit day, last 30 days / previous 90 days"),
@@ -86,7 +86,7 @@ SIGNALS = [
     Signal("net_loss_7d", "Heavy loss", "continuous", "+", "player net loss (GGR) in the last 7 days, EUR"),
     Signal("heavy_loss_multiple", "Heavy loss", "continuous", "+", "net loss last 7 days / weekly average of the last 90"),
     Signal("heavy_loss_flag", "Heavy loss", "flag", "+", "net loss last 7 days > 2x the weekly average of the last 90"),
-    Signal("rg_loss_chasing_30d", "Heavy loss", "continuous", "+", "gold: loss chasing, share of stake lost in 30 days"),
+    Signal("rg_loss_chasing_30d", "Heavy loss", "continuous", "+", "signals table: loss chasing, share of stake lost in 30 days"),
     # Big win then withdrawal
     Signal("big_win_then_withdrawal", "Big win then withdrawal", "flag", "+",
            "in the last 30 days, a day with net win > 5x the median daily stake, then a withdrawal within 3 days"),
@@ -114,15 +114,15 @@ SIGNALS = [
     Signal("days_since_last_return", "Prior dormancy", "continuous", "-",
            "days since the last return after 14+ silent days (181 = none in 180 days)"),
     # Tenure
-    Signal("tenure_days", "Tenure", "continuous", "-", "gold: days since registration (not consistent across days)"),
+    Signal("tenure_days", "Tenure", "continuous", "-", "signals table: days since registration (not consistent across days)"),
     Signal("days_since_first_bet", "Tenure", "continuous", "-", "days since the first bet seen (activity), capped at 150"),
-    # Engagement (gold composite)
-    Signal("engagement_score", "Engagement", "continuous", "-", "gold: active days, sessions and play time over 30 days"),
+    # Engagement (signals table composite)
+    Signal("engagement_score", "Engagement", "continuous", "-", "signals table: active days, sessions and play time over 30 days"),
     # Bet recency: the recency rule of the backtest (T10), computed from the activity cache
     Signal("days_since_last_bet", "Bet recency", "continuous", "+", "days since the last bet (activity cache)"),
     # Reference: not a candidate, the platform's current rule
 
-    Signal("churn_score", "Reference", "continuous", "+", "gold platform churn score (the incumbent rule)", reference=True),
+    Signal("churn_score", "Reference", "continuous", "+", "platform churn score (the incumbent rule)", reference=True),
 ]
 
 
@@ -134,12 +134,12 @@ def build_frame(cutoffs: list[dt.date], brand_id: int, data_end: dt.date, verbos
     parts = []
     for c in cutoffs:
         raw = build_features.raw_features(c, brand_id)
-        labels = gold_labels.churn_targets(raw[KEY], c, brand_id, data_end).drop(columns="cutoff_date")
+        labels = churn_labels.churn_targets(raw[KEY], c, brand_id, data_end).drop(columns="cutoff_date")
         part = raw.merge(labels, on=KEY, how="left")
         parts.append(part)
         if verbose:
             print(f"  {c}: {len(part):,} players, churn {part[LABEL].mean():.1%}, "
-                  f"in gold signals {part['tenure_days'].notna().mean():.1%}")
+                  f"in the signals table {part['tenure_days'].notna().mean():.1%}")
     frame = pd.concat(parts, ignore_index=True)
     frame["player_key"] = frame["tenant_id"].astype(str) + ":" + frame["player_id"].astype(str)
     return frame

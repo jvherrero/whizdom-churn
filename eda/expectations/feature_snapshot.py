@@ -1,8 +1,8 @@
 """Pandera suite for `build_feature_store()`'s output (`ID_COLUMNS + FEATURES`,
-src/features/build_features.py, gold layer), one row per player per cutoff_date.
+src/features/build_features.py), one row per player per cutoff_date.
 
 Every feature is float64. Most may be empty by design (deposit features before March 2026, ratios
-over 0, a player missing from a gold snapshot); the ones every player of the population must have
+over 0, a player missing from a signal snapshot); the ones every player of the population must have
 (a bet in the 30 days up to the cutoff) are not nullable.
 """
 

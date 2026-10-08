@@ -1,4 +1,4 @@
-"""Feature store builder on the gold layer (T6): one row per player, as of one cutoff date.
+"""Feature store builder (T6): one row per player, as of one cutoff date.
 
     df = build_feature_store(cutoff_date="2026-08-01", brand_id=64)       # the final feature vector
     df = build_feature_store(cutoff_date="2026-08-01", brand_id="basel")  # every brand
@@ -8,15 +8,15 @@
 
 The features are those of docs/feature_dictionary.md (FEATURES, by family in FEATURE_COLUMNS). The
 population of a cutoff is the brand's players with a bet in the 30 days up to it. Every feature uses
-data up to and including the cutoff day (UTC days, as in gold) and nothing after it:
+data up to and including the cutoff day (UTC days, as in the source tables) and nothing after it:
 
-- gld_player_signals_daily on the cutoff day, and 7 and 30 days before it (src/features/gold_signals.py);
-- the local daily caches (src/features/gold_cache.py): activity (bets), financial (stake and GGR per
+- gld_player_signals_daily on the cutoff day, and 7 and 30 days before it (src/features/signal_snapshots.py);
+- the local daily caches (src/features/daily_cache.py): activity (bets), financial (stake and GGR per
   day) and payments (deposits, withdrawals, failed deposits).
 
-Data limits (docs/dq_reports/gold/semantic_checks_brand64.md):
-- gold's days_since_bet is broken, so recency is computed from the activity (days_since_last_bet);
-- gold's tenure_days is not consistent across days (it does not grow with the calendar), so tenure is
+Data limits (docs/dq_reports/semantic_checks_brand64.md):
+- the signals table's days_since_bet is broken, so recency is computed from the activity (days_since_last_bet);
+- the signals table's tenure_days is not consistent across days (it does not grow with the calendar), so tenure is
   the days since the first bet seen in the activity, capped at TENURE_CAP_DAYS (days_since_first_bet);
 - completed deposits only exist from DEPOSITS_VALID_FROM: a deposit feature is empty (unknown, not 0)
   at a cutoff whose window starts before it.
@@ -38,17 +38,17 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import gold_cache  # noqa: E402
-import gold_labels  # noqa: E402
-import gold_signals  # noqa: E402
-from gold import last_closed_day  # noqa: E402
+import daily_cache  # noqa: E402
+import churn_labels  # noqa: E402
+import signal_snapshots  # noqa: E402
+from datalake import last_closed_day  # noqa: E402
 from winsorisation import winsorise  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-HISTORY_START = dt.date(2025, 4, 1)      # first day of the gold daily tables
+HISTORY_START = dt.date(2025, 4, 1)      # first day of the source daily tables
 LABEL_HORIZON_DAYS = 60
 LOOKBACK_DAYS = 30                       # population: a bet in the 30 days up to the cutoff
-MIN_HISTORY_DAYS = 90                    # the longest gold window the features read (l90d)
+MIN_HISTORY_DAYS = 90                    # the longest window the features read (l90d)
 MIN_CUTOFF = HISTORY_START + dt.timedelta(days=MIN_HISTORY_DAYS)
 HISTORY_DAYS = 180                       # how far back the history-based signals look
 DEPOSITS_VALID_FROM = dt.date(2026, 3, 1)
@@ -56,6 +56,9 @@ DEPOSITS_VALID_FROM = dt.date(2026, 3, 1)
 # to the first cutoff, 2025-09-01, is 153 days), so a capped tenure means the same at every cutoff.
 TENURE_CAP_DAYS = 150
 ALL_BRANDS = "basel"  # sentinel meaning "every brandId", not a real brand
+# The platform's own churn score (gld_player_signals_daily.churn_score), kept in the training dataset as a
+# reference to compare the model with, never as a feature (docs/feature_dictionary.md, "Not used").
+PLATFORM_SCORE = "platform_churn_score"
 KEY = ["tenant_id", "player_id"]
 ID_COLUMNS = ["cutoff_date", "tenant_id", "brandId", "player_id"]
 
@@ -106,7 +109,7 @@ def data_available_through() -> dt.date:
     override = os.environ.get("DATA_AVAILABLE_THROUGH")
     if override:
         return dt.date.fromisoformat(override)
-    days = gold_cache.cached_days("activity")
+    days = daily_cache.cached_days("activity")
     return days[-1] if days else last_closed_day()
 
 
@@ -130,10 +133,10 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     dep = pay[pay["deposit_count"] > 0]
     wd = pay[pay["withdraw_count"] > 0]
 
-    # Bet recency, from the activity cache (gold's days_since_bet is broken).
+    # Bet recency, from the activity cache (the signals table's days_since_bet is broken).
     bets = act[act["day"] <= ts].groupby(KEY)["day"]
     out["days_since_last_bet"] = (ts - bets.max()).dt.days
-    # Tenure from the first bet seen, capped (gold's tenure_days is not consistent across days).
+    # Tenure from the first bet seen, capped (the signals table's tenure_days is not consistent across days).
     out["days_since_first_bet"] = (ts - bets.min()).dt.days.clip(upper=TENURE_CAP_DAYS)
 
     out["n_deposit_days_7d"] = before(dep, 7, 0).groupby(KEY).size()
@@ -190,7 +193,7 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
 
 
 def snapshot_signals(frame: pd.DataFrame) -> pd.DataFrame:
-    """Signals from the gold snapshots at the cutoff (no suffix), 7 days before (_p7) and 30 days
+    """Signals from the signal snapshots at the cutoff (no suffix), 7 days before (_p7) and 30 days
     before (_p30)."""
     s = frame
     s["net_loss_7d"] = s["ggr_eur_l7d"]
@@ -214,11 +217,11 @@ def snapshot_signals(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _one_brand(c: dt.date, brand: int, players: pd.DataFrame) -> pd.DataFrame:
     """Every signal of one brand's players at cutoff c, in real units."""
-    snaps = gold_signals.snapshots([c, c - dt.timedelta(days=7), c - dt.timedelta(days=30)], brand)
-    fin = gold_cache.read("financial", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
-    act = gold_cache.read("activity", brand, end=c, columns="tenant_id, player_id, day")
+    snaps = signal_snapshots.snapshots([c, c - dt.timedelta(days=7), c - dt.timedelta(days=30)], brand)
+    fin = daily_cache.read("financial", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
+    act = daily_cache.read("activity", brand, end=c, columns="tenant_id, player_id, day")
     try:
-        pay = gold_cache.read("payments", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
+        pay = daily_cache.read("payments", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
     except FileNotFoundError:
         pay = None
     for frame in (fin, act, pay):
@@ -239,8 +242,8 @@ def raw_features(cutoff_date: str | dt.date, brand_id: int | str) -> pd.DataFram
     in real units (days, counts, EUR): not winsorised, not scaled."""
     c = pd.to_datetime(cutoff_date).date() if isinstance(cutoff_date, str) else cutoff_date
     if c < MIN_CUTOFF:
-        raise ValueError(f"cutoff_date must be {MIN_CUTOFF} or later ({MIN_HISTORY_DAYS} days of gold history)")
-    pop = gold_labels.population(c, brand_id, LOOKBACK_DAYS)
+        raise ValueError(f"cutoff_date must be {MIN_CUTOFF} or later ({MIN_HISTORY_DAYS} days of history)")
+    pop = churn_labels.population(c, brand_id, LOOKBACK_DAYS)
     if pop.empty:
         raise ValueError(f"no player of brand_id={brand_id!r} with a bet in the {LOOKBACK_DAYS} days up to {c}")
     parts = [_one_brand(c, int(b), rows[KEY]).assign(brandId=int(b)) for b, rows in pop.groupby("brand_id")]

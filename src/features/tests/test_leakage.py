@@ -2,7 +2,7 @@
 
     .venv/bin/python -m pytest src/features/tests -q      (make test)
 
-A small synthetic gold layer (the same daily tables and columns the pipeline reads) is built twice:
+A small synthetic copy of the source tables (the same daily tables and columns the pipeline reads) is built twice:
 the second copy changes every file dated after the cutoff (more bets, other deposits, new players,
 other signal values) and adds new days. raw_features() must return exactly the same values for both;
 the churn labels, which look after the cutoff, must change (otherwise the test proves nothing).
@@ -29,9 +29,9 @@ def _write(root: Path, table: str, day: dt.date, frame: pd.DataFrame) -> None:
     frame.to_parquet(folder / "data.parquet", index=False)
 
 
-def make_gold(root: Path, future_changed: bool) -> None:
-    """Synthetic gold tables. With future_changed, every day after CUTOFF is different."""
-    import gold_signals
+def make_source(root: Path, future_changed: bool) -> None:
+    """Synthetic source tables. With future_changed, every day after CUTOFF is different."""
+    import signal_snapshots
 
     days = [START + dt.timedelta(days=i) for i in range((END - START).days + 1)]
     for day in days:
@@ -56,38 +56,38 @@ def make_gold(root: Path, future_changed: bool) -> None:
             "deposit_amount_eur": alt.uniform(10, 300, len(ids)), "withdraw_amount_eur": alt.uniform(10, 300, len(ids))}))
         n_all = N_PLAYERS + 40
         sig = pd.DataFrame({"tenant_id": "t1", "player_id": np.arange(n_all, dtype="int32"), "snapshot_date": day})
-        for col in gold_signals.MONEY:
+        for col in signal_snapshots.MONEY:
             sig[col] = alt.uniform(0, 500, n_all)
-        for col in gold_signals.OTHER:
+        for col in signal_snapshots.OTHER:
             sig[col] = alt.integers(0, 30, n_all)
         sig["churn_band"], sig["lifecycle_stage"] = "low", "active"
         _write(root, "gld_player_signals_daily", day, sig)
 
 
 def features_and_labels(root: Path, cache: Path, monkeypatch) -> tuple[pd.DataFrame, pd.DataFrame]:
-    monkeypatch.setenv("GOLD_ROOT", str(root))
+    monkeypatch.setenv("DATALAKE_ROOT", str(root))
     monkeypatch.setenv("DATA_AVAILABLE_THROUGH", str(END))
     import build_features
-    import gold_cache
-    import gold_labels
+    import daily_cache
+    import churn_labels
 
-    monkeypatch.setattr(gold_cache, "CACHE_ROOT", cache)
+    monkeypatch.setattr(daily_cache, "CACHE_ROOT", cache)
     # The synthetic deposits are valid from the start, so the deposit features are tested too.
     monkeypatch.setattr(build_features, "DEPOSITS_VALID_FROM", START)
-    gold_cache.build("activity", end=END)
-    gold_cache.build("financial", 64, end=END)
-    gold_cache.build("payments", 64, end=END)
+    daily_cache.build("activity", end=END)
+    daily_cache.build("financial", 64, end=END)
+    daily_cache.build("payments", 64, end=END)
     raw = build_features.raw_features(CUTOFF, 64)
-    labels = gold_labels.churn_targets(raw[["tenant_id", "player_id"]], CUTOFF, 64, END)
+    labels = churn_labels.churn_targets(raw[["tenant_id", "player_id"]], CUTOFF, 64, END)
     key = ["tenant_id", "player_id"]
     return raw.sort_values(key).reset_index(drop=True), labels.sort_values(key).reset_index(drop=True)
 
 
 @pytest.fixture(scope="module")
 def two_worlds(tmp_path_factory):
-    base = tmp_path_factory.mktemp("gold")
-    make_gold(base / "original", future_changed=False)
-    make_gold(base / "future_changed", future_changed=True)
+    base = tmp_path_factory.mktemp("source")
+    make_source(base / "original", future_changed=False)
+    make_source(base / "future_changed", future_changed=True)
     return base
 
 
@@ -114,5 +114,7 @@ def test_labels_do_look_after_the_cutoff(two_worlds, tmp_path, monkeypatch):
 def test_no_label_column_is_a_feature():
     import build_features
 
-    lead = {"event_60d", "duration_days", "event_observed"}
-    assert not lead & set(build_features.FEATURES)
+    import churn_labels
+
+    assert {"event_60d", "duration_days", "event_observed", "churn_within_30d"} <= set(churn_labels.LABEL_COLUMNS)
+    assert not set(churn_labels.LABEL_COLUMNS) & set(build_features.FEATURES)

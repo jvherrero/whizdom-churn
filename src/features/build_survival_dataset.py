@@ -6,6 +6,7 @@
 One row per (cutoff_date, tenant_id, player_id): the final feature vector (build_feature_store) plus
     event_60d                       1 = no bet in the 60 days after the cutoff (the classifier target)
     duration_days, event_observed   time to churn and the right-censoring flag (Cox PH)
+    churn_within_7d / 14d / 30d     1 = the churn starts within 7 / 14 / 30 days; empty when not known yet
 Only rows whose 60-day label fits before `data_end` are kept. The dataset is saved as
 data/processed/train_dataset_{brand}_{cutoffs}_{ts}.parquet and logged as one MLflow run.
 """
@@ -27,19 +28,21 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import (  # noqa: E402
-    ID_COLUMNS, LOOKBACK_DAYS, brand_label, build_feature_store, data_available_through, parse_brand_id,
+    ID_COLUMNS, LOOKBACK_DAYS, PLATFORM_SCORE, brand_label, build_feature_store, data_available_through,
+    parse_brand_id,
 )
-import gold_labels  # noqa: E402
+import churn_labels  # noqa: E402
 from winsorisation import WINSOR_CONFIG_PATH  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = PROJECT_ROOT / "data/processed"
-# 12 monthly cutoffs, all with a complete 60-day label in the gold history (the default of the CLI).
+# 12 monthly cutoffs, all with a complete 60-day label in the history (the default of the CLI).
 DEFAULT_CUTOFF_DATES = [str(d.date()) for d in pd.date_range("2025-09-01", "2026-08-01", freq="MS")]
 MLFLOW_EXPERIMENT = "whizdom-churn-training-features"
 KEY = ["cutoff_date", "tenant_id", "player_id"]
-LABEL_COLUMNS = ["event_60d", "duration_days", "event_observed"]
+LABEL_COLUMNS = churn_labels.LABEL_COLUMNS
 TARGET = "event_60d"
+WITHIN_COLUMNS = [f"churn_within_{h}d" for h in churn_labels.WITHIN_DAYS]
 SURVIVAL_TARGETS = ["duration_days", "event_observed"]  # for the Cox PH model
 
 
@@ -61,10 +64,26 @@ def _labels(features: pd.DataFrame, data_end: dt.date) -> pd.DataFrame:
     """Every churn target of every feature row, looking at data up to `data_end` only. A 60-day
     label whose window runs past `data_end` is not a real 0/1: churn_targets leaves event_60d empty."""
     return pd.concat(
-        [gold_labels.churn_targets(rows[["tenant_id", "player_id"]], cutoff, int(brand), data_end)
+        [churn_labels.churn_targets(rows[["tenant_id", "player_id"]], cutoff, int(brand), data_end)
          for (cutoff, brand), rows in features.groupby(["cutoff_date", "brandId"])],
         ignore_index=True,
     )
+
+
+def with_labels(features: pd.DataFrame, data_end: dt.date) -> tuple[pd.DataFrame, int]:
+    """`features` joined with their targets as seen on `data_end`, only the rows whose 60-day label is
+    confirmable; and how many were not."""
+    labels = _labels(features, data_end)
+    dataset = features.merge(labels[KEY + LABEL_COLUMNS], on=KEY, how="left", validate="one_to_one",
+                             indicator=True)
+    n_without_label = int((dataset["_merge"] != "both").sum())
+    if n_without_label:
+        raise ValueError(f"{n_without_label:,} feature rows have no label")
+    confirmed = dataset[TARGET].notna()
+    dataset = dataset[confirmed].drop(columns="_merge")
+    dataset[[TARGET, *SURVIVAL_TARGETS]] = dataset[[TARGET, *SURVIVAL_TARGETS]].astype("int64")
+    dataset[WITHIN_COLUMNS] = dataset[WITHIN_COLUMNS].astype("Int64")  # empty where not known yet
+    return dataset.reset_index(drop=True), int((~confirmed).sum())
 
 
 def build_survival_dataset(features: pd.DataFrame, data_end: str | dt.date | None = None) -> Path:
@@ -73,17 +92,7 @@ def build_survival_dataset(features: pd.DataFrame, data_end: str | dt.date | Non
     data day); a run "as of" an earlier date passes that date, so it never sees later data."""
     start_time = time.time()
     data_end = pd.to_datetime(data_end).date() if data_end else data_available_through()
-    labels = _labels(features, data_end)
-    dataset = features.merge(labels[KEY + LABEL_COLUMNS], on=KEY, how="left", validate="one_to_one",
-                             indicator=True)
-    n_without_label = int((dataset["_merge"] != "both").sum())
-    if n_without_label:
-        raise ValueError(f"{n_without_label:,} feature rows have no label")
-    confirmed = dataset[TARGET].notna()
-    n_unconfirmed = int((~confirmed).sum())
-    dataset = dataset[confirmed].drop(columns="_merge")
-    dataset[LABEL_COLUMNS] = dataset[LABEL_COLUMNS].astype("int64")
-    dataset = dataset.reset_index(drop=True)
+    dataset, n_unconfirmed = with_labels(features, data_end)
 
     cutoff_dates = sorted(str(c) for c in features["cutoff_date"].unique())
     brand = brand_label(features["brandId"].unique())
@@ -102,7 +111,7 @@ def build_survival_dataset(features: pd.DataFrame, data_end: str | dt.date | Non
 
 def _log_run(dataset, features, output_path, run_name, cutoff_dates, data_end, n_unconfirmed, timestamp_unix,
              execution_time_s) -> None:
-    feature_columns = [c for c in features.columns if c not in ID_COLUMNS]
+    feature_columns = [c for c in features.columns if c not in ID_COLUMNS and c != PLATFORM_SCORE]
     relative = str(output_path.relative_to(PROJECT_ROOT))
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
@@ -142,6 +151,9 @@ def _log_run(dataset, features, output_path, run_name, cutoff_dates, data_end, n
             "survival_event_rate": round(float(events.mean()), 4),
             "censoring_rate": round(float(1 - events.mean()), 4),
             "survival_max_event_day": int(dataset.loc[events, "duration_days"].max()) if events.any() else 0,
+            # Churn starting within 7 / 14 / 30 days, over the rows where it is known; and how many are known.
+            **{f"{c}_rate": round(float(dataset[c].mean()), 4) for c in WITHIN_COLUMNS if dataset[c].notna().any()},
+            **{f"{c}_known_share": round(float(dataset[c].notna().mean()), 4) for c in WITHIN_COLUMNS},
             "file_size_mb": round(output_path.stat().st_size / (1024 * 1024), 2),
             "execution_time_s": execution_time_s,
             **{f"churn_rate_{c}": round(float(r), 4) for c, r in churn_by_cutoff.items()},

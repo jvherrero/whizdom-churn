@@ -1,4 +1,4 @@
-# Caches and intermediate tables (feature_cache/, label_cache/, player-day tables...):
+# Local gold caches and intermediate tables (gold_cache/, gold_eda/, backtest scenarios...):
 # player-level data, large, and rebuilt by the pipeline.
 *
 !.gitignore

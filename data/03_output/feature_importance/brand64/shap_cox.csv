@@ -1,6 +1,6 @@
 feature,family,mean_abs_shap,rank_corr,direction
-active_days_l90d,frequency,0.6102936173714393,-1.0,"higher value, lower churn risk"
-days_since_first_bet,tenure,0.17247079020550127,-1.0,"higher value, lower churn risk"
-days_since_last_bet,recency,0.15430580170043445,1.0,"higher value, higher churn risk"
-wagered_eur_l7d,monetary,0.10465230486185668,-1.0,"higher value, lower churn risk"
-engagement_score,mix,5.112310726622212e-06,-1.0,"higher value, lower churn risk"
+active_days_l90d,frequency,0.6102936173714405,-1.0,"higher value, lower churn risk"
+days_since_first_bet,tenure,0.17247079020549996,-1.0,"higher value, lower churn risk"
+days_since_last_bet,recency,0.15430580170043495,1.0,"higher value, higher churn risk"
+wagered_eur_l7d,monetary,0.10465230486185509,-1.0,"higher value, lower churn risk"
+engagement_score,mix,5.112310727415068e-06,-1.0,"higher value, lower churn risk"

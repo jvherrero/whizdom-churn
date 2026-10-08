@@ -249,14 +249,14 @@ def _ci(df: pd.DataFrame, metric: str, digits: int = 4) -> pd.Series:
                               f"{r[f'{metric}_ci_high']:.{digits}f}]", axis=1)
 
 
-def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None) -> Path:
-    lgbm = run_info(lgbm_run_id or latest_run("lightgbm_classifier").run_id)
-    cox = run_info(cox_run_id or latest_run("cox_ph").run_id)
+def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None, brand: str | None = None) -> Path:
+    lgbm = run_info(lgbm_run_id or latest_run("lightgbm_classifier", brand).run_id)
+    cox = run_info(cox_run_id or latest_run("cox_ph", brand).run_id)
     if lgbm["dataset_path"] != cox["dataset_path"]:
         raise ValueError(f"the two runs use different datasets: {lgbm['dataset_path']} vs {cox['dataset_path']}")
 
     data = pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"])
-    split = split_rows(data)  # the same temporal split the runs were trained with
+    split = split_rows(data, lgbm["n_test_cutoffs"], lgbm["n_valid_cutoffs"])  # the same temporal split the runs were trained with
     # The k-means segments each run was trained with (same dataset and seed, so the same segments).
     segments = {name: load_segment_model(info["run_id"]) for name, info in (("lgbm", lgbm), ("cox", cox))}
     if segments["lgbm"] is not None:
@@ -468,5 +468,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Permutation importance, SHAP and family ablation for the baseline models.")
     parser.add_argument("--lgbm-run-id", help="default: the latest lightgbm_classifier run")
     parser.add_argument("--cox-run-id", help="default: the latest cox_ph run")
+    parser.add_argument("--brand-id", help="with no run ids: the latest runs of this brand")
     args = parser.parse_args()
-    run(args.lgbm_run_id, args.cox_run_id)
+    run(args.lgbm_run_id, args.cox_run_id, args.brand_id)
