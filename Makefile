@@ -21,8 +21,8 @@ cutoffs_arg := $(if $(CUTOFFS),--cutoff-dates $(CUTOFFS))
 train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params '$(PARAMS)') $(if $(NO_SELECTION),--no-selection) $(if $(NO_SEGMENTS),--no-segments) $(if $(NO_TUNING),--no-tuning) $(if $(N_TRIALS),--n-trials $(N_TRIALS))
 
 .PHONY: help setup lint format test \
-        profile cache features anomalies-daily anomalies-features dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest robustness importance model-card score alerts mlflow-ui clean-tmp
+        profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
+        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui clean-tmp
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -31,8 +31,10 @@ help:
 	@echo "profile             T2 data quality of the source tables -> docs/dq_reports/ + data card [START=] [END=] [SKIP_KEYS=1] [SEMANTIC=1|ONLY_SEMANTIC=1]"
 	@echo "cache               local daily caches of the source tables: activity (all brands), financial + payments (BRAND) [CACHES="activity financial payments"]"
 	@echo "features            final feature vector: AS_OF=YYYY-MM-DD [BRAND=64|basel]"
+	@echo "feature-store       Feast (T6): fill the offline store from each brand's latest training dataset, register, check [DATASET=path]"
 	@echo "anomalies-daily     anomaly study on the player-day caches (EDA only)"
 	@echo "anomalies-features  anomaly study on features (EDA), also rewrites the winsorisation YAML [CUTOFFS=...]"
+	@echo "validate-signals    signals-table columns against the daily caches -> docs/signal_validation.md [BRANDS=\"14 64 73\"] [BUILD=1: missing snapshots from S3]"
 	@echo "dataset             survival dataset: features + churn labels of the training cutoffs [CUTOFFS=...] [DATA_END=YYYY-MM-DD]"
 	@echo "eda-summary         EDA stage 4: training snapshot vs benchmark -> docs/eda_summary_brand{id}.md [DATASET=path] [BENCHMARK=path]"
 	@echo "pipeline            EVERYTHING as of a date: AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1] [SKIP_ALERTS=1] [BACKTEST=1]"
@@ -44,10 +46,11 @@ help:
 	@echo "evaluate            metrics of one MLflow training run with 95% bootstrap CIs, logged into it: RUN_ID=<id>"
 	@echo "results             reference LightGBM + Cox PH (optimisation step 1) -> docs/results_v0_brand{id}.md [DATASET=path]"
 	@echo "backtest            T10 rolling-origin backtest over the last 12 monthly cutoffs -> docs/backtest_v0_brand{id}.md: AS_OF=YYYY-MM-DD [CONFIG=configs/backtest.yaml] [TOP_UP=1]"
+	@echo "backtest-report     rewrite a finished backtest's report with the current pass conditions, no training: ID=backtest_brand{id}_..."
 	@echo "robustness          training spec point 8: earlier monthly windows of a dataset -> docs/temporal_robustness_brand{id}.md [DATASET=path] [N_WINDOWS=2] [N_TRIALS=n] [SEED_MODE=per_window|grid] [SEEDS=\"42 7 2026\"]"
 	@echo "model-card          one-screen model card from the MLflow runs (+ latest backtest) -> docs/model_card_v0_brand{id}.html [BRAND=64]"
 	@echo "importance          permutation, SHAP and family ablation of the latest baseline runs -> docs/feature_importance_brand{id}.md"
-	@echo "score               T11 player_scores of every active player: AS_OF=YYYY-MM-DD [BRAND=64] [MODEL_VERSION=n|alias]"
+	@echo "score               T11 player_scores of every active player: AS_OF=YYYY-MM-DD [BRAND=64] [MODEL_VERSION=n|alias] [NO_LEVEL=1]"
 	@echo "alerts              data alerts (configs/eda_alerts.yaml): AS_OF=YYYY-MM-DD [BRAND=64] [STAGE=source|features|all]"
 	@echo "mlflow-ui           open the MLflow UI on port $(MLFLOW_PORT)"
 	@echo "clean-tmp           delete DuckDB spill files (.tmp/)"
@@ -65,18 +68,24 @@ format:
 	uv run ruff check --fix .
 
 test:
-	$(PY) -m pytest src/evaluation/tests src/features/tests -q
+	$(PY) -m pytest src/evaluation/tests src/features/tests src/models/tests -q
 	cd eda && ../$(PY) -m pytest dq_lib/tests -q
 
 features:
 	@test -n "$(AS_OF)" || (echo "usage: make features AS_OF=YYYY-MM-DD [BRAND=64|basel]"; exit 1)
 	$(PY) src/features/build_features.py --as-of $(AS_OF) --brand-id $(BRAND)
 
+feature-store:
+	$(PY) src/features/feature_store.py $(if $(DATASET),--dataset $(DATASET))
+
 anomalies-daily:
 	$(PY) eda/anomalies.py --source daily --brand-id $(BRAND)
 
 anomalies-features:
 	$(PY) eda/anomalies.py --source features --brand-id $(BRAND) $(cutoffs_arg)
+
+validate-signals:
+	$(PY) eda/signal_validation.py $(if $(BRANDS),--brands $(BRANDS)) $(if $(BUILD),--build-missing) $(if $(REPORT_ONLY),--report-only)
 
 dataset:
 	$(PY) src/features/build_survival_dataset.py --brand-id $(BRAND) $(cutoffs_arg) $(if $(DATA_END),--data-end $(DATA_END))
@@ -119,6 +128,10 @@ backtest:
 	@test -n "$(AS_OF)" || (echo "usage: make backtest AS_OF=YYYY-MM-DD [CONFIG=configs/backtest.yaml] [BRAND=64] [TOP_UP=1]"; exit 1)
 	$(PY) src/models/backtest.py --as-of $(AS_OF) --brand-id $(BRAND) $(if $(CONFIG),--config $(CONFIG)) $(if $(TOP_UP),--top-up)
 
+backtest-report:
+	@test -n "$(ID)" || (echo "usage: make backtest-report ID=backtest_brand64_2026-10-06_... (data/03_output/backtest/)"; exit 1)
+	$(PY) src/models/backtest.py --report-only $(ID) $(if $(CONFIG),--config $(CONFIG))
+
 robustness:
 	$(PY) src/models/robustness.py $(if $(DATASET),--dataset-path $(DATASET)) $(if $(N_WINDOWS),--n-windows $(N_WINDOWS)) $(if $(N_TRIALS),--n-trials $(N_TRIALS)) $(if $(SEEDS),--seeds $(SEEDS)) $(if $(SEED_MODE),--seed-mode $(SEED_MODE))
 
@@ -130,7 +143,7 @@ importance:
 
 score:
 	@test -n "$(AS_OF)" || (echo "usage: make score AS_OF=YYYY-MM-DD [BRAND=64]"; exit 1)
-	$(PY) src/models/score.py --as-of $(AS_OF) --brand-id $(BRAND) $(if $(MODEL_VERSION),--model-version $(MODEL_VERSION))
+	$(PY) src/models/score.py --as-of $(AS_OF) --brand-id $(BRAND) $(if $(MODEL_VERSION),--model-version $(MODEL_VERSION)) $(if $(NO_LEVEL),--no-level)
 
 alerts:
 	@test -n "$(AS_OF)" || (echo "usage: make alerts AS_OF=YYYY-MM-DD [BRAND=64] [STAGE=source|features|all]"; exit 1)

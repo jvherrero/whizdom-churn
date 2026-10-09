@@ -3,12 +3,14 @@ scored on a date, judged on what the players did next, repeated over a year.
 
     .venv/bin/python src/models/backtest.py --as-of 2026-10-06                       # configs/backtest.yaml
     .venv/bin/python src/models/backtest.py --as-of 2026-10-06 --config configs/backtest.yaml --brand-id 64
+    .venv/bin/python src/models/backtest.py --report-only backtest_brand64_2026-10-06_1791391493   # rewrite a report
 
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import datetime as dt
 import os
 import sys
@@ -29,6 +31,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import calibration_level  # noqa: E402
 import daily_cache  # noqa: E402
 from build_features import (  # noqa: E402
     LABEL_HORIZON_DAYS, MIN_CUTOFF, brand_label, finalise, parse_brand_id, raw_features,
@@ -36,8 +39,9 @@ from build_features import (  # noqa: E402
 from build_survival_dataset import with_labels  # noqa: E402
 from evaluation.evaluate import run_data  # noqa: E402
 from evaluation.metrics import bootstrap_ci, c_index, expected_calibration_error  # noqa: E402
+from segments import load_segment_model  # noqa: E402
 from train import (  # noqa: E402
-    DURATION, EVENT, TARGET, churn_probability, cox_input, load_calibrator, run_info, train,
+    BRAND, DURATION, EVENT, TARGET, churn_probability, cox_input, load_calibrator, run_info, train,
 )
 
 CONFIG_PATH = PROJECT_ROOT / "configs/backtest.yaml"
@@ -65,6 +69,19 @@ def train_cutoffs(cutoffs: list[dt.date], test: dt.date) -> list[dt.date]:
     return [c for c in cutoffs if c + dt.timedelta(days=LABEL_HORIZON_DAYS) <= test]
 
 
+def early_cutoffs(test: dt.date, past: list[dt.date]) -> list[dt.date]:
+    """The month starts after the last training cutoff whose early signal the level uses on `test`."""
+    return [c for c in calibration_level.cutoffs(test)[1] if c > past[-1]]
+
+
+def level_shifts(run_id: str, matured: pd.DataFrame, early: pd.DataFrame, test: dt.date) -> dict[int, float]:
+    """The calibration level of a LightGBM run on the test cutoff, as scoring would set it."""
+    info = run_info(run_id)
+    predict = calibration_level.predictor(mlflow.lightgbm.load_model(f"runs:/{run_id}/model"), load_calibrator(run_id),
+                                          load_segment_model(run_id), info["features"])
+    return calibration_level.fit(predict, matured, early if len(early) else None, test)
+
+
 def _predictions(run_id: str) -> pd.DataFrame:
     """The run's score of every test row: calibrated probability (LightGBM) or partial hazard (Cox)."""
     info = run_info(run_id)
@@ -76,7 +93,7 @@ def _predictions(run_id: str) -> pd.DataFrame:
     else:
         model = mlflow.lightgbm.load_model(f"runs:/{run_id}/model")
         score = churn_probability(model, load_calibrator(run_id), test, info["features"])
-    return test[KEY + [TARGET, DURATION, EVENT]].assign(score=score)
+    return test[KEY + [BRAND, TARGET, DURATION, EVENT]].assign(score=score)
 
 
 def cutoff_metrics(rows: pd.DataFrame, score: str, probability: bool, top_share: float) -> dict:
@@ -88,6 +105,11 @@ def cutoff_metrics(rows: pd.DataFrame, score: str, probability: bool, top_share:
     if probability:
         out.update(log_loss=log_loss(y, s), ece=expected_calibration_error(y, s), brier=brier_score_loss(y, s))
     return out
+
+
+def top_decile_ratio(precision: pd.DataFrame) -> float:
+    """Mean top-decile precision of the model over the recency rule's (columns model, recency)."""
+    return float(precision["model"].mean() / precision["recency"].mean())
 
 
 def replay(rows: pd.DataFrame, n: int) -> list[dict]:
@@ -123,7 +145,8 @@ def run(config: str | Path = CONFIG_PATH, as_of: str | None = None, brand_id: in
     n_valid = cfg.get("valid_cutoffs", 1)
     skipped = [c for c in tests if len(train_cutoffs(cutoffs, c)) < max(cfg["min_train_cutoffs"], n_valid + 1)]
     tests = [c for c in tests if c not in skipped]
-    needed = sorted({c for t in tests for c in train_cutoffs(cutoffs, t)} | set(tests))
+    needed = sorted({c for t in tests for c in train_cutoffs(cutoffs, t) + early_cutoffs(t, train_cutoffs(cutoffs, t))}
+                    | set(tests))
     label = brand_label([brand_id]) if brand_id != "basel" else "basel"
     backtest_id = f"backtest_brand{label}_{as_of}_{int(start)}"
     print(f"{backtest_id}: {len(tests)} test cutoffs {[str(c) for c in tests]}, skipped {[str(c) for c in skipped]}")
@@ -156,13 +179,24 @@ def run(config: str | Path = CONFIG_PATH, as_of: str | None = None, brand_id: in
         rows = _predictions(runs["lgbm_optimised"]).rename(columns={"score": "lgbm_optimised"})
         for name in ("lgbm_reference", "cox"):
             rows = rows.merge(_predictions(runs[name])[KEY + ["score"]].rename(columns={"score": name}), on=KEY)
+        # Calibration level re-estimated on the test cutoff, as scoring does (calibration_level.py).
+        matured = train_part[train_part["cutoff_date"].isin(past[-calibration_level.N_MATURED:])]
+        early = features[features["cutoff_date"].isin(early_cutoffs(test, past))]
+        shifts = {}
+        for name in PROBABILITY_MODELS:
+            shifts[name] = level_shifts(runs[name], matured, early, test)
+            rows[f"{name}_static"] = rows[name]
+            rows[name] = calibration_level.apply(rows[name], rows[BRAND], shifts[name])
         rows = rows.merge(test_part[KEY + ["days_since_last_bet"]].rename(columns={"days_since_last_bet": "recency"}),
                           on=KEY).merge(extra.rename(columns={"churn_score": "incumbent"}), on=KEY, how="left")
         for name in COMPARATORS:
             known = rows[rows[name].notna()]
+            level = ({"level_shift": float(np.mean(list(shifts[name].values()))),
+                      "ece_static": expected_calibration_error(known[TARGET], known[f"{name}_static"])}
+                     if name in PROBABILITY_MODELS else {})
             metric_rows.append({"cutoff": str(test), "comparator": name, "n_players": len(known),
                                 "churn_rate": known[TARGET].mean(), "n_train_cutoffs": len(past),
-                                **cutoff_metrics(known, name, name in PROBABILITY_MODELS, cfg["top_share"])})
+                                **cutoff_metrics(known, name, name in PROBABILITY_MODELS, cfg["top_share"]), **level})
         replay_rows += [{"cutoff": str(test), **r} for r in replay(rows, cfg["targeting_replay"]["contacts"])]
         print(pd.DataFrame(metric_rows[-len(COMPARATORS):]).round(4).to_string(index=False))
 
@@ -206,7 +240,9 @@ def figure(metrics: pd.DataFrame, replays: pd.DataFrame, cfg: dict, label: str, 
     return path
 
 
-def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds) -> Path:
+def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds, run_id: str | None = None) -> Path:
+    """Write the report; log a new backtest run to MLflow, or with `run_id` (a rewrite) update that run's
+    verdict and report only."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     doc = Path(str(DOC_PATH).format(brand=label))
     paths = {"metrics": OUTPUT_DIR / f"{backtest_id}_metrics.csv", "replay": OUTPUT_DIR / f"{backtest_id}_replay.csv",
@@ -221,10 +257,13 @@ def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds) 
     # Pass conditions of the delivery plan, on the candidate.
     rule = cfg["pass_conditions"]
     cand, rec = metrics[metrics["comparator"] == CANDIDATE], metrics[metrics["comparator"] == "recency"]
-    ratio = cand["top_decile_precision"].mean() / rec["top_decile_precision"].mean()
+    precision = cand.set_index("cutoff")["top_decile_precision"].to_frame("model").join(
+        rec.set_index("cutoff")["top_decile_precision"].rename("recency"))
+    ratio = top_decile_ratio(precision)
+    ratio_ci = bootstrap_ci(len(precision), lambda i: top_decile_ratio(precision.iloc[i]), n_boot)
     checks = [
-        (f"mean top-decile precision >= {rule['top_decile_precision_vs_recency']}x the recency rule",
-         f"{cand['top_decile_precision'].mean():.3f} vs {rec['top_decile_precision'].mean():.3f} ({ratio:.2f}x)",
+        (f"mean top-decile precision >= {rule['top_decile_precision_vs_recency']:.2f}x the recency rule",
+         f"{precision['model'].mean():.3f} vs {precision['recency'].mean():.3f}: {ratio:.2f}x [{ratio_ci[0]:.2f}, {ratio_ci[1]:.2f}]",
          ratio >= rule["top_decile_precision_vs_recency"]),
         (f"AUC never below {rule['min_auc']}", f"min {cand['auc'].min():.3f} ({cand.loc[cand['auc'].idxmin(), 'cutoff']})",
          cand["auc"].min() >= rule["min_auc"]),
@@ -232,7 +271,6 @@ def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds) 
          cand["ece"].max() <= rule["max_ece"]),
     ]
     passed = all(ok for *_, ok in checks)
-    best_possible = 1 / rec["top_decile_precision"].mean()
 
     figure(metrics, replays, cfg, label, as_of, paths["figure"])
 
@@ -249,9 +287,10 @@ def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds) 
         return table(wide, [key] + [c for c in df["metric"].unique()])
 
     per_cutoff = metrics.pivot(index="cutoff", columns="comparator", values="auc").reset_index()
+    level = [c for c in ("ece_static", "level_shift") if c in metrics]  # not in backtests before the calibration level
     per_cutoff = per_cutoff.merge(metrics[metrics["comparator"] == CANDIDATE][["cutoff", "n_players", "churn_rate",
-                                                                               "n_train_cutoffs", "ece"]], on="cutoff")
-    per_cutoff = per_cutoff.rename(columns={"ece": f"ECE {CANDIDATE}"})
+                                                                               "n_train_cutoffs", "ece", *level]], on="cutoff")
+    per_cutoff = per_cutoff.rename(columns={"ece": f"ECE {CANDIDATE}", "ece_static": "ECE without level", "level_shift": "level shift"})
     n = cfg["targeting_replay"]["contacts"]
     text = f"""# Backtest v0: rolling-origin (brandId {label})
 
@@ -270,6 +309,7 @@ Does the model predict the way it will be used: trained on the past, scored on a
 - **Test cutoffs**: the first day of each month, {', '.join(sorted(metrics['cutoff'].unique()))}.{f" Skipped (fewer than {cfg['min_train_cutoffs']} earlier months with a known label): {', '.join(map(str, skipped))}." if skipped else ""}
 - **Training at each cutoff C**: every earlier monthly cutoff whose 60-day label was already known on C (cutoff + 60 days <= C), labels computed from data up to C only; the latest {cfg.get('valid_cutoffs', 1)} of them are the validation months (early stopping, tuning, calibration). So the training data grows from {metrics['n_train_cutoffs'].min()} to {metrics['n_train_cutoffs'].max()} months, and the models never see a label C did not know.
 - **Scored**: every player with a bet in the 30 days up to C, judged on the 60 days after it (data up to {as_of}).
+- **Calibration level on C**, as scoring sets it (`src/models/calibration_level.py`): one log-odds shift per brand, the median of the shifts that set the mean probability right on the last {calibration_level.N_MATURED} months with a known label and on the later months' early signal (who has bet again by C). It changes no ranking, only the ECE, log-loss and Brier; the ECE without it is in the per-cutoff table.
 - **Models**: trained exactly as in normal training, with {cfg['models']['n_trials']} Optuna trials (not 100) and at most {cfg['models']['max_trees']} trees, as the plan allows for the backtest. Each training run is in MLflow with the tag `backtest_id`.
 - **Comparators**: `lgbm_reference` (optimisation step 1), `cox` (partial hazard), `recency` (days since the last bet alone) and `incumbent` (the platform's `churn_score` in `gld_player_signals_daily`, a weighted heuristic: 0.5 recency + 0.3 frequency + 0.2 value). The plan's 7/14/30-day labels are replaced by the 60-day churn of `docs/churn_definition_v0.md`.
 
@@ -281,7 +321,7 @@ Mean, 95% bootstrap CI of the mean (cutoffs resampled, {n_boot} times) and range
 
 ## AUC per Cutoff
 
-{table(per_cutoff, ["cutoff", "n_players", "churn_rate", "n_train_cutoffs"] + [c for c in COMPARATORS if c in per_cutoff] + [f"ECE {CANDIDATE}"])}
+{table(per_cutoff, ["cutoff", "n_players", "churn_rate", "n_train_cutoffs"] + [c for c in COMPARATORS if c in per_cutoff] + [c for c in (f"ECE {CANDIDATE}", "ECE without level", "level shift") if c in per_cutoff])}
 
 ## Targeting Replay (would it have paid?)
 
@@ -291,8 +331,8 @@ A campaign that contacts the top **{n:,}** players at every cutoff (N to agree w
 
 ## How to Read It
 
-- **Top-decile precision condition**: precision cannot exceed 1, so 1.5x the recency rule is only reachable if the recency rule's precision is under {1 / rule['top_decile_precision_vs_recency']:.2f}. Here the recency rule reaches {rec['top_decile_precision'].mean():.3f}, so the most any model could reach is {best_possible:.2f}x. With a 60-day churn rate around {metrics['churn_rate'].mean():.0%}, recency alone already finds the players who left; the comparison of top-decile *recall* and of the targeting replay says more.
-- **Calibration lags the churn rate**: the calibration month is the latest one whose 60-day label was known on C, 2 to 3 months before it. When the monthly churn rate moves between them (around 50% from November to January, 30 to 40% the rest of the year), the probabilities are off by the same amount, so the ECE rises in those months while the AUC does not move. Calibrating on 3 validation months instead of 1 (`valid_cutoffs: 3`, tried on 2026-10-07) lowered the worst month from 0.104 to 0.086 but did not remove it, so 1 month is kept; the delayed-label monitoring of Week 2 is what catches it.
+- **Top-decile condition at {rule['top_decile_precision_vs_recency']:.2f}x, not the plan's 1.5x** (`docs/decision_top_decile_condition.md`): precision cannot exceed 1 and the recency rule already reaches {precision['recency'].mean():.3f}, so the most any model could reach is {1 / precision['recency'].mean():.2f}x, and this ceiling falls in the months with more churn. {rule['top_decile_precision_vs_recency']:.2f}x is the strictest round value the model meets with 95% confidence in brands 14, 64 and 73, and at today's precisions it is the plan's own demand (1.5 times the churners found per wasted contact). Interval: 95%, cutoffs resampled {n_boot} times.
+- **Calibration lags the churn rate**: the calibration month is the latest one whose 60-day label was known on C, 2 to 3 months before it. When the monthly churn rate moves between them (around 50% from November to January, 30 to 40% the rest of the year), every probability is off by about the same amount: the ECE rises while the AUC does not move. The level shift on C removes most of it. What is left comes from the 60 days after C (a holiday season, a sports calendar), which no data before C shows: in the analysis of 2026-10-09 even the exact level of the month before C would not have kept every month of brand 14 under 0.08 (`eda/07_calibration_seasonality.ipynb`).
 - **The replay trades churners for value**: the candidate ranks by value at risk, so it contacts fewer players who churn than recency does, but the ones it contacts carry most of the GGR at risk. Ranking by churn probability alone is the top-decile columns above.
 - **The cutoffs are not independent**: the players repeat and the training months overlap, so the CIs are optimistic.
 - **The winsorisation caps** come from the main pipeline's configuration (they may have seen later months' features, never labels).
@@ -303,6 +343,13 @@ Generated by `src/models/backtest.py` (`make backtest`). Tables: `{os.path.relpa
     doc.write_text(text, encoding="utf-8")
 
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
+    if run_id is not None:
+        with mlflow.start_run(run_id=run_id):
+            mlflow.set_tag("verdict", "pass" if passed else "fail")
+            mlflow.log_metric("passed", int(passed))
+            for p in (paths["figure"], doc, CONFIG_PATH):
+                mlflow.log_artifact(str(p))
+        return doc
     with mlflow.start_run(run_name=backtest_id):
         mlflow.set_tags({"brand_id": label, "backtest_id": backtest_id, "verdict": "pass" if passed else "fail"})
         mlflow.log_params({"as_of": as_of, "test_cutoffs": sorted(metrics["cutoff"].unique()), "skipped": [str(s) for s in skipped],
@@ -323,11 +370,34 @@ Generated by `src/models/backtest.py` (`make backtest`). Tables: `{os.path.relpa
     return doc
 
 
+def rewrite_report(backtest_id: str, config: str | Path = CONFIG_PATH) -> Path:
+    """The report of a finished backtest, written again from its saved tables with the current pass
+    conditions (no training): its MLflow run gets the new verdict and report."""
+    cfg = yaml.safe_load(Path(config).read_text(encoding="utf-8"))
+    runs = mlflow.search_runs(experiment_names=[MLFLOW_EXPERIMENT], filter_string=f"tags.backtest_id = '{backtest_id}'")
+    if runs.empty:
+        raise LookupError(f"no backtest run {backtest_id!r} in {MLFLOW_EXPERIMENT}")
+    r = runs.iloc[0]
+    metrics = pd.read_csv(OUTPUT_DIR / f"{backtest_id}_metrics.csv", dtype={"cutoff": str})
+    replays = pd.read_csv(OUTPUT_DIR / f"{backtest_id}_replay.csv", dtype={"cutoff": str})
+    doc = _report(metrics, replays, cfg, backtest_id, r["tags.brand_id"], r["params.as_of"],
+                  ast.literal_eval(r["params.skipped"]), r["metrics.execution_time_s"], run_id=r["run_id"])
+    print(f"rewrote {os.path.relpath(doc, PROJECT_ROOT)}")
+    return doc
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Rolling-origin backtest (T10).")
-    parser.add_argument("--as-of", required=True, help="the backtest's 'today' (YYYY-MM-DD)")
+    parser.add_argument("--report-only", metavar="BACKTEST_ID",
+                        help="rewrite the report of a finished backtest with the current pass conditions (no training)")
+    parser.add_argument("--as-of", help="the backtest's 'today' (YYYY-MM-DD)")
     parser.add_argument("--config", default=str(CONFIG_PATH))
     parser.add_argument("--brand-id", type=parse_brand_id, default=64)
     parser.add_argument("--top-up", action="store_true", help="top up the daily caches first (needs AWS)")
     args = parser.parse_args()
-    run(args.config, args.as_of, args.brand_id, args.top_up)
+    if args.report_only:
+        rewrite_report(args.report_only, args.config)
+    elif not args.as_of:
+        parser.error("--as-of is required (or --report-only BACKTEST_ID)")
+    else:
+        run(args.config, args.as_of, args.brand_id, args.top_up)

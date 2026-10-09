@@ -12,6 +12,10 @@ docs/schema_player_scores.md. Output, one partition per run date and brand, over
 
     data/03_output/player_scores/run_date={as_of}/brand_id={id}.parquet
 
+p_churn_60d keeps the run's calibration shape, with its level re-estimated on the run date
+(calibration_level.py: the calibration month is 2 to 3 months old and the churn rate moves with the
+seasons); --no-level keeps the training calibration as it is.
+
 Before scoring, the feature snapshot is checked against the training dataset (configs/eda_alerts.yaml):
 a critical data-quality alert stops the run with no scores written; critical feature drift only sets
 drift_flag = 1 (delivery plan).
@@ -20,6 +24,7 @@ drift_flag = 1 (delivery plan).
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import os
 import sys
 import time
@@ -33,6 +38,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import calibration_level  # noqa: E402
 import churn_labels  # noqa: E402
 from alerts import feature_alerts, report  # noqa: E402
 from build_features import LOOKBACK_DAYS, brand_label, finalise, parse_brand_id, raw_features  # noqa: E402
@@ -88,7 +94,7 @@ def top_drivers(model, rows: pd.DataFrame, columns: list[str], n: int = N_DRIVER
 
 
 def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, cox_run_id: str | None = None,
-          model_version: str | None = None, check_alerts: bool = True) -> Path:
+          model_version: str | None = None, check_alerts: bool = True, level: bool = True) -> Path:
     start = time.time()
     brand = brand_label([brand_id]) if brand_id != "basel" else "basel"
     lgbm, cox, version = resolve_models(brand, model_version, lgbm_run_id, cox_run_id)
@@ -104,20 +110,32 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
 
     raw = raw_features(as_of, brand_id)
     features = finalise(raw)
+    dataset = pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"])
     drifting = set()
     if check_alerts:
         # A critical data-quality alert raises here (no scores written); feature drift only flags.
         used = set(lgbm["features"]) | set(cox["features"])
-        alerts = feature_alerts(pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"]), features, model_features=used)
+        alerts = feature_alerts(dataset, features, model_features=used)
         report(alerts, "features", str(brand_id), as_of)
         drifting = set(alerts.loc[(alerts["check"] == "feature_drift") & (alerts["severity"] == "critical"), "brandId"])
 
-    scoring_start = time.perf_counter()  # inference only: feature building is timed apart
     segment_model = load_segment_model(lgbm["run_id"])
+    shifts = {}
+    if level and calibrator is not None:
+        # Calibration level on the run date: features of a few recent cutoffs, so not timed as inference.
+        day = dt.date.fromisoformat(as_of)
+        matured, early = calibration_level.frames(day, brand_id, dataset)
+        predict = calibration_level.predictor(lgbm_model, calibrator, segment_model, lgbm["features"])
+        shifts = calibration_level.fit(predict, matured, early, day)
+        print("calibration level (log-odds shift per brand): " + ", ".join(f"{b}: {v:+.3f}" for b, v in shifts.items()))
+
+    scoring_start = time.perf_counter()  # inference only: feature building is timed apart
     X = add_segment_features(features, segment_model) if segment_model is not None else features
     scores = pd.DataFrame({"run_date": as_of, "model_version": version, "tenant_id": features["tenant_id"],
                            "brand_id": features[BRAND], "player_id": features["player_id"]})
     scores["p_churn_60d"] = churn_probability(lgbm_model, calibrator, X, lgbm["features"])
+    if shifts:
+        scores["p_churn_60d"] = calibration_level.apply(scores["p_churn_60d"], scores["brand_id"], shifts)
     cox_seen = X[BRAND].isin(set(cox["brands"] or X[BRAND].unique())).to_numpy()
     horizons = pd.DataFrame(np.nan, index=X.index, columns=list(HORIZONS))
     median = np.full(len(X), np.nan)
@@ -171,5 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--lgbm-run-id", help="an exact LightGBM run instead of a version")
     parser.add_argument("--cox-run-id", help="default: the Cox run trained with the LightGBM run's features")
     parser.add_argument("--no-alerts", action="store_true", help="skip the feature checks (development only)")
+    parser.add_argument("--no-level", action="store_true", help="keep the training calibration level (no re-estimate)")
     args = parser.parse_args()
-    score(args.as_of, args.brand_id, args.lgbm_run_id, args.cox_run_id, args.model_version, not args.no_alerts)
+    score(args.as_of, args.brand_id, args.lgbm_run_id, args.cox_run_id, args.model_version, not args.no_alerts,
+          not args.no_level)

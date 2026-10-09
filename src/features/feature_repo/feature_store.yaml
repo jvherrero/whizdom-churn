@@ -1,0 +1,11 @@
+# Feast feature store (T6). Local: the sprint has read-only access to AWS, so the plan's S3 offline store and
+# Redis online store become local files (data/ is not versioned); definitions.py is the versioned registry.
+project: whizdom_churn
+provider: local
+registry: ../../../data/02_intermediate/feature_store/registry.db
+online_store:
+  type: sqlite
+  path: ../../../data/02_intermediate/feature_store/online.db
+offline_store:
+  type: file
+entity_key_serialization_version: 3

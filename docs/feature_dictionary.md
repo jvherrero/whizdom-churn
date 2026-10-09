@@ -137,5 +137,21 @@ The features T6 builds from the S3 data lake (`build_features --as-of DATE`), on
 ## 5. Data Limits That Shape the Features
 
 - **Deposit features exist only from March 2026.** Before it the source has almost no completed deposits. They are empty (unknown, not 0) at earlier cutoffs. LightGBM handles empty values; for Cox PH they need an explicit choice in T6 (missing indicator, or train Cox on the cutoffs from April 2026).
-- **`sessions_*` and `tenure_days` are not validated** against an independent source; the activity and money windows are.
+- **`sessions_*` pass every plausibility check, `tenure_days` is wrong in the backfilled history** (`docs/signal_validation.md`): the pipeline uses `days_since_first_bet` instead.
 - **Several risk signals measure activity volume** (losing streak, net loss, failed deposits, prior dormancy, withdrawal share): they predict churn because they go with playing more. They stay as candidates; T6's selection decides whether they add anything beyond the activity features.
+
+## 6. Feature Store (Feast)
+
+The features of every training cutoff are registered in Feast, so training rows can be fetched point in time and later served from the same definitions.
+
+- **Definitions** (the versioned registry): `src/features/feature_repo/definitions.py`. Two entities (`tenant_id`, `player_id`), one source, one feature view `player_features` (`brandId` + the 39 features of section 2) and one feature service `churn_features`. Configuration: `src/features/feature_repo/feature_store.yaml`.
+- **Offline store**: `data/02_intermediate/feature_store/player_features/brand{id}.parquet`, the final features (winsorised + sign-log) of every cutoff ever built, one file per brand. A rebuilt cutoff replaces its old rows. The registry file that `feast apply` builds from the definitions is `data/02_intermediate/feature_store/registry.db`.
+- **Point in time**: `event_timestamp` is the cutoff (UTC) and the feature view's ttl is 1 day. `get_historical_features` gives a row the features of its own cutoff, and nothing before the first cutoff or older than a day. Every publish checks it on the latest cutoff (the store must give back exactly what was written), and `src/features/tests/test_feature_store.py` checks it on hand-made rows.
+- **Local, not S3 and Redis**: the plan's S3 offline store and Redis online store need write access to AWS, which the sprint does not have. The online store is a local SQLite file, empty until Week 2. Moving to S3 and Redis changes `feature_store.yaml` and the source path, not the definitions.
+- **Commands**: `make pipeline` fills it as step 3b; `make feature-store [DATASET=path]` fills it from each brand's latest training dataset.
+
+```python
+from feature_store import historical, store
+rows = pd.DataFrame({"tenant_id": [...], "player_id": [...], "event_timestamp": pd.Timestamp("2026-08-01", tz="UTC")})
+features = historical(store(), rows)      # the 39 features of each player as of 2026-08-01
+```

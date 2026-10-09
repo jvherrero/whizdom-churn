@@ -116,7 +116,7 @@ def data_available_through() -> dt.date:
 def _ratio(a, b):
     return (a + 1) / (b + 1)
 
-
+# Given that there are some incorrectly calculated variables that I precalculate in this function...
 def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.DataFrame | None,
                     players: pd.DataFrame) -> pd.DataFrame:
     """The signals that need the day-by-day history up to cutoff c (days as datetime64)."""
@@ -192,6 +192,7 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     return out.reset_index()
 
 
+# In this fuction I ONLY use metrics provided in the table
 def snapshot_signals(frame: pd.DataFrame) -> pd.DataFrame:
     """Signals from the signal snapshots at the cutoff (no suffix), 7 days before (_p7) and 30 days
     before (_p30)."""

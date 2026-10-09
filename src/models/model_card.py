@@ -100,9 +100,11 @@ def latest_backtest(brand: str) -> dict | None:
     history = lambda name: [h.value for h in client.get_metric_history(r.run_id, name)]
     aucs, eces = history("lgbm_optimised_auc"), history("lgbm_optimised_ece")
     get = lambda name: r.get(f"metrics.{name}")
-    return {"as_of": r.get("params.as_of"), "n": len(aucs), "passed": bool(get("passed")),
+    return {"as_of": r.get("params.as_of"), "n": len(aucs),
             "min_auc": min(aucs), "max_ece": max(eces),
             "auc": {k: get(f"mean_{k}_auc") for k in ("lgbm_optimised", "lgbm_reference", "cox", "recency", "incumbent")},
+            "precision_model": get("mean_lgbm_optimised_top_decile_precision"),
+            "precision_recency": get("mean_recency_top_decile_precision"),
             "precision_ratio": get("mean_lgbm_optimised_top_decile_precision") / get("mean_recency_top_decile_precision"),
             "ggr_model": get("replay_mean_lgbm_optimised_ggr_at_risk_captured"),
             "ggr_recency": get("replay_mean_recency_ggr_at_risk_captured")}
@@ -140,17 +142,21 @@ def render(lgbm: dict, cox: dict, version: str, brand: str, params: dict, import
                       ("Platform churn_score", a["incumbent"], False)])
         bars_title = f"Backtest mean AUC vs alternatives · {backtest['n']} months"
         st = lambda ok: f'<span class="st {"ok" if ok else "no"}">{"pass" if ok else "fail"}</span>'
+        # The verdict under the current conditions (configs/backtest.yaml), whatever the run was judged with.
+        checks = [backtest["min_auc"] >= rule["min_auc"], backtest["max_ece"] <= rule["max_ece"],
+                  backtest["precision_ratio"] >= rule["top_decile_precision_vs_recency"]]
         backtest_block = f"""
   <section class="block">
     <h2>Rolling-origin backtest · {backtest['n']} months{f" · as of {as_of}" if as_of else ""}</h2>
     <table>
-      <tr><td>AUC ≥ {rule['min_auc']:.2f} every month</td><td class="n">min {backtest['min_auc']:.3f}</td><td>{st(backtest['min_auc'] >= rule['min_auc'])}</td></tr>
-      <tr><td>ECE ≤ {rule['max_ece']:.2f} every month</td><td class="n">max {backtest['max_ece']:.3f}</td><td>{st(backtest['max_ece'] <= rule['max_ece'])}</td></tr>
-      <tr><td>Top-decile ≥ {rule['top_decile_precision_vs_recency']}× recency</td><td class="n">{backtest['precision_ratio']:.2f}×</td><td>{st(backtest['precision_ratio'] >= rule['top_decile_precision_vs_recency'])}</td></tr>
+      <tr><td>AUC ≥ {rule['min_auc']:.2f} every month</td><td class="n">min {backtest['min_auc']:.3f}</td><td>{st(checks[0])}</td></tr>
+      <tr><td>ECE ≤ {rule['max_ece']:.2f} every month</td><td class="n">max {backtest['max_ece']:.3f}</td><td>{st(checks[1])}</td></tr>
+      <tr><td>Top 10% precision ≥ {rule['top_decile_precision_vs_recency']:.2f}× recency</td><td class="n">{backtest['precision_model']:.0%} vs {backtest['precision_recency']:.0%} ({backtest['precision_ratio']:.2f}×)</td><td>{st(checks[2])}</td></tr>
       <tr><td>GGR at risk, top contacts</td><td class="n">{backtest['ggr_model']:.0%} vs {backtest['ggr_recency']:.0%}</td><td></td></tr>
     </table>
+    <div class="note">Top 10%: share of contacted players who churn. The plan's 1.5× cannot be met: recency is already {backtest['precision_recency']:.0%} precise, so a perfect model reaches {1 / backtest['precision_recency']:.2f}×. Lowered to {rule['top_decile_precision_vs_recency']:.2f}×: decision_top_decile_condition.md.</div>
   </section>"""
-        verdict = f'<span class="tag{"" if backtest["passed"] else " warn"}">backtest: {"PASS" if backtest["passed"] else "FAIL"}</span>'
+        verdict = f'<span class="tag{"" if all(checks) else " warn"}">backtest: {"PASS" if all(checks) else "FAIL"}</span>'
     else:
         rows = [("This model", m.get("results_test_auc", float("nan")), True),
                 ("Days since last bet", m.get("test_roc_auc_benchmark_days_since_last_bet", float("nan")), False)]
@@ -193,7 +199,7 @@ def render(lgbm: dict, cox: dict, version: str, brand: str, params: dict, import
     <dl>
       <dt>Score</dt><dd><code>p_churn_60d</code>, calibrated</dd>
       <dt>Architecture</dt><dd>LightGBM, log-loss, <code>{html.escape(params.get('class_balance', 'none'))}</code></dd>
-      <dt>Calibration</dt><dd>{html.escape(calibration.capitalize())}, validation month</dd>
+      <dt>Calibration</dt><dd>{html.escape(calibration.capitalize())} shape (validation month) · level re-estimated on the scoring date</dd>
       <dt>Size</dt><dd>{p.get('n_estimators')} trees · {p.get('num_leaves')} leaves · depth {p.get('max_depth', '–')}</dd>
       <dt>Companion</dt><dd>Cox PH (L2 {cox['params'].get('penalizer')}): <code>p_churn_7d/14d/30d</code>, median days</dd>
       <dt>Runs</dt><dd><code>{lgbm['run_name']}</code>, <code>{cox['run_name']}</code></dd>
@@ -250,7 +256,7 @@ def render(lgbm: dict, cox: dict, version: str, brand: str, params: dict, import
   <section class="block">
     <h2>Limitations</h2>
     <ul>
-      <li>Calibration lags 2–3 months (the label needs 60 days): ECE rises when the monthly churn rate moves. Ranking unaffected.</li>
+      <li>Calibration level re-estimated on the scoring date, as the label needs 60 days; a churn shift inside the next 60 days (a holiday peak) can still raise the ECE. Ranking unaffected.</li>
       <li>Deposit features unused while the data lacks completed deposits before March 2026.</li>
       <li>Source recency and tenure columns broken: recomputed from activity.</li>
       <li>One model per brand: retrain and check before scoring another brand.</li>

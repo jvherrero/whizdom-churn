@@ -25,7 +25,9 @@ targeting_replay:
 
 # Delivery plan: a model that fails any of these is not promoted.
 pass_conditions:
-  top_decile_precision_vs_recency: 1.5   # mean top-decile precision >= 1.5 x the recency rule
+  # mean top-decile precision >= 1.10 x the recency rule. The plan's 1.5x cannot be met (recency is 71-74%
+  # precise, so a perfect model reaches 1.35-1.40x): docs/decision_top_decile_condition.md
+  top_decile_precision_vs_recency: 1.10
   min_auc: 0.70                          # AUC never below this at any cutoff
   max_ece: 0.08                          # calibration error never above this in any month
 

@@ -11,6 +11,7 @@ dependencies = [
     "black>=26.5.1",
     "boto3==1.43.104",
     "duckdb==1.5.6",
+    "feast>=0.66.0",
     "lifelines>=0.30.3",
     "lightgbm>=4.7.0",
     "matplotlib>=3.11.2",

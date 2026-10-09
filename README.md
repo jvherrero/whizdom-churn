@@ -32,12 +32,12 @@ make mlflow-ui                               # the runs, models and artifacts, o
 
 1. **Daily caches**: the local daily extracts of the source tables are topped up to `AS_OF` (only the missing days, plus the last 7, which the source reprocesses). The first run on a new machine downloads the whole history, so it takes much longer.
 2. **Source alerts**: the caches on `AS_OF` against the training days (row counts, nulls, daily totals, pandera suites).
-3. **Features and dataset**: 12 monthly cutoffs, the 39 features of `docs/feature_dictionary.md`, the winsorisation caps and the 60-day churn labels.
+3. **Features and dataset**: 12 monthly cutoffs, the 39 features of `docs/feature_dictionary.md`, the winsorisation caps and the 60-day churn labels. The features also go to the Feast offline store, with a point-in-time check (`docs/feature_dictionary.md`, section 6).
 4. **Models**: LightGBM (Stage 2 feature selection, class balance, Optuna, regularisation, pruning, calibration) and Cox PH with the same features. Split by month: train 1 to 9, validation 10, test 11 and 12.
 5. **Evaluation**: AUC, ECE, top-decile precision, C-index, IBS, time-dependent AUC and one-calibration, with bootstrap CIs, logged into each MLflow run.
 6. **Reports**: player segments and feature importance (`docs/`).
 7. **Backtest** (with `BACKTEST=1`): rolling-origin over the last 12 months, `docs/backtest_v0_brand64.md`.
-8. **Scores**: every active player as of `AS_OF`, after the feature alerts, in `data/03_output/player_scores/run_date=AS_OF/` (`docs/schema_player_scores.md`).
+8. **Scores**: every active player as of `AS_OF`, after the feature alerts, in `data/03_output/player_scores/run_date=AS_OF/` (`docs/schema_player_scores.md`). The calibration level is re-estimated on `AS_OF` (`src/models/calibration_level.py`), because the churn rate moves with the seasons.
 
 A critical data alert stops the run before any score is written. Feature drift only sets `drift_flag`.
 
@@ -54,6 +54,7 @@ A critical data alert stops the run before any score is written. Feature drift o
 | `make robustness` | Training spec point 8: the optimisation on 2 earlier windows |
 | `make profile` | Data quality of the source tables, `docs/dq_reports/` and the data card (T2) |
 | `make cache` | Build or top up the local daily caches only |
+| `make feature-store` | Feast offline store and registry from each brand's latest training dataset (T6) |
 | `make alerts AS_OF=...` | Data alerts on their own (`configs/eda_alerts.yaml`) |
 | `make anomalies-daily`, `make anomalies-features` | EDA stage 2: outliers and anomalies |
 
@@ -63,7 +64,7 @@ A critical data alert stops the run before any score is written. Feature drift o
 
 | Path | Content |
 |---|---|
-| `src/features/` | S3 access and daily caches, features (`build_features.py`), labels, survival dataset, alerts, the pipeline (`run_pipeline.py`) |
+| `src/features/` | S3 access and daily caches, features (`build_features.py`), Feast feature store (`feature_store.py`, definitions in `feature_repo/`), labels, survival dataset, alerts, the pipeline (`run_pipeline.py`) |
 | `src/models/` | Training (`train.py`), feature selection, calibration, segments, importance, results, backtest, robustness, scoring |
 | `src/evaluation/` | Metrics and `evaluate --run-id` |
 | `eda/` | Source-table profiling, signal explorer, anomaly study, pandera suites (`expectations/`), notebooks |

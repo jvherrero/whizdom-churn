@@ -82,7 +82,7 @@ def _days(start: dt.date, end: dt.date) -> list[dt.date]:
     return [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
 
 
-# ---------------------------------------------------------------- daily caches: profiles
+# ----------------- daily caches: profiles ----------------
 
 def daily_profiles(cache: str, brand_id: int, days: list[dt.date], totals: list[str]) -> dict[dt.date, dict]:
     """Rows, null share per column and the `totals` (sums of cache columns, "rows" = row count) of
@@ -115,7 +115,7 @@ def daily_profiles(cache: str, brand_id: int, days: list[dt.date], totals: list[
     return out
 
 
-# ---------------------------------------------------------------- daily caches: checks
+# ---------------- daily caches: checks -------------------
 
 def check_row_count(bench: list[dict], current: list[dict], rule: dict, **ctx) -> list[dict]:
     """Rows per current day vs the benchmark's daily mean; a day with no rows is critical."""
@@ -227,7 +227,7 @@ def source_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt
     return pd.DataFrame([{"stage": "source", **a} for a in alerts], columns=ALERT_COLUMNS)
 
 
-# ---------------------------------------------------------------- features
+# ------------------------- features -------------------------
 
 def psi(expected: pd.Series, actual: pd.Series, bins: int = 10) -> float:
     """Population Stability Index of `actual` vs `expected`: quantile bins of the benchmark, or one
@@ -287,7 +287,7 @@ def feature_alerts(benchmark: pd.DataFrame, snapshot: pd.DataFrame, config: dict
     return pd.DataFrame([{"stage": "features", **a} for a in alerts], columns=ALERT_COLUMNS)
 
 
-# ---------------------------------------------------------------- report
+# -------------------------------- report ----------------------------
 
 MAX_ALERT_TAGS = 50
 
@@ -335,8 +335,7 @@ def report(alerts: pd.DataFrame, stage: str, brand: str, as_of: str, stop_on_cri
         # How many of each kind, e.g. n_warn_null_rate, n_critical_row_count.
         for (severity, check), n in alerts.groupby(["severity", "check"]).size().items():
             mlflow.log_metric(f"n_{severity}_{check}", int(n))
-        # Every alert readable without opening a file: the run description (Overview tab) is a
-        # table of them, one tag per alert (alert_01, ...) and an MLflow table (Artifacts tab).
+
         if len(alerts):
             mlflow.set_tag("mlflow.note.content", _alerts_markdown(alerts, stage, brand, as_of))
             for i, a in enumerate(alerts.head(MAX_ALERT_TAGS).itertuples(index=False), 1):

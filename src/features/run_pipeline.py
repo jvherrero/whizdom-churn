@@ -18,6 +18,8 @@ Data
     anomaly study is EDA: make anomalies-features)
  3. training features: the same raw rows winsorised + sign-log, checked with the pandera feature
     snapshot suite
+ 3b. feature store (Feast, src/features/feature_store.py): the features of every cutoff into the offline
+    store, the definitions registered, and a point-in-time round trip checked
  4. churn labels for exactly those rows, looking at data up to AS_OF only
  5. survival dataset: features joined with the labels (build_survival_dataset.py), then EDA stage 4:
     the snapshot vs the previous dataset of the brand (eda/summary.py, docs/eda_summary_brand{id}.md)
@@ -94,6 +96,9 @@ def build_training_data(
                  "threshold", "message"],
     )
     report(snapshot_alerts, "training_features", str(brand_id), str(data_end or cutoff_dates[-1]))
+    print("[3b] feature store: offline snapshot + Feast registry")
+    import feature_store
+    feature_store.publish(features)
     # The platform's churn score rides along as a reference column (finalise keeps the row order of raw).
     features[PLATFORM_SCORE] = raw["churn_score"].astype("float64").to_numpy()
 
@@ -101,7 +106,7 @@ def build_training_data(
     dataset = build_survival_dataset(features, data_end)
     sys.path.insert(0, str(PROJECT_ROOT / "eda"))
     import summary as eda_summary
-    eda_summary.run(dataset)  # EDA stage 4: reported, never stops the run
+    eda_summary.run(dataset)  
     return dataset
 
 
@@ -156,7 +161,6 @@ def run_pipeline(
     feature_importance.run(lgbm_run, cox_run)
 
     if backtest:
-        # Optional (about 45 min): the rolling-origin backtest of T10, in the plan's order (before scoring).
         print(f"[8] rolling-origin backtest as of {as_of}")
         import backtest as rolling_origin
         rolling_origin.run(as_of=as_of, brand_id=brand_id)

@@ -1,9 +1,3 @@
-"""Access to the S3 data lake (org/40-gold), the model's data source.
-
-Every source table the project reads (S3 data lake, org/40-gold) is partitioned by day: {table}/YYYY/MM/DD/data.parquet. Dates
-are UTC days. DATALAKE_ROOT=<local folder> reads a local copy with the same layout instead of S3 (tests).
-"""
-
 from __future__ import annotations
 
 import datetime as dt

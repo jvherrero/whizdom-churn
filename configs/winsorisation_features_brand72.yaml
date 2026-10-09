@@ -1,0 +1,84 @@
+version: 1
+brand_id: 72
+source: features
+grain: player_cutoff
+applies_to: feature values before sign-log scaling
+upper_quantile: 0.995
+lower_quantile_signed_only: 0.005
+computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
+history_start: '2025-09-01'
+history_end: '2026-08-01'
+generated_at_unix: 1791546890
+columns:
+  wagered_eur_l7d:
+    lower: null
+    upper: 34422.1661
+    n_values: 84210
+    n_above_upper: 422
+    n_below_lower: 0
+    max_observed: 6129165.4
+    min_observed: 0.0009
+  wagered_eur_l30d:
+    lower: null
+    upper: 66904.4636
+    n_values: 218507
+    n_above_upper: 1093
+    n_below_lower: 0
+    max_observed: 11702943.12
+    min_observed: 0.0009
+  wagered_eur_l90d:
+    lower: null
+    upper: 171372.8208
+    n_values: 218510
+    n_above_upper: 1093
+    n_below_lower: 0
+    max_observed: 23665917.67
+    min_observed: 0.0037
+  net_loss_7d:
+    lower: -1447.439
+    upper: 2202.6797
+    n_values: 84196
+    n_above_upper: 421
+    n_below_lower: 421
+    max_observed: 194254.2
+    min_observed: -209961.942
+  ggr_eur_l30d:
+    lower: -1383.2416
+    upper: 3542.8936
+    n_values: 218396
+    n_above_upper: 1092
+    n_below_lower: 1092
+    max_observed: 369144.04
+    min_observed: -208412.9311
+  deposits_eur_l30d:
+    lower: null
+    upper: 13976.7245
+    n_values: 39337
+    n_above_upper: 197
+    n_below_lower: 0
+    max_observed: 409757.7998
+    min_observed: 0.0001
+  prior_wagered_eur_l7d:
+    lower: null
+    upper: 32649.1233
+    n_values: 84606
+    n_above_upper: 424
+    n_below_lower: 0
+    max_observed: 6156476.4067
+    min_observed: 0.001
+  prior_ggr_eur_l30d:
+    lower: -2641.1429
+    upper: 6613.5613
+    n_values: 73832
+    n_above_upper: 370
+    n_below_lower: 370
+    max_observed: 185248.88
+    min_observed: -208412.9311
+  avg_bet_eur_l30d:
+    lower: null
+    upper: 98.0846
+    n_values: 218507
+    n_above_upper: 1093
+    n_below_lower: 0
+    max_observed: 6744.4
+    min_observed: 0.0007

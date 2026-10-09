@@ -1,0 +1,84 @@
+version: 1
+brand_id: 23
+source: features
+grain: player_cutoff
+applies_to: feature values before sign-log scaling
+upper_quantile: 0.995
+lower_quantile_signed_only: 0.005
+computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
+history_start: '2025-09-01'
+history_end: '2026-08-01'
+generated_at_unix: 1791545090
+columns:
+  wagered_eur_l7d:
+    lower: null
+    upper: 60254.6329
+    n_values: 212793
+    n_above_upper: 1064
+    n_below_lower: 0
+    max_observed: 27184543.7959
+    min_observed: 0.0008
+  wagered_eur_l30d:
+    lower: null
+    upper: 154588.2199
+    n_values: 389268
+    n_above_upper: 1947
+    n_below_lower: 0
+    max_observed: 91345835.7342
+    min_observed: 0.0008
+  wagered_eur_l90d:
+    lower: null
+    upper: 403187.6353
+    n_values: 391231
+    n_above_upper: 1957
+    n_below_lower: 0
+    max_observed: 216723429.086
+    min_observed: 0.0008
+  net_loss_7d:
+    lower: -2199.0221
+    upper: 4155.7149
+    n_values: 212785
+    n_above_upper: 1064
+    n_below_lower: 1064
+    max_observed: 3148125.2697
+    min_observed: -240473.9074
+  ggr_eur_l30d:
+    lower: -2822.3616
+    upper: 8522.7973
+    n_values: 389212
+    n_above_upper: 1947
+    n_below_lower: 1947
+    max_observed: 9494023.8168
+    min_observed: -289479.2818
+  deposits_eur_l30d:
+    lower: null
+    upper: 26153.5122
+    n_values: 94411
+    n_above_upper: 473
+    n_below_lower: 0
+    max_observed: 11858540.7223
+    min_observed: 0.0194
+  prior_wagered_eur_l7d:
+    lower: null
+    upper: 62794.8127
+    n_values: 217404
+    n_above_upper: 1088
+    n_below_lower: 0
+    max_observed: 34490697.5648
+    min_observed: 0.0009
+  prior_ggr_eur_l30d:
+    lower: -3695.2875
+    upper: 10618.5043
+    n_values: 259429
+    n_above_upper: 1298
+    n_below_lower: 1298
+    max_observed: 9077935.1846
+    min_observed: -2078848.9329
+  avg_bet_eur_l30d:
+    lower: null
+    upper: 104.3249
+    n_values: 389268
+    n_above_upper: 1947
+    n_below_lower: 0
+    max_observed: 22587.5099
+    min_observed: 0.0005

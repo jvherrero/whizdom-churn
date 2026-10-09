@@ -27,12 +27,12 @@ import mlflow
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_features import (  # noqa: E402
+from build_features import (  
     ID_COLUMNS, LOOKBACK_DAYS, PLATFORM_SCORE, brand_label, build_feature_store, data_available_through,
     parse_brand_id,
 )
-import churn_labels  # noqa: E402
-from winsorisation import WINSOR_CONFIG_PATH  # noqa: E402
+import churn_labels  
+from winsorisation import WINSOR_CONFIG_PATH 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = PROJECT_ROOT / "data/processed"
