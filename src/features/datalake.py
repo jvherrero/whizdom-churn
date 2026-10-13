@@ -7,12 +7,12 @@ from pathlib import Path
 import duckdb
 from pyarrow import fs
 
-# The AWS SSO profile with read access to the bucket: DATALAKE_AWS_PROFILE, or the project default.
+# AWS SSO profile with read access to the bucket.
 AWS_PROFILE = os.environ.get("DATALAKE_AWS_PROFILE", "javier-whizdom-prod-ds")
 REGION = "eu-central-1"
 BUCKET = "whizdomai-eu-central-1-650177547431-datalake-gmntc-prod"
 S3_PREFIX = "org/40-gold"
-# The source reprocesses its last 7 days every day (data card): a day younger than this can still change.
+# The source reprocesses its last 7 days every day, so these days can still change.
 RESTATEMENT_DAYS = 7
 
 
@@ -23,7 +23,7 @@ def _credentials():
 
 
 def s3_filesystem() -> tuple[fs.FileSystem, str]:
-    """(filesystem, base path) of the source tables."""
+    """Return the filesystem and base path of the source tables."""
     root = os.environ.get("DATALAKE_ROOT")
     if root:
         return fs.LocalFileSystem(), str(Path(root).resolve())
@@ -33,7 +33,7 @@ def s3_filesystem() -> tuple[fs.FileSystem, str]:
 
 
 def s3_duckdb(threads: int | None = None) -> duckdb.DuckDBPyConnection:
-    """DuckDB connection that can read the source files (S3 credentials loaded, or local)."""
+    """DuckDB connection that can read the source files, on S3 or local."""
     con = duckdb.connect()
     if threads:
         con.sql(f"SET threads={threads}")
@@ -46,7 +46,7 @@ def s3_duckdb(threads: int | None = None) -> duckdb.DuckDBPyConnection:
 
 
 def daily_files(pfs: fs.FileSystem, base: str, table: str) -> dict[dt.date, str]:
-    """{day: path} of a source table's daily files."""
+    """Map each day to the path of its daily file."""
     out = {}
     for info in pfs.get_file_info(fs.FileSelector(f"{base}/{table}", recursive=True, allow_not_found=True)):
         if info.path.endswith(".parquet"):
@@ -56,10 +56,10 @@ def daily_files(pfs: fs.FileSystem, base: str, table: str) -> dict[dt.date, str]
 
 
 def uri(pfs: fs.FileSystem, path: str) -> str:
-    """The path as DuckDB reads it."""
+    """Path in the format DuckDB expects."""
     return path if isinstance(pfs, fs.LocalFileSystem) else f"s3://{path}"
 
 
 def last_closed_day() -> dt.date:
-    """Yesterday (UTC): today's files are still being written."""
+    """Yesterday (UTC). Today's files may still be incomplete."""
     return dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)

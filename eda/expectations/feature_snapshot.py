@@ -1,9 +1,7 @@
-"""Pandera suite for `build_feature_store()`'s output (`ID_COLUMNS + FEATURES`,
-src/features/build_features.py), one row per player per cutoff_date.
+"""Pandera suite for the final features, one row per player and cutoff.
 
-Every feature is float64. Most may be empty by design (deposit features before March 2026, ratios
-over 0, a player missing from a signal snapshot); the ones every player of the population must have
-(a bet in the 30 days up to the cutoff) are not nullable.
+All features are float64. Many can be empty (for example deposits before March 2026), but the ones
+every active player has cannot.
 """
 
 import sys

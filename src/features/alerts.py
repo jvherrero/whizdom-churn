@@ -1,23 +1,18 @@
-"""
-Data alerts: checks of the source data the pipeline reads and of the feature snapshot against a
-benchmark, with the thresholds of configs/eda_alerts.yaml (EDA stage 3).
+"""Data alerts (EDA stage 3): checks of the source data and of the features against a benchmark.
 
-    .venv/bin/python src/features/alerts.py --as-of 2026-10-06                  # source + features
+    .venv/bin/python src/features/alerts.py --as-of 2026-10-06
     .venv/bin/python src/features/alerts.py --as-of 2026-10-06 --stage source --brand-id basel
 
-Source checks run on the local daily caches (src/features/daily_cache.py: activity, financial and
-payments of the brand), the exact rows the features and labels are built from, with one SQL
-aggregation per cache and no S3 read. The benchmark is the days the training features were built
-from; the current window is the last current_window_days up to AS_OF.
-    expectations     a pandera suite failing (eda/expectations/{activity,financial,payments}.py), on the current days
-    row_count        rows per day (players with a bet, with money moving, with a payment) outside
-                     +-N% of the benchmark's daily mean; a day with no rows is critical
-    null_rate        null share of a cache column up more than N points vs the benchmark
-    daily_total      a daily total (bets, EUR, deposits) outside the rolling band (median +- n * MAD
-                     of the previous days)
-Feature checks: the scoring snapshot vs the training dataset (expectations, players, PSI drift).
-New categorical values are not checked: the caches have no categorical column (the source tables already map
-games, currencies and payment types; money is in EUR).
+The source checks run on the local daily caches. The benchmark is the period used to build the
+training features, and the current window is the last days up to AS_OF.
+
+    expectations   pandera suites (eda/expectations/)
+    row_count      rows per day compared with the benchmark mean
+    null_rate      null share per column compared with the benchmark
+    daily_total    daily totals compared with a rolling median +- n * MAD
+
+The feature checks compare the scoring snapshot with the training dataset (pandera, players, PSI).
+Thresholds are in configs/eda_alerts.yaml.
 """
 
 from __future__ import annotations
@@ -55,11 +50,10 @@ ALERT_COLUMNS = ["stage", "check", "severity", "operator", "brandId", "table", "
 
 
 class CriticalAlert(RuntimeError):
-    """Raised when a run has at least one critical alert that blocks it: the pipeline stops."""
+    """Raised when a run has a critical alert. The pipeline stops."""
 
 
-# Feature drift never stops a run: the delivery plan writes the scores and flags them (drift_flag).
-# Every other critical alert (expectations, row count, null rate) stops it before scoring.
+# Feature drift only sets drift_flag on the scores. Any other critical alert stops the run.
 NON_BLOCKING_CHECKS = {"feature_drift"}
 
 
@@ -82,11 +76,10 @@ def _days(start: dt.date, end: dt.date) -> list[dt.date]:
     return [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
 
 
-# ----------------- daily caches: profiles ----------------
+# Daily caches: profiles
 
 def daily_profiles(cache: str, brand_id: int, days: list[dt.date], totals: list[str]) -> dict[dt.date, dict]:
-    """Rows, null share per column and the `totals` (sums of cache columns, "rows" = row count) of
-    every day of one cache and brand, in one SQL aggregation. A day without a cache file has 0 rows."""
+    """Rows, null shares and daily totals of each day of a cache, in one SQL query."""
     scoped = daily_cache.CACHES[cache]["brand_scoped"]
     folder = daily_cache.cache_dir(cache, brand_id if scoped else None)
     cached = set(daily_cache.cached_days(cache, brand_id if scoped else None))
@@ -115,10 +108,10 @@ def daily_profiles(cache: str, brand_id: int, days: list[dt.date], totals: list[
     return out
 
 
-# ---------------- daily caches: checks -------------------
+# Daily caches: checks
 
 def check_row_count(bench: list[dict], current: list[dict], rule: dict, **ctx) -> list[dict]:
-    """Rows per current day vs the benchmark's daily mean; a day with no rows is critical."""
+    """Compare the rows of each current day with the benchmark mean. A day with no rows is critical."""
     out = [_alert("row_count", "critical", f"no rows on {p['day']}", value=0,
                   threshold=rule["critical_relative_change"], **ctx) for p in current if p["rows"] == 0]
     base = np.mean([p["rows"] for p in bench]) if bench else 0
@@ -134,7 +127,7 @@ def check_row_count(bench: list[dict], current: list[dict], rule: dict, **ctx) -
 
 def check_null_rate(bench: list[dict], current: list[dict], rule: dict, **ctx) -> list[dict]:
     def pooled(profiles):
-        """Null share per column over the profiles, weighted by their rows."""
+        """Null share per column, weighted by rows."""
         rows = sum(p["rows"] for p in profiles)
         columns = {c for p in profiles for c in p["null_rate"]}
         return rows, {c: sum(p["null_rate"].get(c, 0) * p["rows"] for p in profiles) / rows for c in columns} if rows else {}
@@ -146,7 +139,7 @@ def check_null_rate(bench: list[dict], current: list[dict], rule: dict, **ctx) -
     out = []
     for col, rate in cur.items():
         if col not in base:
-            continue  # a new column is a schema change: the expectations report it
+            continue  # new columns are reported by the expectations
         increase = (rate - base[col]) * 100
         severity = _graded(increase, rule["warn_increase_pts"], rule.get("critical_increase_pts"))
         if severity:
@@ -157,7 +150,7 @@ def check_null_rate(bench: list[dict], current: list[dict], rule: dict, **ctx) -
 
 
 def check_daily_totals(profiles: dict, current_days: list[dt.date], rule: dict, metrics: list[str], **ctx) -> list[dict]:
-    """Each current day vs the median +- n * MAD of the `window_days` days before it."""
+    """Compare each current day with the median +- n * MAD of the previous days."""
     out = []
     for day in current_days:
         for metric in metrics:
@@ -180,7 +173,7 @@ def check_daily_totals(profiles: dict, current_days: list[dt.date], rule: dict, 
 
 def check_expectations(df: pd.DataFrame, suite: str, rule: dict, columns: list[str] | None = None,
                        **ctx) -> list[dict]:
-    """The pandera suite, restricted to `columns` (the used ones) when given."""
+    """Pandera suite, limited to `columns` if given."""
     module = getattr(expectations, suite)
     result = (module.validate(df) if columns is None
               else validate_dataframe(df, [c for c in module.COLUMNS if c.name in columns]))
@@ -189,15 +182,14 @@ def check_expectations(df: pd.DataFrame, suite: str, rule: dict, columns: list[s
 
 
 def benchmark_days(cutoffs: list[str]) -> list[dt.date]:
-    """The days the training features were built from: (first cutoff - lookback, last cutoff]."""
+    """Days used to build the training features."""
     dates = sorted(dt.date.fromisoformat(str(c)) for c in cutoffs)
     return _days(dates[0] - dt.timedelta(days=LOOKBACK_DAYS - 1), dates[-1])
 
 
 def source_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt.date],
                 config: dict | None = None) -> pd.DataFrame:
-    """Every daily-cache check for `brand_id` ("basel" = every brand with a bet on `as_of`): the last
-    current_window_days up to `as_of` vs the benchmark days. Local caches only (daily_cache.top_up first)."""
+    """Run all the daily-cache checks for a brand ("basel" means all brands)."""
     cfg = config or load_config()
     as_of = dt.date.fromisoformat(str(as_of))
     current_days = _days(as_of - dt.timedelta(days=cfg["current_window_days"] - 1), as_of)
@@ -209,8 +201,7 @@ def source_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt
     for brand in brands:
         for cache, spec in cfg["tables"].items():
             ctx = {"brandId": brand, "table": cache}
-            # A cache whose data is only complete from valid_from (payments: completed deposits from
-            # March 2026) is benchmarked on those days only.
+            # Payments are only complete from March 2026, so the benchmark starts there.
             valid_from = dt.date.fromisoformat(str(spec.get("valid_from", "1900-01-01")))
             bench_used = [d for d in bench_days if d >= valid_from]
             days = sorted(set(bench_used) | set(_days(current_days[0] - dt.timedelta(days=band["window_days"]),
@@ -221,17 +212,16 @@ def source_alerts(brand_id: int | str, as_of: str | dt.date, bench_days: list[dt
             alerts += check_null_rate(bench, current, cfg["null_rate"], **ctx)
             alerts += check_daily_totals({d: p for d, p in profiles.items() if d >= valid_from}, current_days,
                                          band, spec["totals"], **ctx)
-            if any(p["rows"] for p in current):  # every row of the current days, no sample
+            if any(p["rows"] for p in current):
                 rows = daily_cache.read(cache, brand, start=current_days[0], end=current_days[-1])
                 alerts += check_expectations(rows, cache, cfg["expectations"], **ctx)
     return pd.DataFrame([{"stage": "source", **a} for a in alerts], columns=ALERT_COLUMNS)
 
 
-# ------------------------- features -------------------------
+# Features
 
 def psi(expected: pd.Series, actual: pd.Series, bins: int = 10) -> float:
-    """Population Stability Index of `actual` vs `expected`: quantile bins of the benchmark, or one
-    bin per value for a feature with few distinct values (flags, counts)."""
+    """PSI of `actual` against `expected`, with quantile bins (one bin per value if there are few)."""
     expected, actual = pd.Series(expected).dropna(), pd.Series(actual).dropna()
     if expected.nunique() <= bins:
         e = expected.value_counts(normalize=True)
@@ -249,9 +239,8 @@ def psi(expected: pd.Series, actual: pd.Series, bins: int = 10) -> float:
 
 def feature_alerts(benchmark: pd.DataFrame, snapshot: pd.DataFrame, config: dict | None = None,
                    model_features: set[str] | None = None) -> pd.DataFrame:
-    """The feature snapshot being scored vs the training dataset, brand by brand: expectations,
-    player count and PSI per feature. With `model_features`, only the features the models use are
-    checked for drift: drift in an unused one cannot hurt the scores."""
+    """Compare the scoring features with the training dataset, per brand.
+    If `model_features` is given, only those features are checked for drift."""
     cfg = config or load_config()
     alerts = [{"table": "feature_snapshot", "brandId": "all", **a}
               for a in check_expectations(snapshot, "feature_snapshot", cfg["expectations"])]
@@ -280,20 +269,20 @@ def feature_alerts(benchmark: pd.DataFrame, snapshot: pd.DataFrame, config: dict
                 drifting.append(feature)
                 alerts.append(_alert("feature_drift", severity, f"PSI {value:.3f} vs the training dataset",
                                      column=feature, value=value, threshold=drift["warn_psi"], **ctx))
-        if len(drifting) >= drift["critical_n_features"]:  # many small shifts together are critical too
+        if len(drifting) >= drift["critical_n_features"]:  # many small shifts together
             alerts.append(_alert("feature_drift", "critical", f"{len(drifting)} features with PSI > "
                                  f"{drift['warn_psi']}: {drifting}", value=len(drifting),
                                  threshold=drift["critical_n_features"], **ctx))
     return pd.DataFrame([{"stage": "features", **a} for a in alerts], columns=ALERT_COLUMNS)
 
 
-# -------------------------------- report ----------------------------
+# Report
 
 MAX_ALERT_TAGS = 50
 
 
 def _where(a) -> str:
-    """table.column (brand X / operator) of one alert."""
+    """Short name of an alert, e.g. table.column (brand X)."""
     target = ".".join(str(v) for v in (a.table, a.column) if isinstance(v, str) and v)
     return f"{target} (brand {a.brandId}{', ' + a.operator if isinstance(a.operator, str) else ''})"
 
@@ -314,7 +303,7 @@ def _alerts_markdown(alerts: pd.DataFrame, stage: str, brand: str, as_of: str) -
 
 
 def report(alerts: pd.DataFrame, stage: str, brand: str, as_of: str, stop_on_critical: bool = True) -> Path:
-    """Save the alert list (CSV + MLflow run), print it, and raise CriticalAlert if any is critical."""
+    """Save the alerts to CSV and MLflow, print them and raise CriticalAlert if needed."""
     timestamp_unix = int(time.time())
     name = f"alerts_{stage}_brand{brand}_{as_of}_{timestamp_unix}"
     ALERTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -332,7 +321,7 @@ def report(alerts: pd.DataFrame, stage: str, brand: str, as_of: str, stop_on_cri
                          "source_script": "src/features/alerts.py", "brand_id": brand, "stage": stage})
         mlflow.log_params({"as_of": as_of, "config": os.path.relpath(CONFIG_PATH, PROJECT_ROOT)})
         mlflow.log_metrics({"n_alerts": len(alerts), "n_warn": n_warn, "n_critical": n_critical})
-        # How many of each kind, e.g. n_warn_null_rate, n_critical_row_count.
+        # Counts per type, e.g. n_warn_null_rate.
         for (severity, check), n in alerts.groupby(["severity", "check"]).size().items():
             mlflow.log_metric(f"n_{severity}_{check}", int(n))
 
@@ -376,7 +365,7 @@ def main() -> None:
         dataset = max((PROJECT_ROOT / "data/processed").glob(f"train_dataset_{label}_*.parquet"),
                       key=lambda p: p.stat().st_mtime)
         snapshot = build_feature_store(args.as_of, args.brand_id)
-        # The features the latest trained models use: only those can raise a critical drift alert.
+        # Only the features used by the latest models are checked for drift.
         sys.path.insert(0, str(PROJECT_ROOT / "src" / "models"))
         from train import latest_run, run_info
         try:

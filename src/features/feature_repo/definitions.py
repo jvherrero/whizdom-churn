@@ -1,12 +1,10 @@
-"""Feast feature definitions (T6): the player features of build_features.py, one row per player per cutoff.
+"""Feast definitions for the player features (T6).
 
-The offline store is local Parquet (data/02_intermediate/feature_store/player_features/, one file per
-brand, written by feature_store.py): the plan's S3 offline store and Redis online store need write access
-to AWS, which the sprint does not have, so the online store is a local SQLite file until Week 2.
-Point-in-time joins: a feature row is valid on the day of its cutoff (ttl 1 day), so a training row never
-gets features computed after its date.
+The offline store is local Parquet and the online store is a local SQLite file, because we only
+have read access to AWS. A feature row is valid only on its cutoff day (ttl of 1 day), so a
+training row never gets features from a later date.
 
-    make feature-store          # registers these definitions (feast apply) and checks the store
+    make feature-store
 """
 
 import sys
@@ -26,15 +24,15 @@ TTL = timedelta(days=1)
 
 
 def objects(offline_path: Path = OFFLINE_PATH) -> list:
-    """Every Feast object, reading the offline store at `offline_path` (a folder of Parquet files)."""
+    """Build all Feast objects for the offline store in `offline_path`."""
     tenant = Entity(name="tenant", join_keys=["tenant_id"], value_type=ValueType.STRING,
                     description="Tenant of the player (player ids are unique within a tenant)")
     player = Entity(name="player", join_keys=["player_id"], value_type=ValueType.INT64, description="Player id")
     source = FileSource(
         name="player_features_source",
         path=str(offline_path),
-        timestamp_field="event_timestamp",             # the cutoff: features use data up to that day
-        created_timestamp_column="created_timestamp",  # when the row was written: the latest wins on a rebuild
+        timestamp_field="event_timestamp",             # cutoff date
+        created_timestamp_column="created_timestamp",  # if a cutoff is rebuilt, the newest row wins
         description="Final feature vector (winsorised + sign-log) of every training cutoff, one file per brand",
     )
     view = FeatureView(
@@ -46,10 +44,10 @@ def objects(offline_path: Path = OFFLINE_PATH) -> list:
         online=True,
         description="docs/feature_dictionary.md; families: " + ", ".join(FEATURE_COLUMNS),
     )
-    # Every feature: the models pick their own set from it (the pruned list is in each MLflow run).
+    # All candidate features. Each model keeps its own subset (saved in MLflow).
     service = FeatureService(name="churn_features", features=[view], description="Every candidate feature of the churn models")
     return [tenant, player, source, view, service]
 
 
-# Module-level objects: what `feast apply` finds when run from this folder.
+# Needed by `feast apply` when it runs from this folder.
 tenant, player, player_features_source, player_features, churn_features = objects()

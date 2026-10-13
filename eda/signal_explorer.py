@@ -1,32 +1,18 @@
-"""Churn signal explorer (T4): every behavioural hypothesis, tested the same way.
+"""Churn signal explorer (T4): tests every behaviour hypothesis in the same way.
 
-    frame = build_frame(TRAINING_CUTOFFS, brand_id=64, data_end=...)   # player x cutoff, signals + labels
-    table = evaluate_all(frame)                                         # the same numbers for every signal
+    frame = build_frame(TRAINING_CUTOFFS, brand_id=64, data_end=...)
+    table = evaluate_all(frame)
 
-A signal is computed per player at each monthly cutoff from data up to the cutoff only; the label is
-the 60-day churn of docs/churn_definition_v0.md (no bet in the 60 days after the cutoff). For every
-signal, on the training cutoffs only:
+For each signal, on the training cutoffs only:
 
-    lift            churn rate with the signal / without it (flags), or highest quartile / lowest
-                    quartile (continuous), with a 95% interval (log relative risk)
-    hazard ratio    univariate Cox PH on the time to churn, per 1 SD of the (sign-log) value or for
-                    the flag, with its 95% interval. Players repeat across cutoffs, so the interval is
-                    slightly too narrow; a player-clustered interval was the same to two decimals on a
-                    test signal (0.741-0.750 vs 0.742-0.749) and 40 times slower, so it is not used.
-    AUC             of the signal alone for the 60-day label (above 0.5: higher value, more churn)
-    stability       the lift at each cutoff; a signal whose effect flips side over time is dropped
+    lift            churn rate with / without the signal (flags), or top / bottom quartile
+    hazard ratio    univariate Cox PH with a 95% interval
+    AUC             AUC of the signal alone for the 60-day label
+    stability       lift at each cutoff; a signal whose effect changes direction is dropped
 
-A signal is PROMOTED when its hazard-ratio interval excludes 1, |AUC - 0.5| >= MIN_AUC_GAP, it never
-flips side and lift, hazard ratio and AUC point the same way; otherwise it is REJECTED with the reason.
-To add a hypothesis: add a column in `_signals()` or `_history_signals()` and a Signal in SIGNALS.
-
-Data-quality limits found in the source tables (docs/dq_reports/semantic_checks_brand64.csv):
-- gld_player_signals_daily.days_since_bet is broken (0 for most players): recency is computed here
-  from the activity cache instead (days_since_last_bet).
-- Completed deposits and withdrawals are only reliable from DEPOSITS_VALID_FROM (2026-03-01): before,
-  the source has almost none (gld_player_financial_daily has none before June 2026). Deposit and withdrawal history comes
-  from gld_player_payments_daily, and a deposit signal is empty (unknown, not 0) at a cutoff whose
-  window starts before that day.
+A signal is promoted when the hazard-ratio interval excludes 1, |AUC - 0.5| >= MIN_AUC_GAP, the
+effect never changes direction and the three measures agree. To add a hypothesis, add a column to
+the signals and a Signal to SIGNALS.
 """
 
 from __future__ import annotations
@@ -51,18 +37,18 @@ from build_features import DEPOSIT_WINDOWS, DEPOSITS_VALID_FROM  # noqa: E402,F4
 KEY = ["tenant_id", "player_id"]
 LABEL = "event_60d"
 MIN_AUC_GAP = 0.05
-FLIP_TOLERANCE = 0.05           # a cutoff whose lift is within 5% of 1 does not count as a flip
+FLIP_TOLERANCE = 0.05           # a lift within 5% of 1 is not a change of direction
 MIN_GROUP = 200                 # smallest group size for a lift
 
 
 @dataclass(frozen=True)
 class Signal:
     name: str           # column in the frame
-    hypothesis: str     # the plan's hypothesis group
+    hypothesis: str     # hypothesis group of the plan
     kind: str           # "continuous" or "flag"
-    expected: str       # "+" = higher / present -> more churn, "-" = less churn
+    expected: str       # "+" means more churn, "-" less churn
     definition: str
-    reference: bool = False  # a comparison point, not a candidate
+    reference: bool = False  # only for comparison
 
 
 SIGNALS = [
@@ -118,19 +104,18 @@ SIGNALS = [
     Signal("days_since_first_bet", "Tenure", "continuous", "-", "days since the first bet seen (activity), capped at 150"),
     # Engagement (signals table composite)
     Signal("engagement_score", "Engagement", "continuous", "-", "signals table: active days, sessions and play time over 30 days"),
-    # Bet recency: the recency rule of the backtest (T10), computed from the activity cache
+    # Bet recency
     Signal("days_since_last_bet", "Bet recency", "continuous", "+", "days since the last bet (activity cache)"),
-    # Reference: not a candidate, the platform's current rule
+    # Reference: the platform's current score
 
     Signal("churn_score", "Reference", "continuous", "+", "platform churn score (the incumbent rule)", reference=True),
 ]
 
 
-# ---------------------------------------------------------------- the frame
+# Frame
 
 def build_frame(cutoffs: list[dt.date], brand_id: int, data_end: dt.date, verbose: bool = True) -> pd.DataFrame:
-    """One row per (player, cutoff): every signal of src/features/build_features.raw_features (the same
-    code the model's features come from) and the churn targets."""
+    """One row per player and cutoff with all the signals and the churn labels."""
     parts = []
     for c in cutoffs:
         raw = build_features.raw_features(c, brand_id)
@@ -145,18 +130,17 @@ def build_frame(cutoffs: list[dt.date], brand_id: int, data_end: dt.date, verbos
     return frame
 
 
-# ---------------------------------------------------------------- the evaluation
+# Evaluation
 
 def _signed_log(x: pd.Series) -> pd.Series:
     return np.sign(x) * np.log1p(np.abs(x))
 
 
 def groups(values: pd.Series, kind: str) -> pd.Series:
-    """'present'/'absent' for a flag; quartiles Q1 (lowest) .. Q4 (highest) for a continuous signal."""
+    """Group: present/absent for a flag, quartiles Q1 to Q4 otherwise."""
     if kind == "flag":
         return values.map({1: "present", 0: "absent"})
-    # Ties (e.g. many players with 0 deposits) are broken at random with a fixed seed, never by row
-    # order: the rows are sorted by cutoff, so order would put one cutoff's players in one quartile.
+    # Break ties at random (fixed seed), not by row order, which is sorted by cutoff.
     tie = np.random.default_rng(0).random(len(values))
     order = np.lexsort((tie, values.fillna(np.inf).to_numpy()))
     ranks = np.empty(len(values))
@@ -166,7 +150,7 @@ def groups(values: pd.Series, kind: str) -> pd.Series:
 
 
 def _lift(y: pd.Series, g: pd.Series, kind: str) -> tuple[float, float, float, float, float]:
-    """(lift, ci_low, ci_high, rate_high, rate_low): high = present / Q4, low = absent / Q1."""
+    """Lift with its CI, and the churn rates of the high and low groups."""
     hi, lo = ("present", "absent") if kind == "flag" else ("Q4", "Q1")
     a, n1 = y[g == hi].sum(), (g == hi).sum()
     b, n0 = y[g == lo].sum(), (g == lo).sum()
@@ -191,7 +175,7 @@ def _hazard_ratio(df: pd.DataFrame, s: Signal) -> tuple[float, float, float, flo
 
 
 def evaluate(frame: pd.DataFrame, s: Signal) -> tuple[dict, pd.DataFrame]:
-    """The four numbers of one signal, and its lift per cutoff."""
+    """The four measures of one signal and its lift per cutoff."""
     df = frame[frame[LABEL].notna() & frame[s.name].notna()]
     y = df[LABEL].astype(int)
     g = groups(df[s.name], s.kind)

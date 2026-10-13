@@ -1,16 +1,12 @@
-"""Feast feature store (T6, D4): the offline store of the player features and their registry.
+"""Feast feature store (T6, D4): offline store of the player features.
 
-    .venv/bin/python src/features/feature_store.py                  # fill from each brand's latest training dataset
-    .venv/bin/python src/features/feature_store.py --dataset PATH   # fill from one training dataset
+    .venv/bin/python src/features/feature_store.py                  # latest dataset of each brand
+    .venv/bin/python src/features/feature_store.py --dataset PATH
     make feature-store
 
-`make pipeline` writes the features of its training cutoffs here (step 3b) and registers the definitions
-(feature_repo/definitions.py, the versioned registry). The offline store keeps every cutoff ever built,
-one Parquet file per brand; a rebuilt cutoff replaces the old rows. Training rows can then be fetched
-point in time: get_historical_features(rows with tenant_id, player_id, event_timestamp) returns the
-features of the row's own cutoff, never later ones. Each publish checks it on the latest cutoff: the
-store must give back exactly the features that were written, and nothing on the day before the first
-cutoff.
+The offline store has one Parquet file per brand with every cutoff built so far. A rebuilt cutoff
+replaces its old rows. After each write, a point-in-time check makes sure the store returns exactly
+what was written, and nothing before the first cutoff.
 """
 
 from __future__ import annotations
@@ -20,15 +16,15 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.setdefault("FEAST_USAGE", "False")  # no usage telemetry
-import pandas as pd  # noqa: E402
-from feast import FeatureStore  # noqa: E402
+os.environ.setdefault("FEAST_USAGE", "False") 
+import pandas as pd  
+from feast import FeatureStore  
 
 REPO = Path(__file__).resolve().parent / "feature_repo"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO))
-import definitions  # noqa: E402
-from build_features import FEATURES  # noqa: E402
+import definitions  
+from build_features import FEATURES  
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATASET_DIR = PROJECT_ROOT / "data/processed"
@@ -36,7 +32,7 @@ KEY = ["tenant_id", "player_id"]
 
 
 def offline_rows(features: pd.DataFrame) -> pd.DataFrame:
-    """Feature rows (cutoff_date, tenant_id, player_id, brandId, FEATURES) in the offline store's layout."""
+    """Feature rows in the offline store format."""
     out = features[["tenant_id", "player_id", "brandId"] + FEATURES].copy()
     out = out.astype({"tenant_id": str, "player_id": "int64", "brandId": "int64"} | {f: "float64" for f in FEATURES})
     out.insert(0, "event_timestamp", pd.to_datetime(features["cutoff_date"]).dt.tz_localize("UTC"))
@@ -45,7 +41,7 @@ def offline_rows(features: pd.DataFrame) -> pd.DataFrame:
 
 
 def write_offline(features: pd.DataFrame, offline_dir: Path = definitions.OFFLINE_PATH) -> list[Path]:
-    """Add the features of these cutoffs to each brand's file, replacing the rows of the same cutoffs."""
+    """Add the cutoffs to each brand's file, replacing any old rows of the same cutoffs."""
     offline_dir.mkdir(parents=True, exist_ok=True)
     rows = offline_rows(features)
     paths = []
@@ -60,20 +56,19 @@ def write_offline(features: pd.DataFrame, offline_dir: Path = definitions.OFFLIN
 
 
 def store() -> FeatureStore:
-    """The project's feature store with the current definitions registered (feast apply)."""
+    """Feature store with the current definitions applied."""
     fs = FeatureStore(repo_path=str(REPO))
     fs.apply(definitions.objects(definitions.OFFLINE_PATH))
     return fs
 
 
 def historical(fs: FeatureStore, entities: pd.DataFrame) -> pd.DataFrame:
-    """Point-in-time features for rows with tenant_id, player_id and event_timestamp (UTC)."""
+    """Point-in-time features for rows with tenant_id, player_id and event_timestamp."""
     return fs.get_historical_features(entity_df=entities, features=fs.get_feature_service("churn_features")).to_df()
 
 
 def check(fs: FeatureStore, features: pd.DataFrame) -> int:
-    """The store gives back exactly the features written for the latest cutoff, and nothing the day before
-    the first one. Returns the rows checked; raises when a value differs."""
+    """Check the store returns what was written, and nothing before the first cutoff."""
     written = offline_rows(features)
     last, first = written["event_timestamp"].max(), written["event_timestamp"].min()
     expected = written[written["event_timestamp"] == last]
@@ -91,7 +86,7 @@ def check(fs: FeatureStore, features: pd.DataFrame) -> int:
 
 
 def publish(features: pd.DataFrame) -> list[Path]:
-    """Write the features to the offline store, register the definitions and check the round trip."""
+    """Write the features, apply the definitions and run the check."""
     paths = write_offline(features)
     n = check(store(), features)
     cutoffs = sorted(str(c) for c in pd.to_datetime(features["cutoff_date"]).dt.date.unique())
@@ -101,7 +96,7 @@ def publish(features: pd.DataFrame) -> list[Path]:
 
 
 def latest_datasets() -> list[Path]:
-    """The latest training dataset of each brand (data/processed/train_dataset_{brand}_..._{timestamp}.parquet)."""
+    """Latest training dataset of each brand."""
     by_brand = {}
     for path in sorted(DATASET_DIR.glob("train_dataset_*.parquet"), key=lambda p: p.stem.rsplit("_", 1)[-1]):
         by_brand[path.stem.split("_")[2]] = path

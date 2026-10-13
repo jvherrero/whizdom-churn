@@ -1,16 +1,12 @@
-"""Model card of a trained model, generated from its MLflow runs: docs/model_card_v0_brand{id}.html.
+"""Model card (HTML) built from the MLflow runs: docs/model_card_v0_brand{id}.html.
 
-    .venv/bin/python src/models/model_card.py                       # latest optimised LightGBM of brand 64
+    .venv/bin/python src/models/model_card.py                       # latest LightGBM of brand 64
     .venv/bin/python src/models/model_card.py --brand-id 14
     .venv/bin/python src/models/model_card.py --lgbm-run-id <id> --cox-run-id <id>
     make model-card [BRAND=64]
 
-Everything on the card is read back from MLflow, never typed by hand: the LightGBM run (parameters,
-features, test metrics with the bootstrap CIs that evaluate.py logs), its Cox PH companion, the
-permutation importance that feature_importance.py logs into the run, and the latest rolling-origin
-backtest of the brand (backtest.py), when there is one. The card is a one-screen HTML page. It is
-also logged into the LightGBM run and linked from its registered model version (tag model_card).
-The pipeline writes it after the evaluation and the backtest, before scoring.
+All numbers come from MLflow: the LightGBM and Cox runs, the feature importance and the latest
+backtest of the brand. The card is also logged to the LightGBM run and its model version.
 """
 
 from __future__ import annotations
@@ -86,7 +82,7 @@ def _list(value: str | None) -> list:
 
 
 def latest_backtest(brand: str) -> dict | None:
-    """The latest rolling-origin backtest of the brand: means, per-cutoff extremes and the verdict."""
+    """Latest backtest of the brand: means, worst months and verdict."""
     try:
         runs = mlflow.search_runs(experiment_names=[BACKTEST_EXPERIMENT], filter_string=f"tags.brand_id = '{brand}'",
                                   order_by=["attributes.start_time DESC"], max_results=20)
@@ -111,7 +107,7 @@ def latest_backtest(brand: str) -> dict | None:
 
 
 def _bars(rows: list[tuple[str, float, bool]]) -> str:
-    """Horizontal bars on an AUC scale from 0.5 to 1."""
+    """Horizontal AUC bars from 0.5 to 1."""
     out = []
     for name, value, main in rows:
         width = max(0.0, min(1.0, (value - 0.5) / 0.5)) * 100
@@ -142,7 +138,7 @@ def render(lgbm: dict, cox: dict, version: str, brand: str, params: dict, import
                       ("Platform churn_score", a["incumbent"], False)])
         bars_title = f"Backtest mean AUC vs alternatives · {backtest['n']} months"
         st = lambda ok: f'<span class="st {"ok" if ok else "no"}">{"pass" if ok else "fail"}</span>'
-        # The verdict under the current conditions (configs/backtest.yaml), whatever the run was judged with.
+        # Use the current pass conditions, not the ones of the original run.
         checks = [backtest["min_auc"] >= rule["min_auc"], backtest["max_ece"] <= rule["max_ece"],
                   backtest["precision_ratio"] >= rule["top_decile_precision_vs_recency"]]
         backtest_block = f"""
@@ -290,7 +286,7 @@ def run(brand_id: int | str = 64, lgbm_run_id: str | None = None, cox_run_id: st
     doc = Path(str(DOC_PATH).format(brand=brand))
     doc.write_text(page, encoding="utf-8")
 
-    # Attached to the run and to its registered model version (delivery plan: the card goes with the version).
+    # Attach the card to the run and to its model version.
     with mlflow.start_run(run_id=lgbm["run_id"]):
         mlflow.log_artifact(str(doc), artifact_path="model_card")
     client = mlflow.MlflowClient()

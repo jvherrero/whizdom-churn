@@ -1,27 +1,20 @@
-"""Validation of gld_player_signals_daily: is every signal column what its name says, as of its date?
+"""Validation of gld_player_signals_daily: checks that each column matches its name and date.
 
-    .venv/bin/python eda/signal_validation.py                 # brands 14, 64 and 73, monthly snapshots
-    make validate-signals [BRANDS="14 64 73"] [BUILD=1]       # BUILD=1: build missing snapshots from S3
+    .venv/bin/python eda/signal_validation.py
+    make validate-signals [BRANDS="14 64 73"] [BUILD=1]       # BUILD=1 builds missing snapshots from S3
 
-The signals table is used for the first time, and nobody guarantees its columns, so every column the
-features read is checked on the monthly snapshots (the players with a bet in the 30 days up to each
-day), with local files only (no S3):
+Checks on the monthly snapshots, with local files only:
 
-1. Recomputation. A column that can be rebuilt from the daily tables (activity, financial, payments
-   caches of src/features/daily_cache.py) is compared player by player: it matches when it is within
-   2% (or 0.5 absolute) of the recomputed value; the column is OK on a day when 95% of the players match.
-2. Point in time. The same recomputation on a window moved 7 days forward: if the column matches the
-   future window better than its own one, it was built with data after its date (a leak).
-3. Plausibility. A column that cannot be rebuilt (sessions, play time, games, night play, the composite
-   scores) is checked for what must hold: sessions >= active days, engagement_score = its documented
-   formula on the table's own columns, valid ranges, filled on each day, and point in time: a 7-day
-   column's window must end on its date (where its correlation with daily bets drops), and a 30-day
-   column must follow the bet days of its own 30 days more than those of the 30 days ending 7 days later.
-4. Recency and tenure, the two columns the pipeline replaces, in detail.
+1. Recomputation: columns that can be rebuilt from the daily caches are compared player by player
+   (within 2% or 0.5). A column is OK on a day if 95% of the players match.
+2. Leak: the same recomputation 7 days later. If the column matches the later value better, it used
+   future data.
+3. Plausibility: for the columns that cannot be rebuilt, valid ranges, sessions >= active days,
+   engagement_score formula, filled values, and checks that the window ends on the date.
+4. Recency and tenure in detail.
 
-Outputs: docs/signal_validation.md (one short report for every brand: method, failed checks, figures),
-the tables and figures of each brand in data/03_output/signal_validation/brand{id}/. Notebook, one brand
-in detail: eda/08_signal_validation.ipynb.
+Output: docs/signal_validation.md and data/03_output/signal_validation/brand{id}/.
+Notebook: eda/08_signal_validation.ipynb.
 """
 
 from __future__ import annotations
@@ -48,17 +41,17 @@ KEY = ["tenant_id", "player_id"]
 TOLERANCE, ATOL, MIN_MATCH = 0.02, 0.5, 0.95
 SHIFT_DAYS = 7
 BACKFILL_DATE = dt.date(2026, 8, 8)
-LIVE_FROM = dt.date(2026, 8, 1)  # the first snapshot already built the live way (days_since_bet, tenure_days)  # the source tables were recomputed up to this day (data card)
+LIVE_FROM = dt.date(2026, 8, 1)  # first snapshot built by the daily job, not by the backfill
 BRANDS = (14, 23, 64, 72, 73)
 S3_HINT = "org/40-gold"
-PER_ROW = 3  # brands per row in the report figures
+PER_ROW = 3  # brands per row in the figures
 NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 DOC_PATH = PROJECT_ROOT / "docs/signal_validation.md"
 SUMMARY_DIR = PROJECT_ROOT / "data/03_output/signal_validation"
 OUTPUT_DIR = SUMMARY_DIR / "brand{brand}"
 
-# column: (cache, source column, how, window): the window is (day - window, day], or for "prior" columns
-# the window before it, (day - 2 * window, day - window]. how: days = distinct active days, sum, recency.
+# column: (cache, source column, how, window). Window is (day - window, day]; "prior" columns use the
+# window before it.
 RECOMPUTABLE = {
     "active_days_l7d": ("activity", "day", "days", 7), "active_days_l30d": ("activity", "day", "days", 30),
     "active_days_l90d": ("activity", "day", "days", 90),
@@ -75,7 +68,7 @@ RECOMPUTABLE = {
     "avg_bet_eur_l30d": ("activity", None, "avg_bet", 30),
     "days_since_bet": ("activity", "day", "recency", None),
 }
-# Which feature reads each column (docs/feature_dictionary.md); "replaced" = recomputed by the pipeline.
+# Feature that reads each column. "replaced" means the pipeline computes it again.
 USED_BY = {
     "active_days_l7d": "active_days_l7d", "active_days_l30d": "active_days_l30d", "active_days_l90d": "active_days_l90d",
     "prior_active_days_l7d": "prior_active_days_l7d", "bets_l7d": "bets_l7d", "bets_l30d": "bets_l30d",
@@ -88,23 +81,20 @@ USED_BY = {
     "engagement_score": "engagement_score", "games_breadth_l30d": "games_breadth_30d", "tp_night_index": "night_play_index",
     "deposit_frequency_score": "deposit_frequency_score",
 }
-ENGAGEMENT_WEIGHTS = (0.4, 0.3, 0.3)  # active days, sessions, play time (gld-schemas.xlsx)
-# Columns that cannot be rebuilt from the cached daily tables: the activity they summarise (bet days, or
-# deposit days for the deposit score) and their window, for the point-in-time checks. The deposit score
-# weighs the last 7 days (its daily profile jumps there), so it is tested as a 7-day column.
+ENGAGEMENT_WEIGHTS = (0.4, 0.3, 0.3)  # active days, sessions, play time
+# Columns that cannot be rebuilt: the activity they summarise and their window. The deposit score
+# behaves like a 7-day column.
 NOT_RECOMPUTABLE = {"sessions_l7d": ("activity", 7), "sessions_l30d": ("activity", 30), "engagement_score": ("activity", 30),
                     "games_breadth_l30d": ("activity", 30), "tp_night_index": ("activity", 30),
                     "deposit_frequency_score": ("payments", 7)}
-PROFILE_BEFORE, PROFILE_AHEAD = 30, 14  # days before and after the snapshot in the daily profile
-# Point in time. 7-day columns: the day where the daily profile drops most (7 days before minus 7 days
-# after) is the end of the window, at most EDGE_SLACK days after the date (honest columns: 0 to 2; a
-# leak of 3 days: 3 to 4). 30-day columns have no sharp edge (habit keeps the correlation after the
-# date), so they are tested on whole windows instead.
+PROFILE_BEFORE, PROFILE_AHEAD = 30, 14  # days before and after the snapshot
+# 7-day columns: the window must end at most EDGE_SLACK days after the date. 30-day columns have no
+# clear edge, so they are tested on whole windows.
 EDGE_SLACK = 2
 EDGE_RULE = "its window ends on its date (no later data)"
 WINDOW_RULE = "follows its own 30 days more than the 30 days ending 7 later (no later data)"
-WHOLE_SNAPSHOT = ("filled", EDGE_RULE, WINDOW_RULE)  # rules that hold or not for the whole snapshot
-# Why a check fails, from the investigation in notebook 08: (column, start of the check) -> reason.
+WHOLE_SNAPSHOT = ("filled", EDGE_RULE, WINDOW_RULE)  # pass or fail for the whole snapshot
+# Reason for each failure, from notebook 08.
 ACTIVE_DAYS_WHY = ("Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). "
                    "Definition to confirm.")
 WHY = {
@@ -120,8 +110,7 @@ WHY = {
 
 
 def snapshot_days(brand_id: int, last_day: dt.date | None = None) -> list[dt.date]:
-    """The month-start snapshots with 90 days of history before them: the cached ones, or with `last_day`
-    every month start up to it (the missing ones are then built from S3)."""
+    """Month-start snapshots with 90 days of history: the cached ones, or all up to `last_day`."""
     first = dt.date(2025, 4, 1) + dt.timedelta(days=90)
     if last_day is not None:
         return [d.date() for d in pd.date_range(first, last_day, freq="MS")]
@@ -139,7 +128,7 @@ def load(brand_id: int) -> dict[str, pd.DataFrame]:
 
 
 def _recompute(data: dict, column: str, day: pd.Timestamp, shift: int = 0) -> pd.Series:
-    """The recomputed value of `column` per player as of `day` + `shift` days."""
+    """Recomputed value of `column` per player on `day` + `shift`."""
     cache, source, how, window = RECOMPUTABLE[column]
     frame, end = data[cache], day + pd.Timedelta(shift, unit="D")
     if how == "recency":
@@ -155,7 +144,7 @@ def _recompute(data: dict, column: str, day: pd.Timestamp, shift: int = 0) -> pd
 
 
 def _compare(table: pd.Series, mine: pd.Series) -> tuple[float, float, float]:
-    """(share matching, share where the table is higher, share where it is lower)."""
+    """Share that matches, share where the table is higher, and share where it is lower."""
     both = pd.concat([table.astype(float), mine.reindex(table.index).fillna(0).astype(float)], axis=1).dropna()
     t, m = both.iloc[:, 0], both.iloc[:, 1]
     close = np.isclose(t, m, rtol=TOLERANCE, atol=ATOL)
@@ -167,7 +156,7 @@ def _match(table: pd.Series, mine: pd.Series) -> float:
 
 
 def recomputation_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.DataFrame:
-    """One row per (day, column): match share with its own window and with the window 7 days ahead."""
+    """Match share per day and column, with its own window and 7 days later."""
     snaps = signal_snapshots.snapshots(days, brand_id, build_missing=False)
     last_day = data["activity"]["day"].max()
     rows = []
@@ -189,7 +178,7 @@ def recomputation_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.D
 
 
 def plausibility_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.DataFrame:
-    """Columns that cannot be rebuilt from the daily tables: what must hold for each, share of players it holds."""
+    """Plausibility rules for the columns that cannot be rebuilt."""
     snaps = signal_snapshots.snapshots(days, brand_id, build_missing=False)
     act = data["activity"]
     rows = []
@@ -216,11 +205,11 @@ def plausibility_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.Da
         }
         for (column, rule), ok in checks.items():
             rows.append({"day": day, "column": column, "rule": rule, "holds": float(np.mean(ok))})
-        # Filled: a column that is 0 for every player on a day was not computed for that day.
+        # A column that is 0 for every player was not computed that day.
         for column in NOT_RECOMPUTABLE:
             rows.append({"day": day, "column": column, "rule": "filled (not 0 for every player)",
                          "holds": float((s[column].astype(float) != 0).any())})
-        # 30-day columns: more correlated with the bet days of their own window than of the window 7 days later.
+        # 30-day columns must follow their own window more than the window 7 days later.
         if ts + pd.Timedelta(SHIFT_DAYS, unit="D") <= act["day"].max():
             idx = pd.MultiIndex.from_frame(s[KEY])
             bet_days = lambda end: act[(act["day"] > end - pd.Timedelta(30, unit="D")) & (act["day"] <= end)].groupby(KEY)["day"].nunique()
@@ -234,9 +223,8 @@ def plausibility_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.Da
 
 
 def day_profiles(brand_id: int, days: list[dt.date], data: dict) -> pd.DataFrame:
-    """The daily profile of the columns that cannot be recomputed: the rank correlation of each column with
-    "bet (or deposited) on day d", from 30 days before the snapshot to 14 days after it. The correlation
-    drops where the column's window ends."""
+    """Rank correlation of each column with "bet on day d", around the snapshot. It drops where the
+    window ends."""
     snaps = signal_snapshots.snapshots(days, brand_id, build_missing=False)
     act = data["activity"]
     frames = {"activity": act, "payments": data["payments"][data["payments"]["deposit_count"] > 0]}
@@ -263,8 +251,7 @@ def day_profiles(brand_id: int, days: list[dt.date], data: dict) -> pd.DataFrame
 
 
 def window_end(profile: pd.Series) -> int:
-    """The day (relative to the snapshot) where a daily profile drops most: mean of the 7 days up to it
-    minus the mean of the 7 days after it."""
+    """Day where the daily profile drops the most."""
     profile = profile.sort_index()
     drops = {t: profile.loc[t - 6:t].mean() - profile.loc[t + 1:t + 7].mean()
              for t in profile.index if t - 6 >= profile.index.min() and t + 7 <= profile.index.max()}
@@ -272,7 +259,7 @@ def window_end(profile: pd.Series) -> int:
 
 
 def edge_rule(profiles: pd.DataFrame) -> pd.DataFrame:
-    """Plausibility rows for the 7-day columns: holds (1) when the window ends at most EDGE_SLACK days after the date."""
+    """Pass when the 7-day window ends at most EDGE_SLACK days after the date."""
     short = [c for c, (_, window) in NOT_RECOMPUTABLE.items() if window == 7]
     ends = profiles[profiles["column"].isin(short)].groupby(["column", "day"]).apply(
         lambda g: window_end(g.set_index("offset")["corr"]))
@@ -281,7 +268,7 @@ def edge_rule(profiles: pd.DataFrame) -> pd.DataFrame:
 
 
 def tenure_growth(brand_id: int, days: list[dt.date]) -> pd.DataFrame:
-    """Between two consecutive snapshots, tenure_days must grow by the days in between."""
+    """tenure_days must grow by the days between two snapshots."""
     snaps = signal_snapshots.snapshots(days, brand_id, build_missing=False)
     rows = []
     for prev, day in zip(days, days[1:]):
@@ -294,7 +281,7 @@ def tenure_growth(brand_id: int, days: list[dt.date]) -> pd.DataFrame:
 
 
 def recency_detail(brand_id: int, data: dict, day: dt.date) -> pd.DataFrame:
-    """days_since_bet against the recency recomputed as of the day, and as of 7 days later."""
+    """Compare days_since_bet with the recency on the day and 7 days later."""
     ts = pd.Timestamp(day)
     act = data["activity"]
     population = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
@@ -306,7 +293,7 @@ def recency_detail(brand_id: int, data: dict, day: dt.date) -> pd.DataFrame:
 
 
 def _segments(days, status, failed_only: bool = False) -> str:
-    """The runs of a per-snapshot status, by month: 'mismatch 2025-07 to 2026-07; leak 2026-08 to 2026-10'."""
+    """Group the snapshot status by month ranges, e.g. 'leak 2026-08 to 2026-10'."""
     days, status, out, start = [str(d)[:7] for d in days], list(status), [], 0
     for i in range(1, len(status) + 1):
         if i == len(status) or status[i] != status[start]:
@@ -317,7 +304,7 @@ def _segments(days, status, failed_only: bool = False) -> str:
 
 
 def summary(recomputed: pd.DataFrame, plausible: pd.DataFrame, growth: pd.DataFrame) -> pd.DataFrame:
-    """One verdict per column: OK, BROKEN, LEAK (built with later data) or a failed plausibility rule."""
+    """Verdict per column: OK, BROKEN, LEAK or a failed rule."""
     rows = []
     for column, g in recomputed.groupby("column", sort=False):
         live, back = g[g["period"] == "live"], g[g["period"] == "backfill"]
@@ -325,7 +312,7 @@ def summary(recomputed: pd.DataFrame, plausible: pd.DataFrame, growth: pd.DataFr
         ok_days = int((g["match"] >= MIN_MATCH).sum())
         verdict = ("LEAK" if leak_days else "OK" if ok_days == len(g) else "BROKEN" if ok_days == 0
                    else f"MOSTLY OK ({ok_days}/{len(g)} days >= 95%)")
-        # Per snapshot: OK, LEAK or WRONG; the last snapshots cannot be tested for a leak and keep the status before.
+        # Status per snapshot. The last snapshots cannot be tested for a leak.
         ok = g["match"] >= MIN_MATCH
         status = pd.Series(np.where(ok, "OK", np.where(g["match_7d_ahead"] > g["match"] + 0.05, "leak", "mismatch")))
         status = status.where(ok.to_numpy() | g["match_7d_ahead"].notna().to_numpy()).ffill().fillna("mismatch")
@@ -418,7 +405,7 @@ def figures(recomputed, plausible, profiles, growth, recency, recency_day, out_d
 
 
 def validate(brand_id: int, build_missing: bool = False) -> dict:
-    """Every check for one brand; saves its tables and figures in OUTPUT_DIR."""
+    """Run all checks for one brand and save the results."""
     data = load(brand_id)
     last_day = data["activity"]["day"].max()
     days = snapshot_days(brand_id, last_day.date() if build_missing else None)
@@ -441,7 +428,7 @@ def validate(brand_id: int, build_missing: bool = False) -> dict:
 
 
 def model_features(brands) -> dict[int, set[str]]:
-    """The features of each brand's latest optimised LightGBM run in MLflow (empty when there is none)."""
+    """Features of the latest LightGBM run of each brand."""
     sys.path.insert(0, str(PROJECT_ROOT / "src" / "models"))
     import train  # noqa: E402  (heavy: only for the report)
     out = {}
@@ -454,7 +441,7 @@ def model_features(brands) -> dict[int, set[str]]:
 
 
 def _daily(result: dict) -> pd.DataFrame:
-    """Per (column, check, day): the share that passes (players matching or holding, or 1/0 for whole-snapshot rules)."""
+    """Pass share per column, check and day."""
     r = result["recomputed"].assign(check="recomputed from the daily tables", value=lambda d: d["match"])
     p = result["plausible"].rename(columns={"rule": "check", "holds": "value"})
     g = result["growth"].assign(column="tenure_days", check="grows by the days between two snapshots",
@@ -466,13 +453,12 @@ def report_figures(results: dict[int, dict], failed: pd.DataFrame) -> dict[str, 
     SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
     paths = {"failed_checks": SUMMARY_DIR / "failed_checks.png", "recency": SUMMARY_DIR / "days_since_bet_by_brand.png"}
     keys = list(failed[["column", "check"]].itertuples(index=False, name=None))
-    # Up to PER_ROW brands per row, so the figure stays readable at page width.
     n_rows = -(-len(results) // PER_ROW)
     n_days = max(len(r["days"]) for r in results.values())
     fig, axes = plt.subplots(n_rows, PER_ROW, figsize=(PER_ROW * 0.42 * n_days + 4, n_rows * (0.45 * len(keys) + 1.6)),
                              squeeze=False)
     need = np.array([1.0 if k.startswith(WHOLE_SNAPSHOT) else MIN_MATCH for _, k in keys])[:, None]
-    colours = matplotlib.colors.ListedColormap(["#d9867f", "#7fbf9f"])  # fails, passes
+    colours = matplotlib.colors.ListedColormap(["#d9867f", "#7fbf9f"])  # fail, pass
     for i, ax in enumerate(axes.flat):
         if i >= len(results):
             ax.axis("off")
@@ -510,14 +496,14 @@ def report_figures(results: dict[int, dict], failed: pd.DataFrame) -> dict[str, 
     return paths
 
 
-# The gold column behind each cached column (daily_cache.CACHES), for the appendix.
+# Gold column behind each cached column, for the appendix.
 GOLD_COLUMN = {"bets": "bets", "turnover_eur": "turnover_eur", "ggr_eur": "ggr_eur",
                "wagered_bonus_eur": "wagered_bonus_eur_today", "deposit_eur": "deposit_amount_eur",
                "withdraw_eur": "withdraw_amount_eur"}
 
 
 def definitions() -> list[dict]:
-    """How each recomputable column is rebuilt, grouped by calculation: one row per (table, value)."""
+    """How each column is recomputed, for the appendix."""
     value = {"days": "distinct days with `bets` > 0", "days_prior": "distinct days with `bets` > 0",
              "recency": "D minus the last day with `bets` > 0, up to D",
              "avg_bet": "sum of `turnover_eur` / sum of `bets`"}
@@ -532,8 +518,7 @@ def definitions() -> list[dict]:
 
 
 def examples(results: dict[int, dict], failed: pd.DataFrame) -> list[dict]:
-    """One player per failing recomputed column (two for days_since_bet: one per regime), in the brand and
-    snapshot where it fails most, plus tenure_days and tp_night_index: the table's value next to the recomputed one."""
+    """One example player per failing column, for the appendix."""
     data, rows = {}, []
     recomputed = pd.concat([r["recomputed"].assign(brand=b) for b, r in results.items()], ignore_index=True)
 
@@ -696,7 +681,7 @@ Pass in every brand: {", ".join(f"`{c}`" for c in columns if c not in bad)}.
 
 
 def saved_results(brands=BRANDS) -> dict[int, dict]:
-    """The checks of each brand as the last run saved them (OUTPUT_DIR), without recomputing them."""
+    """Load the saved results of each brand."""
     out = {}
     for brand in brands:
         folder = Path(str(OUTPUT_DIR).format(brand=brand))

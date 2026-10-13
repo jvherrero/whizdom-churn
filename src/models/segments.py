@@ -1,15 +1,10 @@
-"""Player segments with k-means: an optional input feature for the churn models, never the score.
+"""Player segments with k-means, used as an optional input feature (never as the score).
 
-    .venv/bin/python src/models/segments.py      # fit on the latest dataset, write docs/player_segments_brand{brand}.md
+    .venv/bin/python src/models/segments.py      # writes docs/player_segments_brand{brand}.md
 
-k-means comes from the catalog (`kmeans`). The number of segments is the one with the highest
-silhouette coefficient among the catalog's param_grid.n_clusters. It is fitted on the training
-months only (never the test months), on a 30-day behaviour profile standardised to mean 0 and
-standard deviation 1.
-
-train.py fits the same segmentation, adds it as one-hot columns (segment_1 ... segment_{k-1},
-segment 0 is the reference) and lets Stage 2 selection decide whether a model keeps them. The
-fitted segmentation is logged with each run, so scoring assigns new players the same way.
+k-means runs on a standardised 30-day profile of the training months. The number of segments is
+the one with the best silhouette. train.py adds the segments as one-hot columns and the feature
+selection decides if the model keeps them.
 """
 
 from __future__ import annotations
@@ -31,8 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from build_features import _unscale, brand_label
 
-# The 30-day behaviour profile: how often, how much, how they pay, bonus use and recency.
-# Deposit features are left out: they are empty before March 2026 and k-means needs every value.
+# 30-day profile. Deposit features are left out because they are empty before March 2026.
 SEGMENT_FEATURES = [
     "active_days_l30d", "wagered_eur_l30d", "ggr_eur_l30d", "games_breadth_30d",
     "bonus_stake_share_30d", "engagement_score", "days_since_last_bet",
@@ -44,10 +38,10 @@ LABELS = {
     "days_since_last_bet": "days since last bet",
 }
 SEGMENT_PREFIX = "segment_"
-SILHOUETTE_SAMPLE = 10_000  # silhouette is quadratic in rows, so it is measured on a sample
+SILHOUETTE_SAMPLE = 10_000  # silhouette is slow on many rows
 SEED = 42
 ARTIFACT = "segments/kmeans.joblib"
-# One report per brand ("basel" when the dataset has several brands), so runs never overwrite each other.
+# One report per brand.
 DOC_PATH = PROJECT_ROOT / "docs/player_segments_brand{brand}.md"
 FIGURE_DIR = PROJECT_ROOT / "data/03_output/segments/brand{brand}"
 
@@ -59,28 +53,28 @@ class SegmentModel:
     features: list[str]
     k: int
     silhouette: dict[int, float]
-    order: np.ndarray  # raw k-means label -> segment id, segment 0 = the largest
+    order: np.ndarray  # k-means label to segment id (0 is the largest)
 
     def assign(self, rows: pd.DataFrame) -> np.ndarray:
         return self.order[self.kmeans.predict(self.scaler.transform(rows[self.features].fillna(0)))]
 
     def centroids(self) -> pd.DataFrame:
-        """Standardised centroid per segment (0 = average player, +1 = one std above)."""
+        """Standardised centroid of each segment (0 is the average player)."""
         centres = pd.DataFrame(self.kmeans.cluster_centers_, columns=self.features)
         centres.index = self.order[np.arange(self.k)]
         return centres.sort_index()
 
 
 def fit_segments(rows: pd.DataFrame) -> SegmentModel:
-    """k-means on `rows` (the training months), k chosen by the silhouette coefficient."""
-    from train import instantiate, load_catalog_entry  # train.py imports this module
+    """Fit k-means on the training rows and choose k by silhouette."""
+    from train import instantiate, load_catalog_entry  # avoids a circular import
 
     entry, _, _ = load_catalog_entry("kmeans")
-    # An empty value (e.g. bonus share with no stake) counts as 0: k-means needs every value.
+    # k-means cannot handle missing values, so they count as 0.
     scaler = StandardScaler().fit(rows[SEGMENT_FEATURES].fillna(0))
     X = scaler.transform(rows[SEGMENT_FEATURES].fillna(0))
     sample = min(SILHOUETTE_SAMPLE, len(X))
-    # n_init=10 instead of the catalog's "auto" (a single start): k-means depends on the start.
+    # n_init=10 gives more stable results than a single start.
     fitted, silhouette = {}, {}
     for k in entry["param_grid"]["n_clusters"]:
         km = instantiate(entry, {"n_clusters": k, "n_init": 10, "random_state": SEED})
@@ -95,7 +89,7 @@ def fit_segments(rows: pd.DataFrame) -> SegmentModel:
 
 
 def add_segment_features(data: pd.DataFrame, model: SegmentModel) -> pd.DataFrame:
-    """One-hot segment_1 ... segment_{k-1}; segment 0 (the largest) is the reference."""
+    """Add one-hot segment columns. Segment 0 is the reference."""
     segment = model.assign(data)
     out = data.copy()
     for s in range(1, model.k):
@@ -104,7 +98,7 @@ def add_segment_features(data: pd.DataFrame, model: SegmentModel) -> pd.DataFram
 
 
 def load_segment_model(run_id: str) -> SegmentModel | None:
-    """The segmentation logged with a training run, or None for a run without one."""
+    """Load the segment model of a training run, or None."""
     import mlflow
 
     try:
@@ -114,7 +108,7 @@ def load_segment_model(run_id: str) -> SegmentModel | None:
 
 
 def _name(z: pd.Series) -> str:
-    """A short, rule-based name from the standardised centroid."""
+    """Short name for a segment, based on its centroid."""
     activity = ("Frequent" if z["active_days_l30d"] >= 0.5
                 else "Occasional" if z["active_days_l30d"] <= -0.5 else "Regular")
     value = ("high-value" if z["wagered_eur_l30d"] >= 0.5
@@ -128,14 +122,14 @@ def _name(z: pd.Series) -> str:
 
 
 def _describe(z: pd.Series, n: int = 3) -> str:
-    """The features where the segment differs most from the average player."""
+    """Features where the segment differs most from the average player."""
     top = z.reindex(z.abs().sort_values(ascending=False).index).head(n)
     return ", ".join(f"{'high' if v > 0 else 'low'} {LABELS[f]} ({v:+.1f} sd)" for f, v in top.items() if abs(v) >= 0.3) \
         or "close to the average player"
 
 
 def _use_in_models(brand: str) -> str:
-    """What Stage 2 decided about the segment features in the latest run of each baseline model."""
+    """Whether the latest models kept the segment features."""
     import mlflow
 
     from train import latest_run
@@ -285,8 +279,7 @@ Generated by `src/models/segments.py` (`make segments`) from `{os.path.relpath(d
 
 
 def run_report(dataset_path: str | Path | None = None, run_id: str | None = None) -> Path:
-    """Write docs/player_segments_brand{brand}.md for a training dataset (default: the latest), with the
-    segmentation logged in training run `run_id` (trained on that dataset), or a new fit without one."""
+    """Write the segment report for a dataset (default: the latest one)."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from train import PROCESSED_DIR, split_rows
 

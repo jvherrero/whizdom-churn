@@ -1,15 +1,10 @@
-"""Snapshots of gld_player_signals_daily for one brand, cached locally per day.
+"""Daily snapshots of gld_player_signals_daily for one brand, cached locally.
 
-    frame = snapshots([dt.date(2026, 5, 1)], brand_id=64)     # builds the missing days first
+    frame = snapshots([dt.date(2026, 5, 1)], brand_id=64)
 
-gld_player_signals_daily has one row per player ever seen and as-of day (UTC), with the windows
-already computed (l7d, l30d, l90d, prior periods, tenure, recency, platform scores). Its brand_id is
-empty before July 2026, so the brand's players come from the activity cache (daily_cache.py).
-
-A day's cache keeps the brand's players with a bet in (day - 30, day + 30]: the population of a
-cutoff at that day (bet in the 30 days up to it) and of cutoffs 7 and 30 days later, which read
-this day as their "7 / 30 days before" snapshot for trends. Keeping a row is not using its future:
-every value in it is as of that day.
+brand_id is empty in the source before July 2026, so the brand's players are taken from the
+activity cache. Each day keeps the players with a bet in (day - 30, day + 30], so later cutoffs can
+also read it as their "7 or 30 days before" snapshot. All values are as of that day.
 Cache: data/02_intermediate/daily_cache/signals/brand{id}/{day}.parquet.
 """
 
@@ -32,7 +27,7 @@ from datalake import daily_files, s3_duckdb, s3_filesystem, uri  # noqa: E402
 
 TABLE = "gld_player_signals_daily"
 WINDOW_DAYS = 30
-# The signal columns kept (source table names). Money is cast to DOUBLE (EUR); the rest keeps its type.
+# Money columns are cast to DOUBLE (EUR); the rest keep their type.
 MONEY = [
     "wagered_eur_l7d", "wagered_eur_l30d", "wagered_eur_l90d", "ggr_eur_l7d", "ggr_eur_l30d", "ggr_eur_l90d",
     "ngr_eur_l30d", "won_eur_l7d", "won_eur_l30d", "deposits_eur_l7d", "deposits_eur_l30d", "deposits_eur_l90d",
@@ -68,8 +63,7 @@ def _sql(day: dt.date, source: str, activity_files: list[str], brand_id: int) ->
 
 
 def build(days: list[dt.date], brand_id: int, workers: int = 4) -> list[dt.date]:
-    """Cache the snapshots of `days` that are missing. A day whose +30-day activity window is not
-    complete yet in the activity cache is rebuilt on every call (new players may still join it)."""
+    """Cache the missing days. Days whose +30-day window is not complete yet are always rebuilt."""
     out_dir = cache_dir(brand_id)
     activity_days = set(daily_cache.cached_days("activity"))
     last_activity = max(activity_days) if activity_days else None
@@ -91,7 +85,7 @@ def build(days: list[dt.date], brand_id: int, workers: int = 4) -> list[dt.date]
                   if day - dt.timedelta(days=WINDOW_DAYS) < d <= day + dt.timedelta(days=WINDOW_DAYS)]
         tmp = out_dir / f"{day}.parquet.tmp"
         cursor = con.cursor()
-        try:  # written by DuckDB: typed columns even when no row matches
+        try:  # DuckDB keeps the column types even when there are no rows
             cursor.sql(_sql(day, f"read_parquet('{uri(pfs, files[day])}')", window, brand_id)).write_parquet(str(tmp))
         finally:
             cursor.close()
@@ -107,7 +101,7 @@ def build(days: list[dt.date], brand_id: int, workers: int = 4) -> list[dt.date]
 
 
 def snapshots(days: list[dt.date], brand_id: int, build_missing: bool = True) -> pd.DataFrame:
-    """The cached signal rows of `days` (snapshot_date = the day)."""
+    """Signal rows of the given days, read from the cache."""
     if build_missing:
         build(days, brand_id)
     files = [str(cache_dir(brand_id) / f"{d}.parquet") for d in sorted(set(days))]

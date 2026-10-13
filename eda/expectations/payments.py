@@ -1,7 +1,5 @@
-"""Pandera suite for the local daily cache `payments` (src/features/daily_cache.py):
-gld_player_payments_daily, one brand, summed per player and processed day.
-One row per (tenant_id, player_id, day). Keys are never empty; a value may be (the null-rate alert
-watches its share)."""
+"""Pandera suite for the payments cache: one row per player and day with payments.
+Keys are never empty. Values can be, and the null-rate alert checks them."""
 
 import sys
 from pathlib import Path

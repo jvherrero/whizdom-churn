@@ -1,18 +1,10 @@
-"""First results table: the reference LightGBM (optimisation step 1: catalog defaults, preferred class
-weights, early stopping; no imbalance comparison, search, regularisation or pruning) and the reference
-Cox PH, both on the temporal split, with 95% bootstrap confidence intervals.
+"""First results table (T9): reference LightGBM and Cox PH with 95% bootstrap intervals.
 
-    .venv/bin/python src/models/results.py                   # latest train_dataset
+    .venv/bin/python src/models/results.py
     .venv/bin/python src/models/results.py --dataset-path data/processed/train_dataset_...parquet
 
-Two MLflow runs (role=reference, with config, seed and metrics, the CI metrics included) and
-docs/results_v0_brand{id}.md with AUC, C-index, IBS and ECE.
-
-    AUC       LightGBM: ranks churners above non-churners (event_60d)
-    ECE       LightGBM: expected calibration error of the delivered (calibrated) probability
-    C-index   Cox PH: ranks who churns earlier
-    IBS       Cox PH: integrated Brier score of the survival curve over days 0..horizon, with inverse
-              probability of censoring weights (IPCW); lower is better, 0.25 is a coin flip
+The reference LightGBM uses the catalog defaults with early stopping and no tuning. Writes two
+MLflow runs and docs/results_v0_brand{id}.md with AUC, ECE, C-index and IBS.
 """
 
 from __future__ import annotations
@@ -38,7 +30,7 @@ DOC_PATH = PROJECT_ROOT / "docs/results_v0_brand{brand}.md"
 
 def _fmt(value, digits=3) -> str:
     point, ci = value
-    if point != point:  # NaN: not measurable on this split
+    if point != point:  # NaN
         return "n/a"
     return f"{point:.{digits}f} [{ci[0]:.{digits}f}, {ci[1]:.{digits}f}]" if ci else f"{point:.{digits}f}"
 
@@ -127,7 +119,7 @@ def run(dataset_path: str | Path | None = None) -> Path:
     lgbm_id = train("lightgbm_classifier", dataset_path, reference=True)
     cox_id = train("cox_ph", dataset_path, reference=True, features_from_run=lgbm_id)
     lgbm, cox = run_info(lgbm_id), run_info(cox_id)
-    data, split = run_data(lgbm)  # the same dataset, seed and segments for both runs
+    data, split = run_data(lgbm)  # same data for both runs
     lgbm_res, cox_res = lightgbm_results(lgbm, data, split), cox_results(cox, data, split)
     log_results(lgbm, lgbm_res)
     log_results(cox, cox_res)

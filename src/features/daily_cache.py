@@ -1,21 +1,16 @@
-"""Local daily caches of the source tables: small per-day extracts that every later step reads.
+"""Local daily caches of the source tables, one Parquet file per day.
 
-    .venv/bin/python src/features/daily_cache.py                         # activity, every missing day
+    .venv/bin/python src/features/daily_cache.py
     .venv/bin/python src/features/daily_cache.py --cache financial payments --brand-id 64
     rows = read("activity", brand_id=64, start=..., end=...)
 
-Caches (data/02_intermediate/daily_cache/{cache}/[brand{id}/]{day}.parquet):
+Caches in data/02_intermediate/daily_cache/{cache}/[brand{id}/]{day}.parquet:
 
-    activity   every brand: one row per (tenant_id, brand_id, player_id, day) with at least one bet,
-               from gld_player_gaming_daily (bets, rounds, turnover and GGR in EUR). The churn event.
-    financial  one brand: one row per player and day with money moving (wagered, won, GGR, deposits,
-               withdrawals, bonus play in EUR), from gld_player_financial_daily. That table has no
-               brand_id, so the brand's players come from the activity cache.
-    payments   one brand: one row per player and processed day with payments (completed and failed
-               deposits, withdrawals), from gld_player_payments_daily (only from 2025-09-18, 40 days missing).
+    activity   all brands, one row per player and day with at least one bet (gld_player_gaming_daily)
+    financial  one brand, money per player and day (gld_player_financial_daily)
+    payments   one brand, deposits and withdrawals per player and day (gld_player_payments_daily)
 
-Only missing days are read, in parallel, plus the last RESTATEMENT_DAYS days, which the source reprocesses
-every day. Brand-scoped caches need the activity cache first (it is built automatically).
+Only missing days are read, plus the last RESTATEMENT_DAYS days, because the source changes them.
 """
 
 from __future__ import annotations
@@ -85,8 +80,7 @@ def cached_days(cache: str, brand_id: int | None = None) -> list[dt.date]:
 
 def build(cache: str, brand_id: int | None = None, start: dt.date | None = None, end: dt.date | None = None,
           workers: int = 8) -> list[dt.date]:
-    """Cache every closed day in [start, end] that is missing, and re-read the last RESTATEMENT_DAYS
-    days available (the source may have changed them). Returns the days written."""
+    """Cache the missing days in [start, end] and refresh the last RESTATEMENT_DAYS days."""
     spec = CACHES[cache]
     if spec["brand_scoped"] and not cached_days("activity"):
         build("activity", end=end, workers=workers)
@@ -102,15 +96,15 @@ def build(cache: str, brand_id: int | None = None, start: dt.date | None = None,
         return []
     out_dir.mkdir(parents=True, exist_ok=True)
     con = s3_duckdb()
-    if cache == "financial":  # the brand's players: financial_daily has no brand_id
+    if cache == "financial":  # financial_daily has no brand_id
         con.sql(f"CREATE TABLE brand_players AS SELECT DISTINCT tenant_id, player_id "
                 f"FROM read_parquet('{cache_dir('activity')}/*.parquet') WHERE brand_id = {int(brand_id)}")
 
     def one(day):
-        tmp = out_dir / f"{day}.parquet.tmp"  # never leave half a file
-        cursor = con.cursor()  # one DuckDB cursor per thread (same database: sees brand_players)
+        tmp = out_dir / f"{day}.parquet.tmp"
+        cursor = con.cursor()  # one cursor per thread
         try:
-            # Written by DuckDB, not pandas: a day with no rows still gets typed columns.
+            # DuckDB keeps the column types even when a day has no rows.
             cursor.sql(spec["sql"].format(day=day, brand=brand_id,
                                           source=f"read_parquet('{uri(pfs, files[day])}')")).write_parquet(str(tmp))
         finally:
@@ -129,8 +123,7 @@ def build(cache: str, brand_id: int | None = None, start: dt.date | None = None,
 
 
 def top_up(end: dt.date, brand_id: int | str) -> None:
-    """Every cache the features and labels read, up to `end`: activity (every brand), then financial
-    and payments of `brand_id` ("basel" = every brand with a bet on `end`)."""
+    """Update every cache needed by the features and labels up to `end`."""
     build("activity", end=end)
     brands = ([int(b) for b in read("activity", None, start=end, end=end, columns="DISTINCT brand_id")["brand_id"]]
               if brand_id == "basel" else [int(brand_id)])
@@ -141,7 +134,7 @@ def top_up(end: dt.date, brand_id: int | str) -> None:
 
 def read(cache: str, brand_id: int | str | None = None, start: dt.date | None = None, end: dt.date | None = None,
          columns: str = "*") -> pd.DataFrame:
-    """Rows of a cache. activity: brand_id None or "basel" = every brand."""
+    """Read a cache. For activity, brand_id None or "basel" means all brands."""
     scoped = CACHES[cache]["brand_scoped"]
     folder = cache_dir(cache, brand_id if scoped else None)
     days = [d for d in cached_days(cache, brand_id if scoped else None)

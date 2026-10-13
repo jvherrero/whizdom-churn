@@ -1,11 +1,9 @@
-"""Leakage test (T6): a feature as of a cutoff must not depend on anything after the cutoff.
+"""Leakage test (T6): features at a cutoff must not depend on data after the cutoff.
 
-    .venv/bin/python -m pytest src/features/tests -q      (make test)
+    .venv/bin/python -m pytest src/features/tests -q
 
-A small synthetic copy of the source tables (the same daily tables and columns the pipeline reads) is built twice:
-the second copy changes every file dated after the cutoff (more bets, other deposits, new players,
-other signal values) and adds new days. raw_features() must return exactly the same values for both;
-the churn labels, which look after the cutoff, must change (otherwise the test proves nothing).
+Two small synthetic copies of the source tables are built. The second one changes every day after
+the cutoff. The features must be the same in both, and the labels must change.
 """
 
 import datetime as dt

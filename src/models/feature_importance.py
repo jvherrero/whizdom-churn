@@ -1,18 +1,13 @@
-"""Feature importance of the trained baseline models, three measures reported together
-in docs/feature_importance_brand{brand}.md (gain importance alone overstates high-cardinality and
-correlated features):
+"""Feature importance of the trained models: docs/feature_importance_brand{brand}.md.
 
-    permutation   drop in AUC and calibration (Cox: c-index) when one feature is shuffled,
-                  on the validation rows, 10 repeats, 95% CI
-    SHAP          what each feature does to each player's score, and in which direction:
-                  global mean |SHAP| + dependence plots for the top 10
-    ablation      retrain without a whole feature family, AUC (Cox: c-index) delta
+    permutation   drop in AUC (Cox: c-index) when a feature is shuffled, 10 repeats, 95% CI
+    SHAP          effect of each feature on each player's score, and its direction
+    ablation      change in AUC when a whole feature family is removed
 
-    .venv/bin/python src/models/feature_importance.py                  # latest run of each model
+    .venv/bin/python src/models/feature_importance.py
     .venv/bin/python src/models/feature_importance.py --lgbm-run-id <id> --cox-run-id <id>
 
-It uses the models logged by train.py, so the report always describes one exact run. The
-figures and tables also go into each model's MLflow run, under feature_importance/.
+Figures and tables are also logged to each MLflow run, under feature_importance/.
 """
 
 from __future__ import annotations
@@ -46,25 +41,25 @@ from train import (
     latest_run, load_calibrator, load_catalog_entry, make_adapter, model_input, run_info, split_rows,
 )
 
-# One report per brand ("basel" when the runs cover several brands), so runs never overwrite each other.
+# One report per brand.
 DOC_PATH = PROJECT_ROOT / "docs/feature_importance_brand{brand}.md"
 FIGURE_DIR = PROJECT_ROOT / "data/03_output/feature_importance/brand{brand}"
 N_REPEATS = 10
 TOP_N_DEPENDENCE = 10
 SEED = 42
-# Below this |rank correlation| between a feature and its SHAP value, one direction would mislead.
+# Below this rank correlation between a feature and its SHAP value, the direction is unclear.
 MONOTONIC_MIN_RHO = 0.5
 
 
 def family_of(feature: str) -> str:
-    """Feature family from build_features.FEATURE_COLUMNS."""
+    """Family of a feature."""
     if feature.startswith(SEGMENT_PREFIX):
         return "segment"
     return next((fam for fam, cols in FEATURE_COLUMNS.items() if feature in cols), "other")
 
 
 class Scorer:
-    """Every metric one model is judged on, for any frame of rows."""
+    """Metrics of one model on any set of rows."""
 
     def __init__(self, kind: str, model, features: list[str], train_mean: pd.Series | None = None,
                  calibrator=None):
@@ -73,7 +68,7 @@ class Scorer:
 
     def predict(self, rows: pd.DataFrame) -> np.ndarray:
         if self.kind == "classifier":
-            # The delivered probability: calibrated when the run has a calibrator.
+            # Calibrated probability, if the run has a calibrator.
             return churn_probability(self.model, self.calibrator, rows, self.features)
         return np.asarray(self.model.predict_partial_hazard(cox_input(self.model, rows)))
 
@@ -85,19 +80,17 @@ class Scorer:
         return {"c_index": c_index(rows[DURATION], p, rows[EVENT])}
 
     def shap(self, rows: pd.DataFrame) -> pd.DataFrame:
-        """Per-row SHAP values: log-odds for LightGBM (TreeSHAP), log-hazard for Cox."""
+        """SHAP values per row: log-odds for LightGBM, log-hazard for Cox."""
         if self.kind == "classifier":
             contrib = self.model.predict(model_input(rows, self.features), pred_contrib=True)[:, :-1]
             return pd.DataFrame(contrib, columns=self.features, index=rows.index)
         X = rows[self.features]
-        # A linear model's exact SHAP value: beta * (x - training mean).
+        # Exact SHAP for a linear model: beta * (x - mean).
         return (X - self.train_mean[self.features]) * self.model.params_[self.features]
 
 
 def permutation_importance(scorer: Scorer, rows: pd.DataFrame) -> pd.DataFrame:
-    """Score drop per shuffled feature: mean and 95% CI over N_REPEATS shuffles.
-    For AUC / c-index a positive drop means the feature helps; for Brier / ECE the
-    metric rises, so the drop is reported as the (positive) rise."""
+    """Drop in score when each feature is shuffled, with a 95% CI. Positive means the feature helps."""
     rng = np.random.default_rng(SEED)
     base = scorer.metrics(rows)
     t = stats.t.ppf(0.975, N_REPEATS - 1)
@@ -141,7 +134,7 @@ def shap_summary(scorer: Scorer, rows: pd.DataFrame) -> tuple[pd.DataFrame, pd.D
 
 
 def ablation(adapter, features: list[str], valid: pd.DataFrame, test: pd.DataFrame) -> pd.DataFrame:
-    """Refit without each family that the model uses; delta = ablated - full (negative: the family helps)."""
+    """Retrain without each family. A negative delta means the family helps."""
     def scores(feats):
         model = adapter.fit(feats)
         return adapter.score(model, valid, feats), adapter.score(model, test, feats)
@@ -186,15 +179,14 @@ def _plot_shap_bar(table: pd.DataFrame, unit: str, title: str, path: Path):
 
 
 def importance_by_family(shap_lgbm, shap_cox, abl_lgbm, abl_cox) -> pd.DataFrame:
-    """One row per feature family: its share of the total mean |SHAP| in each model, and what each
-    model loses on the test months when the whole family is removed (ablation)."""
+    """Share of mean |SHAP| and ablation loss of each feature family."""
     table = pd.DataFrame({
         "lightgbm_shap_share": shap_lgbm.groupby("family")["mean_abs_shap"].sum() / shap_lgbm["mean_abs_shap"].sum(),
         "cox_shap_share": shap_cox.groupby("family")["mean_abs_shap"].sum() / shap_cox["mean_abs_shap"].sum(),
         "lightgbm_auc_lost": -abl_lgbm.set_index("family")["test_delta"],
         "cox_c_index_lost": -abl_cox.set_index("family")["test_delta"],
     })
-    table = table.drop(index=[f for f in ("other",) if f in table.index])  # brandId: categorical, not a family
+    table = table.drop(index=[f for f in ("other",) if f in table.index])  # brandId
     table = table.dropna(how="all").fillna(0.0)
     return table.sort_values("lightgbm_shap_share", ascending=False).rename_axis("family").reset_index()
 
@@ -219,7 +211,7 @@ def _plot_family(table: pd.DataFrame, path: Path):
 
 
 def _plot_dependence(rows: pd.DataFrame, values: pd.DataFrame, features: list[str], unit: str, title: str, path: Path):
-    real = _unscale(rows[features])  # x axis in days / EUR / counts, not on the sign-log scale
+    real = _unscale(rows[features])  # plot in real units
     n_cols = 3
     n_rows = int(np.ceil(len(features) / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.2 * n_cols, 3.2 * n_rows), squeeze=False)
@@ -256,8 +248,8 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None, brand: st
         raise ValueError(f"the two runs use different datasets: {lgbm['dataset_path']} vs {cox['dataset_path']}")
 
     data = pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"])
-    split = split_rows(data, lgbm["n_test_cutoffs"], lgbm["n_valid_cutoffs"])  # the same temporal split the runs were trained with
-    # The k-means segments each run was trained with (same dataset and seed, so the same segments).
+    split = split_rows(data, lgbm["n_test_cutoffs"], lgbm["n_valid_cutoffs"])  # same split as training
+    # Segments used by each run.
     segments = {name: load_segment_model(info["run_id"]) for name, info in (("lgbm", lgbm), ("cox", cox))}
     if segments["lgbm"] is not None:
         data = add_segment_features(data, segments["lgbm"])
@@ -271,7 +263,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None, brand: st
     lgbm_scorer = Scorer("classifier", lgbm_model, lgbm["features"], calibrator=lgbm_calibrator)
     cox_scorer = Scorer("survival", cox_model, cox["features"], train_mean=train[cox["features"]].mean())
 
-    # Sanity check: the loaded models reproduce the metrics logged at training time.
+    # Check that the loaded models give the same metrics as in training.
     lgbm_key = "calibrated_roc_auc" if lgbm_calibrator is not None else "roc_auc"
     for name, scorer, info, key in (("LightGBM", lgbm_scorer, lgbm, lgbm_key), ("Cox", cox_scorer, cox, "c_index")):
         logged, now = info["metrics"][f"test_{key}"], scorer.metrics(test)[key.removeprefix("calibrated_")]
@@ -303,7 +295,7 @@ def run(lgbm_run_id: str | None = None, cox_run_id: str | None = None, brand: st
     _plot_permutation(perm_cox, "c_index", "Cox PH: permutation importance (validation)", fig["perm_cox"])
     _plot_shap_bar(shap_lgbm, "log-odds", "LightGBM: global SHAP (validation)", fig["shap_lgbm"])
     _plot_shap_bar(shap_cox, "log-hazard", "Cox PH: global SHAP (validation)", fig["shap_cox"])
-    top = [f for f in shap_lgbm["feature"] if f != BRAND][:TOP_N_DEPENDENCE]  # brandId is categorical
+    top = [f for f in shap_lgbm["feature"] if f != BRAND][:TOP_N_DEPENDENCE]
     _plot_dependence(valid, shap_values_lgbm, top, "log-odds", "LightGBM: SHAP dependence, top features", fig["dep_lgbm"])
 
     by_family = importance_by_family(shap_lgbm, shap_cox, abl_lgbm, abl_cox)
@@ -336,8 +328,7 @@ def _write_doc(lgbm, cox, data, split, perm_lgbm, perm_cox, shap_lgbm, shap_cox,
                for s in ("valid", "test")}
     n = {s: int((split == s).sum()) for s in ("train", "valid", "test")}
     test_events = data.loc[(split == "test") & (data[EVENT] == 1), DURATION]
-    # Delivery plan: a feature is served only if its permutation-importance interval excludes zero.
-    # brandId is left out: the model always adds it (constant with one brand).
+    # A feature is kept only if its permutation-importance CI excludes zero. brandId is always kept.
     not_significant = list(perm_lgbm.loc[(perm_lgbm["roc_auc_ci_low"] <= 0) & (perm_lgbm["feature"] != BRAND), "feature"])
 
     perm_l = pd.DataFrame({

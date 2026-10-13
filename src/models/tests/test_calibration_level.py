@@ -1,6 +1,6 @@
-"""Calibration level (calibration_level.py) on hand-made data: no S3, no MLflow.
+"""Calibration level tests on hand-made data.
 
-    .venv/bin/python -m pytest src/models/tests -q      (make test)
+    .venv/bin/python -m pytest src/models/tests -q
 """
 
 import datetime as dt
@@ -19,10 +19,10 @@ D = dt.date
 
 
 def test_cutoffs_matured_and_early():
-    # On 2026-03-01: 2026-01-01 + 60 days is 2026-03-02, so January is early (59 days seen), not matured.
+    # On 2026-03-01 January has only 59 days, so it is still a recent month.
     assert cl.cutoffs(D(2026, 3, 1)) == ([D(2025, 10, 1), D(2025, 11, 1), D(2025, 12, 1)], [D(2026, 1, 1), D(2026, 2, 1)])
     assert cl.cutoffs(D(2026, 10, 6)) == ([D(2026, 6, 1), D(2026, 7, 1), D(2026, 8, 1)], [D(2026, 9, 1)])
-    # 2026-10-01 has 9 days seen on 2026-10-10: fewer than MIN_EARLY_DAYS, left out.
+    # 2026-10-01 has only 9 days on 2026-10-10, so it is left out.
     assert cl.cutoffs(D(2026, 10, 10))[1] == [D(2026, 9, 1)]
 
 
@@ -50,12 +50,12 @@ def test_fit_median_ignores_one_odd_month():
                                    TARGET: rng.binomial(1, np.clip(p * rate / p.mean(), 0, 1))}))
     matured = pd.concat(parts, ignore_index=True)
     shift = cl.fit(lambda rows: rows["p"].to_numpy(), matured, None, D(2026, 6, 1))[64]
-    assert abs(shift) < 0.15  # the median follows the two ordinary months, not the peak (about +1.2)
+    assert abs(shift) < 0.15  # the median ignores the peak
 
 
 def test_early_rate(monkeypatch):
-    # Complete cohort on 2026-01-01: 10 players; on 2026-03-01 (k = 28 days for the early cohort of 2026-02-01):
-    # 2 bet within 28 days, 2 more between 28 and 60 days, 6 never. P(no bet in 60 | none in 28) = 6 / 8.
+    # January cohort: 2 bet within 28 days, 2 between 28 and 60 days, 6 never.
+    # So P(no bet in 60 days | no bet in 28 days) = 6 / 8.
     matured = pd.DataFrame({"cutoff_date": D(2026, 1, 1), "tenant_id": "t", "player_id": range(10)})
     early = pd.DataFrame({"cutoff_date": D(2026, 2, 1), "tenant_id": "t", "player_id": range(100, 104)})
     bets = [(0, 5), (1, 20), (2, 40), (3, 55),          # days after 2026-01-01

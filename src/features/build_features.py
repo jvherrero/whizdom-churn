@@ -1,28 +1,17 @@
-"""Feature store builder (T6): one row per player, as of one cutoff date.
+"""Player features (T5), one row per player and cutoff.
 
-    df = build_feature_store(cutoff_date="2026-08-01", brand_id=64)       # the final feature vector
-    df = build_feature_store(cutoff_date="2026-08-01", brand_id="basel")  # every brand
-    raw = raw_features(cutoff_date="2026-08-01", brand_id=64)             # every signal, real units
+    df = build_feature_store(cutoff_date="2026-08-01", brand_id=64)   # final features
+    raw = raw_features(cutoff_date="2026-08-01", brand_id=64)         # all signals, real units
 
     .venv/bin/python src/features/build_features.py --as-of 2026-08-01 [--brand-id 64|basel]
 
-The features are those of docs/feature_dictionary.md (FEATURES, by family in FEATURE_COLUMNS). The
-population of a cutoff is the brand's players with a bet in the 30 days up to it. Every feature uses
-data up to and including the cutoff day (UTC days, as in the source tables) and nothing after it:
+The population is the players with a bet in the 30 days up to the cutoff. Features use data up to
+the cutoff day (included): the signals table on that day and 7 and 30 days before, and the daily
+caches (activity, financial and payments). The feature list is in docs/feature_dictionary.md.
 
-- gld_player_signals_daily on the cutoff day, and 7 and 30 days before it (src/features/signal_snapshots.py);
-- the local daily caches (src/features/daily_cache.py): activity (bets), financial (stake and GGR per
-  day) and payments (deposits, withdrawals, failed deposits).
-
-Data limits (docs/dq_reports/semantic_checks_brand64.md):
-- the signals table's days_since_bet is broken, so recency is computed from the activity (days_since_last_bet);
-- the signals table's tenure_days is not consistent across days (it does not grow with the calendar), so tenure is
-  the days since the first bet seen in the activity, capped at TENURE_CAP_DAYS (days_since_first_bet);
-- completed deposits only exist from DEPOSITS_VALID_FROM: a deposit feature is empty (unknown, not 0)
-  at a cutoff whose window starts before it.
-
-build_feature_store() caps the monetary features at each brand's p99.5 (configs/winsorisation_features_
-brand{id}.yaml), then applies a signed log1p to the counts, amounts, days and ratios in SCALED.
+Recency and tenure are computed from the activity, because days_since_bet and tenure_days in the
+signals table are wrong. Deposit features are empty before DEPOSITS_VALID_FROM.
+Monetary features are capped per brand and then scaled with a signed log1p.
 """
 
 from __future__ import annotations
@@ -45,24 +34,22 @@ from datalake import last_closed_day  # noqa: E402
 from winsorisation import winsorise  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-HISTORY_START = dt.date(2025, 4, 1)      # first day of the source daily tables
+HISTORY_START = dt.date(2025, 4, 1)      # first day of the source tables
 LABEL_HORIZON_DAYS = 60
-LOOKBACK_DAYS = 30                       # population: a bet in the 30 days up to the cutoff
-MIN_HISTORY_DAYS = 90                    # the longest window the features read (l90d)
+LOOKBACK_DAYS = 30                       # population: a bet in the last 30 days
+MIN_HISTORY_DAYS = 90                    # longest feature window
 MIN_CUTOFF = HISTORY_START + dt.timedelta(days=MIN_HISTORY_DAYS)
-HISTORY_DAYS = 180                       # how far back the history-based signals look
+HISTORY_DAYS = 180                       # window for the history-based signals
 DEPOSITS_VALID_FROM = dt.date(2026, 3, 1)
-# Tenure cap: every training cutoff has at least this much activity history before it (from 2025-04-01
-# to the first cutoff, 2025-09-01, is 153 days), so a capped tenure means the same at every cutoff.
+# Every training cutoff has at least 150 days of history, so the capped tenure means the same everywhere.
 TENURE_CAP_DAYS = 150
-ALL_BRANDS = "basel"  # sentinel meaning "every brandId", not a real brand
-# The platform's own churn score (gld_player_signals_daily.churn_score), kept in the training dataset as a
-# reference to compare the model with, never as a feature (docs/feature_dictionary.md, "Not used").
+ALL_BRANDS = "basel"  # means all brands
+# The platform's churn score. Kept only to compare with the model, never used as a feature.
 PLATFORM_SCORE = "platform_churn_score"
 KEY = ["tenant_id", "player_id"]
 ID_COLUMNS = ["cutoff_date", "tenant_id", "brandId", "player_id"]
 
-# docs/feature_dictionary.md, by family.
+# Features by family (docs/feature_dictionary.md).
 FEATURE_COLUMNS = {
     "recency": ["days_since_last_bet", "days_since_last_deposit"],
     "frequency": ["active_days_l7d", "active_days_l30d", "active_days_l90d", "bets_l7d", "bets_l30d",
@@ -78,11 +65,11 @@ FEATURE_COLUMNS = {
                 "failed_deposits_14d"],
 }
 FEATURES = [f for cols in FEATURE_COLUMNS.values() for f in cols]
-# Not sign-log scaled: flags, 0-100 scores, shares and the day of the week (already on a small scale).
+# Flags, scores and shares are already on a small scale, so they are not scaled.
 NOT_SCALED = {"deposited_within_3d", "deposited_within_7d", "deposited_within_14d", "deposit_frequency_score",
               "engagement_score", "bonus_stake_share_30d", "night_play_index", "withdrawals_30d_share"}
 SCALED = [f for f in FEATURES if f not in NOT_SCALED]
-# Deposit and withdrawal signals and the days of history each needs (empty before DEPOSITS_VALID_FROM).
+# Days of payment history that each deposit signal needs.
 DEPOSIT_WINDOWS = {
     "n_deposit_days_7d": 7, "n_deposit_days_30d": 30, "deposit_days_ratio_30_vs_prior30": 60,
     "days_since_last_deposit": 30, "deposited_within_3d": 30, "deposited_within_7d": 30, "deposited_within_14d": 30,
@@ -93,19 +80,18 @@ DEPOSIT_WINDOWS = {
 
 
 def parse_brand_id(value: str | int) -> int | str:
-    """A command-line brand: an integer brandId, or ALL_BRANDS ("basel") for every brand."""
+    """Parse a brand from the command line: a brandId or "basel"."""
     return ALL_BRANDS if str(value).lower() == ALL_BRANDS else int(value)
 
 
 def brand_label(brand_ids) -> str:
-    """How a set of brands is named in files and MLflow: the brandId when there is one, else "basel"."""
+    """Name used in files and MLflow: the brandId, or "basel" for several brands."""
     brands = sorted({int(b) for b in brand_ids})
     return str(brands[0]) if len(brands) == 1 else ALL_BRANDS
 
 
 def data_available_through() -> dt.date:
-    """The last day with data: DATA_AVAILABLE_THROUGH if set, else the last cached activity day,
-    else yesterday (UTC)."""
+    """Last day with data: DATA_AVAILABLE_THROUGH, the last cached day, or yesterday."""
     override = os.environ.get("DATA_AVAILABLE_THROUGH")
     if override:
         return dt.date.fromisoformat(override)
@@ -116,15 +102,15 @@ def data_available_through() -> dt.date:
 def _ratio(a, b):
     return (a + 1) / (b + 1)
 
-# Given that there are some incorrectly calculated variables that I precalculate in this function...
+# Signals that are wrong in the signals table, or not in it, are computed here from the daily caches.
 def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.DataFrame | None,
                     players: pd.DataFrame) -> pd.DataFrame:
-    """The signals that need the day-by-day history up to cutoff c (days as datetime64)."""
+    """Signals that need the daily history up to cutoff c."""
     out = players[KEY].copy().set_index(KEY)
     ts = pd.Timestamp(c)
     f = fin[(fin["day"] > ts - pd.Timedelta(HISTORY_DAYS, unit="D")) & (fin["day"] <= ts)]
     before = lambda df, lo, hi: df[(df["day"] > ts - pd.Timedelta(lo, unit="D")) & (df["day"] <= ts - pd.Timedelta(hi, unit="D"))]
-    if pay is None:  # no payments data for these days (the table starts on 2025-09-18): a typed empty frame
+    if pay is None:  # no payments before 2025-09-18
         pay = pd.DataFrame({"tenant_id": pd.Series(dtype=object), "player_id": pd.Series(dtype="int32"),
                             "day": pd.Series(dtype="datetime64[us]"),
                             **{c: pd.Series(dtype=float) for c in ("deposit_count", "deposit_eur", "withdraw_count",
@@ -133,10 +119,10 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     dep = pay[pay["deposit_count"] > 0]
     wd = pay[pay["withdraw_count"] > 0]
 
-    # Bet recency, from the activity cache (the signals table's days_since_bet is broken).
+    # Recency from the activity (days_since_bet in the signals table is wrong).
     bets = act[act["day"] <= ts].groupby(KEY)["day"]
     out["days_since_last_bet"] = (ts - bets.max()).dt.days
-    # Tenure from the first bet seen, capped (the signals table's tenure_days is not consistent across days).
+    # Tenure from the first bet seen (tenure_days in the signals table is wrong).
     out["days_since_first_bet"] = (ts - bets.min()).dt.days.clip(upper=TENURE_CAP_DAYS)
 
     out["n_deposit_days_7d"] = before(dep, 7, 0).groupby(KEY).size()
@@ -153,8 +139,7 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     out["deposit_size_trend"] = per_day(recent).groupby([recent["tenant_id"], recent["player_id"]]).mean() / \
         per_day(earlier).groupby([earlier["tenant_id"], earlier["player_id"]]).mean()
 
-    # Big win then withdrawal: a day in the last 30 with net win (-GGR) > 5x the median daily stake
-    # of the last 90 days, and a withdrawal on that day or within the next 3 (up to the cutoff).
+    # Big win then withdrawal: a win above 5x the median daily stake, and a withdrawal within 3 days.
     playing = before(f[f["wagered_eur"] > 0], 90, 0)
     median_stake = playing.groupby(KEY)["wagered_eur"].median().rename("median_stake")
     last30 = before(f, 30, 0).merge(median_stake, on=KEY)
@@ -166,17 +151,17 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     w30 = before(pay, 30, 0).groupby(KEY)[["withdraw_eur", "deposit_eur"]].sum() if len(pay) else None
     out["withdrawals_30d_share"] = (w30["withdraw_eur"] / w30["deposit_eur"].replace(0, np.nan)) if w30 is not None else np.nan
 
-    # Withdrawal without redeposit: the last withdrawal in the last 14 days, no deposit on a later day.
+    # Withdrawal in the last 14 days and no deposit after it.
     last_wd = before(wd, 14, 0).groupby(KEY)["day"].max()
     redeposit = last_dep.reindex(last_wd.index) > last_wd
     out["withdrawal_no_redeposit"] = (~redeposit).astype(int).reindex(out.index).fillna(0).astype(int)
 
-    # Losing streak: consecutive latest playing days (last 90) with a net loss for the player (GGR > 0).
+    # Losing streak: latest playing days in a row where the player lost money.
     p = playing.sort_values(KEY + ["day"], ascending=[True, True, False])
     broken = (p["ggr_eur"] <= 0).astype(int).groupby([p["tenant_id"], p["player_id"]]).cumsum()
     out["losing_streak"] = p[broken == 0].groupby(KEY).size().reindex(out.index).fillna(0)
 
-    # Prior dormancy: returns after 14+ / 30+ silent days in the last 180 days, from the activity history.
+    # Prior dormancy: returns after 14 or 30 silent days in the last 180 days.
     a = act[act["day"] <= ts].sort_values(KEY + ["day"])
     nxt = a.groupby(KEY)["day"].shift(-1)
     silent = (nxt - a["day"]).dt.days - 1
@@ -192,10 +177,9 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     return out.reset_index()
 
 
-# In this fuction I ONLY use metrics provided in the table
+# Only uses columns from the signals table.
 def snapshot_signals(frame: pd.DataFrame) -> pd.DataFrame:
-    """Signals from the signal snapshots at the cutoff (no suffix), 7 days before (_p7) and 30 days
-    before (_p30)."""
+    """Signals from the snapshots at the cutoff, 7 days before (_p7) and 30 days before (_p30)."""
     s = frame
     s["net_loss_7d"] = s["ggr_eur_l7d"]
     weekly90 = s["ggr_eur_l90d"] / 90 * 7
@@ -217,7 +201,7 @@ def snapshot_signals(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _one_brand(c: dt.date, brand: int, players: pd.DataFrame) -> pd.DataFrame:
-    """Every signal of one brand's players at cutoff c, in real units."""
+    """All signals of one brand at cutoff c."""
     snaps = signal_snapshots.snapshots([c, c - dt.timedelta(days=7), c - dt.timedelta(days=30)], brand)
     fin = daily_cache.read("financial", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
     act = daily_cache.read("activity", brand, end=c, columns="tenant_id, player_id, day")
@@ -239,8 +223,7 @@ def _one_brand(c: dt.date, brand: int, players: pd.DataFrame) -> pd.DataFrame:
 
 
 def raw_features(cutoff_date: str | dt.date, brand_id: int | str) -> pd.DataFrame:
-    """Every signal (the features and the ones T4 rejected), one row per player of the population,
-    in real units (days, counts, EUR): not winsorised, not scaled."""
+    """All signals of the cutoff in real units, before capping and scaling."""
     c = pd.to_datetime(cutoff_date).date() if isinstance(cutoff_date, str) else cutoff_date
     if c < MIN_CUTOFF:
         raise ValueError(f"cutoff_date must be {MIN_CUTOFF} or later ({MIN_HISTORY_DAYS} days of history)")
@@ -250,11 +233,11 @@ def raw_features(cutoff_date: str | dt.date, brand_id: int | str) -> pd.DataFram
     parts = [_one_brand(c, int(b), rows[KEY]).assign(brandId=int(b)) for b, rows in pop.groupby("brand_id")]
     frame = snapshot_signals(pd.concat(parts, ignore_index=True))
     numeric = frame.select_dtypes("number").columns
-    frame[numeric] = frame[numeric].replace([np.inf, -np.inf], np.nan)  # a ratio over 0: not computable
+    frame[numeric] = frame[numeric].replace([np.inf, -np.inf], np.nan)  # division by 0
     for name, days in DEPOSIT_WINDOWS.items():
         if name in frame and c - dt.timedelta(days=days - 1) < DEPOSITS_VALID_FROM:
-            frame[name] = np.nan  # deposits unknown before DEPOSITS_VALID_FROM: empty, not 0
-    frame = frame.copy()  # one block of memory before adding a column
+            frame[name] = np.nan  # unknown, not 0
+    frame = frame.copy()  # avoids a fragmented DataFrame
     frame.insert(0, "cutoff_date", c)
     return frame
 
@@ -267,7 +250,7 @@ def _scale(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _unscale(df: pd.DataFrame) -> pd.DataFrame:
-    """Undo the signed log1p (for a saved, scaled dataset: plots in days / EUR / counts)."""
+    """Undo the signed log1p, e.g. to plot in real units."""
     df = df.copy()
     for col in [c for c in SCALED if c in df]:
         df[col] = (np.sign(df[col]) * np.expm1(np.abs(df[col]))).round(6)
@@ -275,14 +258,13 @@ def _unscale(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def finalise(raw: pd.DataFrame) -> pd.DataFrame:
-    """raw_features() rows (any cutoffs) -> the final feature vector (ID_COLUMNS + FEATURES): each
-    brand's EUR caps, then the signed log1p."""
+    """Cap and scale the raw features."""
     out = _scale(winsorise(raw))[ID_COLUMNS + FEATURES]
     return out.astype({f: "float64" for f in FEATURES} | {"brandId": "int64"})
 
 
 def build_feature_store(cutoff_date: str | dt.date, brand_id: int | str) -> pd.DataFrame:
-    """The final feature vector of one cutoff."""
+    """Final features of one cutoff."""
     return finalise(raw_features(cutoff_date, brand_id))
 
 

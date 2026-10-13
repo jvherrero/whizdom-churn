@@ -1,6 +1,6 @@
-"""Churn labels (churn_labels._targets) on hand-made activity: day 0 is the cutoff.
+"""Churn labels on hand-made activity. Day 0 is the cutoff.
 
-    .venv/bin/python -m pytest src/features/tests -q      (make test)
+    .venv/bin/python -m pytest src/features/tests -q
 """
 
 import sys

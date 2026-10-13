@@ -1,6 +1,6 @@
-"""Feast feature store (feature_store.py) on hand-made rows and a temporary store: no S3, no real data.
+"""Feast feature store tests on hand-made rows and a temporary store.
 
-    .venv/bin/python -m pytest src/features/tests -q      (make test)
+    .venv/bin/python -m pytest src/features/tests -q
 """
 
 import datetime as dt
@@ -23,7 +23,7 @@ D = dt.date
 
 
 def features(cutoff: dt.date, value: float) -> pd.DataFrame:
-    """3 players of brand 64 on one cutoff; feature i of every player = value + i; one value missing."""
+    """Three players of brand 64 on one cutoff, with one missing value."""
     rows = pd.DataFrame({"cutoff_date": cutoff, "tenant_id": "t", "player_id": [1, 2, 3], "brandId": 64})
     for i, f in enumerate(FEATURES):
         rows[f] = value + i
@@ -32,7 +32,7 @@ def features(cutoff: dt.date, value: float) -> pd.DataFrame:
 
 
 def at(day: str, hours: int = 0) -> pd.DataFrame:
-    """Entity rows: the 3 players at `day` + `hours` (UTC)."""
+    """Entity rows for the three players at `day` + `hours` (UTC)."""
     return pd.DataFrame({"tenant_id": "t", "player_id": [1, 2, 3],
                          "event_timestamp": pd.Timestamp(day, tz="UTC") + pd.Timedelta(hours, unit="h")})
 
@@ -51,11 +51,11 @@ def test_point_in_time(store):
     s, offline = store
     fs.write_offline(pd.concat([features(D(2026, 1, 1), 10.0), features(D(2026, 2, 1), 20.0)]), offline)
     got = fs.historical(s, at("2026-02-01")).set_index("player_id")
-    assert got.loc[1, FEATURES[1]] == 21.0                                   # the row's own cutoff
-    assert np.isnan(got.loc[3, FEATURES[0]])                                 # a missing value stays missing
+    assert got.loc[1, FEATURES[1]] == 21.0                                   # same cutoff
+    assert np.isnan(got.loc[3, FEATURES[0]])                                 # missing stays missing
     assert fs.historical(s, at("2026-02-01", hours=12)).set_index("player_id").loc[1, FEATURES[1]] == 21.0
-    assert fs.historical(s, at("2026-01-31"))[FEATURES].isna().all().all()   # the January row is older than the ttl
-    assert fs.historical(s, at("2025-12-31"))[FEATURES].isna().all().all()   # nothing before the first cutoff
+    assert fs.historical(s, at("2026-01-31"))[FEATURES].isna().all().all()   # older than the ttl
+    assert fs.historical(s, at("2025-12-31"))[FEATURES].isna().all().all()   # before the first cutoff
 
 
 def test_rebuilt_cutoff_replaces_the_old_rows(store):

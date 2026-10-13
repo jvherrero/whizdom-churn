@@ -1,12 +1,9 @@
-"""Stage 2 feature selection. Every step uses the training months only, never the test months
-(step 3 compares them with the test months, without labels):
+"""Feature selection in four steps, using the training months only.
 
-1. drop features with > 40% missing, near-zero variance, or that are a deterministic
-   function of another feature
-2. drop one of any pair with |correlation| > 0.95, keeping the higher single-feature AUC
-3. adversarial validation (training vs test months): drop features that drive the drift
-4. permutation importance on the chosen model: keep the smallest set that stays within
-   0.002 of the full model's AUC (c-index for a survival model)
+1. drop features with more than 40% missing values, almost constant, or a function of another
+2. for each pair with |correlation| > 0.95, keep the one with the higher AUC
+3. adversarial validation (training vs test months, no labels): drop features that drift
+4. permutation importance: keep the smallest set within 0.002 of the full model's AUC
 
     selected, report, summary = select_features(data, split, features, adapter, target)
 """
@@ -23,18 +20,14 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 
 MAX_MISSING_SHARE = 0.40
-# Near-zero variance: the most common value covers more than 95% of the known values (for a flag, caret's
-# 95/5 rule). caret's rule for many-valued features (top value 19x the second one and < 10% distinct
-# values) is not used: with 140k rows any count passes it, e.g. bets_l7d (56% zeros, AUC 0.72).
+# Almost constant: the most common value is more than 95% of the known values.
 NZV_MAX_MODE_SHARE = 0.95
-# The functional-dependence check only makes sense between discrete features (counts, flags,
-# day numbers). A continuous feature that is a function of another one has |corr| ~ 1 in step 2.
+# Only discrete features are checked for functional dependence. Continuous ones are caught in step 2.
 DISCRETE_MAX_UNIQUE = 50
 MAX_ABS_CORR = 0.95
-# Below this adversarial AUC the drift is mild (0.5 = no drift): keep the features, the report
-# still shows their adversarial importance for review. 0.60 dropped the strongest signals.
-ADV_AUC_THRESHOLD = 0.70  # drift features are dropped while the adversarial AUC is above this
-# A feature with more than this share of the adversarial importance is drifting.
+# Drifting features are dropped while the adversarial AUC is above this. 0.60 removed the best signals.
+ADV_AUC_THRESHOLD = 0.70
+# A feature is drifting when it has more than this share of the adversarial importance.
 ADV_IMPORTANCE_SHARE = 0.10
 MAX_ADV_ROUNDS = 5
 MAX_METRIC_LOSS = 0.002
@@ -44,11 +37,11 @@ SEED = 42
 
 @dataclass
 class ModelAdapter:
-    """How step 4 trains and scores the chosen model (higher score is better)."""
+    """How step 4 trains and scores the model (higher score is better)."""
     fit: Callable[[list[str]], object]
     score: Callable[[object, pd.DataFrame, list[str]], float]
     metric: str
-    params: dict = field(default_factory=dict)  # the model parameters actually used, for logging
+    params: dict = field(default_factory=dict)  # for logging
 
 
 def _near_zero_variance(s: pd.Series) -> bool:
@@ -57,8 +50,7 @@ def _near_zero_variance(s: pd.Series) -> bool:
 
 
 def single_feature_auc(x: pd.Series, y: pd.Series) -> float:
-    """Direction-free AUC of one feature on its own, on the rows where it has a value (features
-    can be empty, e.g. deposits before March 2026). 0.5 when it cannot be measured."""
+    """AUC of one feature on its own, in any direction. Returns 0.5 if it cannot be measured."""
     known = x.notna()
     if known.sum() < 2 or y[known].nunique() < 2 or x[known].nunique() < 2:
         return 0.5
@@ -67,7 +59,7 @@ def single_feature_auc(x: pd.Series, y: pd.Series) -> float:
 
 
 def _is_function_of(a: pd.Series, b: pd.Series) -> bool:
-    """True when every value of b maps to exactly one value of a."""
+    """True if each value of b maps to only one value of a."""
     return bool(pd.DataFrame({"a": a, "b": b}).groupby("b")["a"].nunique().max() == 1)
 
 
@@ -88,7 +80,7 @@ def _step1(train: pd.DataFrame, features: list[str], auc: dict) -> tuple[list[st
         for b in discrete:
             if a == b or a in dropped or b in dropped or not _is_function_of(train[a], train[b]):
                 continue
-            # Same information both ways: keep the better one. Otherwise a adds nothing to b.
+            # If both carry the same information, keep the better one.
             if _is_function_of(train[b], train[a]) and auc[a] > auc[b]:
                 continue
             dropped.add(a)
@@ -114,7 +106,7 @@ def _step2(train: pd.DataFrame, features: list[str], auc: dict) -> tuple[list[st
 
 
 def adversarial_validation(train_months: pd.DataFrame, test_months: pd.DataFrame, features: list[str]):
-    """Out-of-fold AUC of telling training rows from test rows, and each feature's share of importance."""
+    """AUC of a LightGBM that tells training rows from test rows, and each feature's importance share."""
     X = pd.concat([train_months[features], test_months[features]], ignore_index=True)
     y = np.r_[np.zeros(len(train_months)), np.ones(len(test_months))]
     oof, importance = np.zeros(len(X)), np.zeros(len(features))
@@ -127,14 +119,13 @@ def adversarial_validation(train_months: pd.DataFrame, test_months: pd.DataFrame
 
 
 def _step3(train_months, test_months, features) -> tuple[list[str], list[dict], float, float, pd.Series]:
-    """Drop the features that drive the drift, again and again, until the periods look alike."""
+    """Drop drifting features until the two periods look alike."""
     rows, kept = [], list(features)
     first_auc, first_share = adversarial_validation(train_months, test_months, kept)
     adv_auc, share = first_auc, first_share
     for _ in range(MAX_ADV_ROUNDS):
         drifting = list(share[share > ADV_IMPORTANCE_SHARE].index)
-        # Stop at or below the threshold, read as reported (3 decimals): a period gap of exactly 0.700
-        # does not justify dropping more features (decision 2026-10-07: it removed bet recency).
+        # Compare with 3 decimals: at exactly 0.700 it used to drop the recency (2026-10-07).
         if round(adv_auc, 3) <= ADV_AUC_THRESHOLD or not drifting:
             break
         for f in drifting:
@@ -142,12 +133,12 @@ def _step3(train_months, test_months, features) -> tuple[list[str], list[dict], 
                          "reason": f"drifting: {share[f]:.0%} of adversarial importance (AUC {adv_auc:.3f})"})
         kept = [f for f in kept if f not in drifting]
         adv_auc, share = adversarial_validation(train_months, test_months, kept)
-    # The importance from the first round, with every candidate feature, goes in the report.
+    # The report shows the importance from the first round.
     return kept, rows, first_auc, adv_auc, first_share
 
 
 def permutation_importance(adapter: ModelAdapter, model, valid: pd.DataFrame, features: list[str]) -> pd.Series:
-    """Mean drop in the validation score when one feature's values are shuffled."""
+    """Mean drop in the validation score when a feature is shuffled."""
     rng = np.random.default_rng(SEED)
     base = adapter.score(model, valid, features)
     drops = {}
@@ -166,7 +157,7 @@ def _step4(adapter: ModelAdapter, valid: pd.DataFrame, features: list[str]):
     full_score = adapter.score(full_model, valid, features)
     importance = permutation_importance(adapter, full_model, valid, features)
     ranked = list(importance.index)
-    # Smallest top-k by permutation importance that stays within MAX_METRIC_LOSS of the full model.
+    # Smallest top-k set within MAX_METRIC_LOSS of the full model.
     for k in range(1, len(ranked) + 1):
         score = adapter.score(adapter.fit(ranked[:k]), valid, ranked[:k])
         if score >= full_score - MAX_METRIC_LOSS:
@@ -180,10 +171,10 @@ def _step4(adapter: ModelAdapter, valid: pd.DataFrame, features: list[str]):
 def select_features(
     data: pd.DataFrame, split: pd.Series, features: list[str], adapter: ModelAdapter, target: str
 ) -> tuple[list[str], pd.DataFrame, dict]:
-    """Run the 4 steps. `split` says 'train' / 'valid' (training months) or 'test' (test months)."""
+    """Run the four steps. `split` is 'train', 'valid' or 'test'."""
     train, valid = data[split == "train"], data[split == "valid"]
     training_months, test_months = data[split != "test"], data[split == "test"]
-    # Labels of the train part only, so the validation score of step 4 stays clean.
+    # Only the train labels are used here, so step 4 is scored on clean data.
     auc = {f: single_feature_auc(train[f], train[target]) for f in features}
 
     kept, rows1 = _step1(train, features, auc)

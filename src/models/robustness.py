@@ -1,17 +1,12 @@
-"""Temporal robustness check (training spec, point 8): the optimisation is repeated on earlier windows
-of the same monthly cutoffs. If its gain (optimised vs reference LightGBM) does not hold on every
-window, the simpler reference configuration is the safer choice.
+"""Temporal robustness: repeat the optimisation on earlier windows of the same cutoffs.
 
-Window k takes the first k cutoffs of the training dataset and splits them like train.split_rows
-(train = all but the last 3, validation = the 3rd last, test = the last 2). With 12 cutoffs and the
-default 2 windows: train on months 1-8 (validation month 8) and test on 9-10, then train on 1-9 and
-test on 10-11, as in the plan; the full dataset (test on 11-12) is the main training run.
+If the optimised LightGBM is not better than the reference one in every window, the simpler
+reference configuration is the safer choice. Each window drops the latest months and is split like
+train.split_rows.
 
-    .venv/bin/python src/models/robustness.py                                      # latest dataset
+    .venv/bin/python src/models/robustness.py
     .venv/bin/python src/models/robustness.py --dataset-path data/processed/train_dataset_...parquet --n-windows 3
-    .venv/bin/python src/models/robustness.py --seed-mode grid --seeds 42 7 2026   # each window x 3 seeds
-
-The rolling-origin backtest of T10 (src/models/backtest.py) is a separate check: does the model predict.
+    .venv/bin/python src/models/robustness.py --seed-mode grid --seeds 42 7 2026
 """
 
 from __future__ import annotations
@@ -39,12 +34,12 @@ from train import N_TEST_CUTOFFS, N_VALID_CUTOFFS, PROCESSED_DIR, run_info, trai
 DEFAULT_WINDOWS = 2
 DEFAULT_SEEDS = (42, 7, 2026)
 DEFAULT_SEED_MODE = "per_window"
-BASE_SEED = 42  # per_window mode: the window seeds are drawn from this one, so a backtest is reproducible
+BASE_SEED = 42  # window seeds come from this one
 SCENARIO_DIR = PROJECT_ROOT / "data/02_intermediate/robustness"
 OUTPUT_DIR = PROJECT_ROOT / "data/03_output/robustness"
 DOC_PATH = PROJECT_ROOT / "docs/temporal_robustness_brand{brand}.md"
 MLFLOW_EXPERIMENT = "whizdom-churn-robustness"
-METRICS = {  # what each window reports, from the training runs
+METRICS = {  # metrics reported per window
     "lgbm_reference": ["test_calibrated_roc_auc", "test_calibrated_log_loss", "test_calibrated_ece"],
     "lgbm_optimised": ["test_calibrated_roc_auc", "test_calibrated_log_loss", "test_calibrated_ece"],
     "cox": ["test_c_index"],
@@ -53,9 +48,8 @@ METRICS = {  # what each window reports, from the training runs
 
 def run(dataset_path: str | Path | None = None, n_windows: int = DEFAULT_WINDOWS, n_trials: int | None = None,
         seeds=DEFAULT_SEEDS, seed_mode: str = DEFAULT_SEED_MODE) -> Path:
-    """seed_mode "per_window": each window gets its own random seed (one training per window, fast;
-    the spread between windows then mixes period and seed). "grid": each window is trained with every
-    seed in `seeds` (slower; separates the variation between periods from the one between seeds)."""
+    """Run the windows. "per_window" uses one seed per window (fast); "grid" uses every seed in each
+    window, to separate the effect of the period from the effect of the seed."""
     start = time.time()
     if seed_mode not in ("per_window", "grid"):
         raise ValueError(f"seed_mode must be 'per_window' or 'grid', not {seed_mode!r}")
@@ -119,7 +113,7 @@ def _short(metric: str) -> str:
 
 def _report(table: pd.DataFrame, backtest_id: str, label: str, dataset: str, seconds, seeds,
             seed_mode: str = "grid") -> Path:
-    grid = seed_mode == "grid" and len(seeds) > 1  # only then is there a spread between seeds per window
+    grid = seed_mode == "grid" and len(seeds) > 1
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     table_path = OUTPUT_DIR / f"{backtest_id}.csv"
     figure_path = OUTPUT_DIR / f"{backtest_id}.png"
@@ -131,7 +125,7 @@ def _report(table: pd.DataFrame, backtest_id: str, label: str, dataset: str, sec
     seed_std = by_scenario.xs("std", axis=1, level=1).reset_index()
 
     gain = mean["lgbm_optimised__roc_auc"] - mean["lgbm_reference__roc_auc"]
-    ll_gain = mean["lgbm_reference__log_loss"] - mean["lgbm_optimised__log_loss"]  # positive = optimised better
+    ll_gain = mean["lgbm_reference__log_loss"] - mean["lgbm_optimised__log_loss"]  # > 0: optimised is better
     holds = bool((gain >= 0).all() and (ll_gain >= 0).all())
 
     fig, axes = plt.subplots(1, 4, figsize=(18, 4.2))
@@ -151,7 +145,7 @@ def _report(table: pd.DataFrame, backtest_id: str, label: str, dataset: str, sec
     fig.tight_layout(); fig.savefig(figure_path, dpi=120); plt.close(fig)
 
     def spread(col):
-        """Mean, variation between periods (std of the scenario means) and between seeds (mean std)."""
+        """Mean, variation between periods and variation between seeds."""
         between_periods = mean[col].std(ddof=1) if len(mean) > 1 else np.nan
         if not grid:
             return f"{mean[col].mean():.4f} / ± {between_periods:.4f}"
@@ -218,8 +212,7 @@ Generated by `src/models/robustness.py` (`make robustness`). Table (one row per 
         mlflow.set_tags({"brand_id": label, "backtest_id": backtest_id})
         mlflow.log_params({"dataset_path": dataset, "seed_mode": seed_mode, "n_windows": len(mean), "seeds": seeds,
                            "test_cutoffs": list(mean["test_cutoff"])})
-        # One point per scenario (step = scenario number): MLflow draws each metric as a line chart
-        # across the windows in Model metrics. The mean over seeds, and each seed on its own.
+        # One step per window, so MLflow shows each metric as a line chart.
         for r_mean, r_std in zip(mean.itertuples(index=False), seed_std.itertuples(index=False)):
             step = int(r_mean.scenario)
             for col in metric_cols:
@@ -230,7 +223,7 @@ Generated by `src/models/robustness.py` (`make robustness`). Table (one row per 
         for r in table.itertuples(index=False):
             for col in metric_cols:
                 mlflow.log_metric(f"{col.replace('__', '_')}_seed{r.seed}", float(getattr(r, col)), step=int(r.scenario))
-        for col in metric_cols:  # summary numbers (no step)
+        for col in metric_cols:  # summary values
             name = col.replace("__", "_")
             mlflow.log_metric(f"summary_{name}_mean", float(mean[col].mean()))
             if len(mean) > 1:

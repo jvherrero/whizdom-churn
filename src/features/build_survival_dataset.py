@@ -1,14 +1,10 @@
-"""Survival dataset (T7): the feature snapshots of several cutoffs joined with their churn targets.
+"""Survival dataset (T7): features of several cutoffs joined with their churn labels.
 
-    .venv/bin/python src/features/build_survival_dataset.py --cutoff-dates 2026-07-20 2026-07-29 2026-08-07
+    .venv/bin/python src/features/build_survival_dataset.py --cutoff-dates 2026-07-01 2026-08-01
     path = build_survival_dataset(training_features(cutoffs, brand_id=64), data_end="2026-10-06")
 
-One row per (cutoff_date, tenant_id, player_id): the final feature vector (build_feature_store) plus
-    event_60d                       1 = no bet in the 60 days after the cutoff (the classifier target)
-    duration_days, event_observed   time to churn and the right-censoring flag (Cox PH)
-    churn_within_7d / 14d / 30d     1 = the churn starts within 7 / 14 / 30 days; empty when not known yet
-Only rows whose 60-day label fits before `data_end` are kept. The dataset is saved as
-data/processed/train_dataset_{brand}_{cutoffs}_{ts}.parquet and logged as one MLflow run.
+One row per cutoff and player. Rows whose 60-day label is not known by `data_end` are dropped.
+Saved to data/processed/train_dataset_{brand}_{cutoffs}_{ts}.parquet and logged to MLflow.
 """
 
 from __future__ import annotations
@@ -36,7 +32,7 @@ from winsorisation import WINSOR_CONFIG_PATH
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = PROJECT_ROOT / "data/processed"
-# 12 monthly cutoffs, all with a complete 60-day label in the history (the default of the CLI).
+# 12 monthly cutoffs, all with a complete 60-day label.
 DEFAULT_CUTOFF_DATES = [str(d.date()) for d in pd.date_range("2025-09-01", "2026-08-01", freq="MS")]
 MLFLOW_EXPERIMENT = "whizdom-churn-training-features"
 KEY = ["cutoff_date", "tenant_id", "player_id"]
@@ -56,13 +52,12 @@ def git_commit() -> str:
 
 
 def training_features(cutoff_dates: list[str], brand_id: int | str = 64) -> pd.DataFrame:
-    """The final feature vector at every cutoff, stacked."""
+    """Features of all the cutoffs in one table."""
     return pd.concat([build_feature_store(c, brand_id) for c in cutoff_dates], ignore_index=True)
 
 
 def _labels(features: pd.DataFrame, data_end: dt.date) -> pd.DataFrame:
-    """Every churn target of every feature row, looking at data up to `data_end` only. A 60-day
-    label whose window runs past `data_end` is not a real 0/1: churn_targets leaves event_60d empty."""
+    """Churn labels of every feature row, using data up to `data_end` only."""
     return pd.concat(
         [churn_labels.churn_targets(rows[["tenant_id", "player_id"]], cutoff, int(brand), data_end)
          for (cutoff, brand), rows in features.groupby(["cutoff_date", "brandId"])],
@@ -71,8 +66,7 @@ def _labels(features: pd.DataFrame, data_end: dt.date) -> pd.DataFrame:
 
 
 def with_labels(features: pd.DataFrame, data_end: dt.date) -> tuple[pd.DataFrame, int]:
-    """`features` joined with their targets as seen on `data_end`, only the rows whose 60-day label is
-    confirmable; and how many were not."""
+    """Join the features with their labels. Returns the rows with a known label and the number dropped."""
     labels = _labels(features, data_end)
     dataset = features.merge(labels[KEY + LABEL_COLUMNS], on=KEY, how="left", validate="one_to_one",
                              indicator=True)
@@ -82,14 +76,12 @@ def with_labels(features: pd.DataFrame, data_end: dt.date) -> tuple[pd.DataFrame
     confirmed = dataset[TARGET].notna()
     dataset = dataset[confirmed].drop(columns="_merge")
     dataset[[TARGET, *SURVIVAL_TARGETS]] = dataset[[TARGET, *SURVIVAL_TARGETS]].astype("int64")
-    dataset[WITHIN_COLUMNS] = dataset[WITHIN_COLUMNS].astype("Int64")  # empty where not known yet
+    dataset[WITHIN_COLUMNS] = dataset[WITHIN_COLUMNS].astype("Int64")  # empty if not known yet
     return dataset.reset_index(drop=True), int((~confirmed).sum())
 
 
 def build_survival_dataset(features: pd.DataFrame, data_end: str | dt.date | None = None) -> Path:
-    """Join `features` (training_features()) with their targets, keep the confirmable labels, save
-    and log to MLflow. `data_end` is the last day the labels may look at (default: the last complete
-    data day); a run "as of" an earlier date passes that date, so it never sees later data."""
+    """Build, save and log the dataset. `data_end` is the last day the labels can use."""
     start_time = time.time()
     data_end = pd.to_datetime(data_end).date() if data_end else data_available_through()
     dataset, n_unconfirmed = with_labels(features, data_end)
@@ -151,14 +143,13 @@ def _log_run(dataset, features, output_path, run_name, cutoff_dates, data_end, n
             "survival_event_rate": round(float(events.mean()), 4),
             "censoring_rate": round(float(1 - events.mean()), 4),
             "survival_max_event_day": int(dataset.loc[events, "duration_days"].max()) if events.any() else 0,
-            # Churn starting within 7 / 14 / 30 days, over the rows where it is known; and how many are known.
             **{f"{c}_rate": round(float(dataset[c].mean()), 4) for c in WITHIN_COLUMNS if dataset[c].notna().any()},
             **{f"{c}_known_share": round(float(dataset[c].notna().mean()), 4) for c in WITHIN_COLUMNS},
             "file_size_mb": round(output_path.stat().st_size / (1024 * 1024), 2),
             "execution_time_s": execution_time_s,
             **{f"churn_rate_{c}": round(float(r), 4) for c, r in churn_by_cutoff.items()},
             **{f"rows_{c}": int(n) for c, n in dataset.groupby("cutoff_date").size().items()},
-            # Null share of every feature: the deposit features are empty before March 2026 by design.
+            # Deposit features are empty before March 2026.
             **{f"null_share__{c}": round(float(dataset[c].isna().mean()), 4) for c in feature_columns},
         })
         mlflow.log_input(mlflow.data.from_pandas(dataset, source=relative, targets=TARGET, name=run_name),

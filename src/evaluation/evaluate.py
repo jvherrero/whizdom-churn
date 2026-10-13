@@ -1,16 +1,12 @@
-"""Evaluate a logged training run on its own temporal split, with 95% bootstrap intervals.
+"""Evaluate a training run on its own split, with 95% bootstrap intervals (T8).
 
     .venv/bin/python src/evaluation/evaluate.py --run-id <MLflow run id>
 
-The run's model (LightGBM or Cox PH), calibrator, features and dataset are read from MLflow,
-so the split and the segments are exactly the ones it was trained with. Metrics on the validation
-month and the out-of-time test months:
-    LightGBM   AUC, ECE (calibrated and raw), log-loss, top-decile precision and lift
-    Cox PH     C-index, IBS (IPCW, days 0 to the last training event day), and at each horizon in
-               HORIZONS that fits in it: time-dependent AUC and one-calibration
-On the validation rows the calibrated probability is cross-fitted (each fold calibrated on the
-others), as in training: the calibrator was fitted on those rows, so in-sample it looks perfect.
-They are logged back into the run as results_{split}_{metric}[_ci_low|_ci_high].
+    LightGBM   AUC, ECE, log-loss, top-decile precision and lift
+    Cox PH     C-index, IBS, time-dependent AUC and one-calibration per horizon
+
+On the validation rows the calibration is cross-fitted. Metrics are logged to the run as
+results_{split}_{metric}.
 """
 
 from __future__ import annotations
@@ -41,7 +37,7 @@ from train import (  # noqa: E402
     run_info, split_rows,
 )
 
-HORIZONS = (7, 14, 30, 60)  # days: time-dependent AUC and one-calibration of the Cox survival curve
+HORIZONS = (7, 14, 30, 60)  # days
 
 
 def lightgbm_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
@@ -62,7 +58,7 @@ def lightgbm_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
             "log_loss": (log_loss(y, p), bootstrap_ci(len(y), lambda i: log_loss(y[i], p[i], labels=[0, 1]))),
             "top_decile_precision": (top, bootstrap_ci(len(y), lambda i: top_decile_precision(y[i], p[i]))),
             "top_decile_lift": (top / y.mean(), None),
-            # The baselines on the same rows: recency alone and the platform's churn score, when in the dataset.
+            # Baselines on the same rows.
             **{f"auc_{key}": (roc_auc_score(y, part[col]), bootstrap_ci(len(y), lambda i, c=col: roc_auc_score(y[i], part[c].to_numpy()[i])))
                for key, col in (("recency", "days_since_last_bet"), ("platform", PLATFORM_SCORE)) if col in part},
             "churn_rate": float(y.mean()), "n": len(y),
@@ -93,7 +89,7 @@ def cox_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
         for t in [h for h in HORIZONS if h <= horizon]:
             auc_t = time_dependent_auc(d, e, risk, t, weights)
             if np.isnan(auc_t):
-                continue  # no churner by t, or nobody still active after t, in this split
+                continue  # one of the groups is empty
             out[name][f"td_auc_{t}d"] = (auc_t, bootstrap_ci(
                 len(d), lambda i: time_dependent_auc(d[i], e[i], risk[i], t, weights[i])))
             calibration = one_calibration(d, e, 1 - surv[:, t], t)
@@ -103,7 +99,7 @@ def cox_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
 
 
 def log_results(info: dict, results: dict) -> None:
-    """Every (point, interval) metric into the run, as results_{split}_{metric}."""
+    """Log the metrics and their intervals to the run."""
     with mlflow.start_run(run_id=info["run_id"]):
         for split_name, metrics in results.items():
             for key, value in metrics.items():
@@ -117,7 +113,7 @@ def log_results(info: dict, results: dict) -> None:
 
 
 def run_data(info: dict) -> tuple[pd.DataFrame, pd.Series]:
-    """The run's dataset (with its segment features, if any) and its train/valid/test split."""
+    """Dataset and split of a run, with its segment features."""
     data = pd.read_parquet(PROJECT_ROOT / info["dataset_path"])
     split = split_rows(data, info["n_test_cutoffs"], info["n_valid_cutoffs"])
     segment_model = load_segment_model(info["run_id"])

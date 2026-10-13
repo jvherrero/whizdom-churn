@@ -1,24 +1,16 @@
-"""Scoring command (T11): every active player of a brand as of one date, written to the player_scores table.
+"""Daily scoring (T11): scores every active player of a brand on one date.
 
     .venv/bin/python src/models/score.py --as-of 2026-10-06                       # latest registered version
-    .venv/bin/python src/models/score.py --as-of 2026-10-06 --model-version 7     # or an alias, e.g. Production
-    score(as_of, brand_id, lgbm_run_id, cox_run_id)                               # the pipeline: exact runs
+    .venv/bin/python src/models/score.py --as-of 2026-10-06 --model-version 7     # or an alias
+    score(as_of, brand_id, lgbm_run_id, cox_run_id)
 
-The model version is a version of the registered LightGBM model churn_lightgbm_classifier_brand{id}
-(MLflow Models tab); the Cox PH companion is the run trained with its features. Features are rebuilt
-through build_features (T6), the same code as training. The schema of every column is in
-docs/schema_player_scores.md. Output, one partition per run date and brand, overwritten on a rerun
-(idempotent, re-runnable for any date):
+Features are built with the same code as in training. The calibration level is estimated again on
+the run date (--no-level turns it off). A critical data alert stops the run; feature drift only sets
+drift_flag. Running the same date again overwrites its partition:
 
     data/03_output/player_scores/run_date={as_of}/brand_id={id}.parquet
 
-p_churn_60d keeps the run's calibration shape, with its level re-estimated on the run date
-(calibration_level.py: the calibration month is 2 to 3 months old and the churn rate moves with the
-seasons); --no-level keeps the training calibration as it is.
-
-Before scoring, the feature snapshot is checked against the training dataset (configs/eda_alerts.yaml):
-a critical data-quality alert stops the run with no scores written; critical feature drift only sets
-drift_flag = 1 (delivery plan).
+Column schema: docs/schema_player_scores.md.
 """
 
 from __future__ import annotations
@@ -60,9 +52,7 @@ COLUMNS = [
 
 def resolve_models(brand: str, model_version: str | None, lgbm_run_id: str | None,
                    cox_run_id: str | None) -> tuple[dict, dict, str]:
-    """(LightGBM run, Cox run, model_version label). The LightGBM run is the given one, or the registered
-    version `model_version` (a number or an alias), or the latest optimised run; the Cox run is the given
-    one or the latest Cox run trained with that LightGBM run's features."""
+    """Find the LightGBM run, its Cox run and the version label to use."""
     client = mlflow.MlflowClient()
     name = REGISTERED_MODEL.format(brand=brand)
     if lgbm_run_id is None and model_version:
@@ -84,8 +74,7 @@ def resolve_models(brand: str, model_version: str | None, lgbm_run_id: str | Non
 
 
 def top_drivers(model, rows: pd.DataFrame, columns: list[str], n: int = N_DRIVERS) -> list[str]:
-    """The `n` features that move each player's LightGBM score the most (TreeSHAP, log-odds), with their
-    sign: + pushes towards churn. brandId is left out (constant within a brand)."""
+    """Top `n` features per player by TreeSHAP, with sign (+ means more churn)."""
     contrib = model.predict(model_input(rows, columns), pred_contrib=True)[:, :-1]
     keep = [i for i, c in enumerate(columns) if c != BRAND]
     contrib, names = contrib[:, keep], [columns[i] for i in keep]
@@ -113,7 +102,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     dataset = pd.read_parquet(PROJECT_ROOT / lgbm["dataset_path"])
     drifting = set()
     if check_alerts:
-        # A critical data-quality alert raises here (no scores written); feature drift only flags.
+        # Stops here on a critical alert. Drift only sets the flag.
         used = set(lgbm["features"]) | set(cox["features"])
         alerts = feature_alerts(dataset, features, model_features=used)
         report(alerts, "features", str(brand_id), as_of)
@@ -122,14 +111,14 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     segment_model = load_segment_model(lgbm["run_id"])
     shifts = {}
     if level and calibrator is not None:
-        # Calibration level on the run date: features of a few recent cutoffs, so not timed as inference.
+        # Calibration level on the run date (not counted as inference time).
         day = dt.date.fromisoformat(as_of)
         matured, early = calibration_level.frames(day, brand_id, dataset)
         predict = calibration_level.predictor(lgbm_model, calibrator, segment_model, lgbm["features"])
         shifts = calibration_level.fit(predict, matured, early, day)
         print("calibration level (log-odds shift per brand): " + ", ".join(f"{b}: {v:+.3f}" for b, v in shifts.items()))
 
-    scoring_start = time.perf_counter()  # inference only: feature building is timed apart
+    scoring_start = time.perf_counter()  # inference only
     X = add_segment_features(features, segment_model) if segment_model is not None else features
     scores = pd.DataFrame({"run_date": as_of, "model_version": version, "tenant_id": features["tenant_id"],
                            "brand_id": features[BRAND], "player_id": features["player_id"]})
@@ -143,15 +132,14 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
         horizons.loc[cox_seen] = horizon_probability(cox_model, horizon_calibrators, X[cox_seen]).to_numpy()
         median[cox_seen] = cox_model.predict_median(cox_input(cox_model, X[cox_seen])).to_numpy()
     for h in HORIZONS:
-        # Churning now (p_churn_60d: no bet in the next 60 days) is churning within h days too.
+        # A player who churns now also churns within h days.
         scores[f"p_churn_{h}d"] = np.maximum(horizons[h].to_numpy(), scores["p_churn_60d"].to_numpy())
     scores["median_survival_days"] = np.where(np.isinf(median), np.nan, median)
     scores["median_beyond_horizon"] = np.isinf(median)
-    # Value: what the player brings in 30 days at the trailing-90-day pace (negative = the player won).
+    # Expected GGR in the next 30 days at the pace of the last 90 days.
     scores["expected_ggr_30d"] = (raw["ggr_eur_l90d"].fillna(0) / 90 * 30).to_numpy()
     scores["value_at_risk_30d"] = scores["expected_ggr_30d"].clip(lower=0) * scores["p_churn_30d"]
-    # Deciles of equal size within the brand: ties in p_churn_60d (the isotonic calibration is a step
-    # function) are broken by p_churn_30d, then by player, so the top band is exactly the riskiest 10%.
+    # Equal-size deciles per brand. Ties are broken by p_churn_30d and then by player.
     ordered = scores.sort_values(["brand_id", "p_churn_60d", "p_churn_30d", "tenant_id", "player_id"])
     position = ordered.groupby("brand_id").cumcount() + 1
     size = ordered.groupby("brand_id")["player_id"].transform("size")
@@ -160,17 +148,17 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     scores["segment"] = segment_model.assign(features) if segment_model is not None else pd.NA
     scoring_seconds = time.perf_counter() - scoring_start
     scores["drift_flag"] = scores["brand_id"].isin(drifting).astype("int64")
-    scores["lower"], scores["upper"] = np.nan, np.nan  # reserved: conformal intervals (RO5)
+    scores["lower"], scores["upper"] = np.nan, np.nan  # for conformal intervals later (RO5)
     scores = scores[COLUMNS].sort_values(["brand_id", "tenant_id", "player_id"]).reset_index(drop=True)
 
-    # Delivery plan: the row count equals the active players (a bet in the 30 days up to the date).
+    # The row count must equal the number of active players.
     active = len(churn_labels.population(pd.Timestamp(as_of).date(), brand_id, LOOKBACK_DAYS))
     if len(scores) != active:
         raise ValueError(f"{len(scores):,} scores for {active:,} active players")
     partition = OUTPUT_DIR / f"run_date={as_of}"
     partition.mkdir(parents=True, exist_ok=True)
     for b, rows in scores.groupby("brand_id"):
-        rows.to_parquet(partition / f"brand_id={b}.parquet", index=False)  # overwrites: idempotent
+        rows.to_parquet(partition / f"brand_id={b}.parquet", index=False)  # overwrites on rerun
 
     print(f"saved {os.path.relpath(partition, PROJECT_ROOT)}/ ({len(scores):,} players = active players, "
           f"model {version}, {time.time() - start:.1f}s)")

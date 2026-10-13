@@ -1,9 +1,9 @@
-"""Rolling-origin backtest (T10): does the model predict, the way it will be used? Trained on the past,
-scored on a date, judged on what the players did next, repeated over a year.
+"""Rolling-origin backtest (T10): train on the past, score on a date and check what happened next,
+for every month of a year.
 
-    .venv/bin/python src/models/backtest.py --as-of 2026-10-06                       # configs/backtest.yaml
+    .venv/bin/python src/models/backtest.py --as-of 2026-10-06
     .venv/bin/python src/models/backtest.py --as-of 2026-10-06 --config configs/backtest.yaml --brand-id 64
-    .venv/bin/python src/models/backtest.py --report-only backtest_brand64_2026-10-06_1791391493   # rewrite a report
+    .venv/bin/python src/models/backtest.py --report-only backtest_brand64_2026-10-06_1791391493
 
 """
 
@@ -53,29 +53,29 @@ KEY = ["cutoff_date", "tenant_id", "player_id"]
 CANDIDATE = "lgbm_optimised"
 PROBABILITY_MODELS = ("lgbm_optimised", "lgbm_reference")
 COMPARATORS = ("lgbm_optimised", "lgbm_reference", "cox", "recency", "incumbent")
-# One colour per comparator in every panel of the figure (random only appears in the replay).
+# One colour per comparator in all the panels.
 COLOURS = {"lgbm_optimised": "#1f77b4", "lgbm_reference": "#ff7f0e", "cox": "#2ca02c", "recency": "#d62728",
            "incumbent": "#9467bd", "random": "#7f7f7f"}
 
 
 def month_cutoffs(as_of: dt.date) -> list[dt.date]:
-    """Every month start from MIN_CUTOFF whose 60-day label is complete by `as_of`."""
+    """Month starts from MIN_CUTOFF with a complete 60-day label by `as_of`."""
     last = as_of - dt.timedelta(days=LABEL_HORIZON_DAYS)
     return [d.date() for d in pd.date_range(MIN_CUTOFF, last, freq="MS")]
 
 
 def train_cutoffs(cutoffs: list[dt.date], test: dt.date) -> list[dt.date]:
-    """The cutoffs whose label was already known on `test`: no label window reaches past it."""
+    """Cutoffs whose label was already known on the test date."""
     return [c for c in cutoffs if c + dt.timedelta(days=LABEL_HORIZON_DAYS) <= test]
 
 
 def early_cutoffs(test: dt.date, past: list[dt.date]) -> list[dt.date]:
-    """The month starts after the last training cutoff whose early signal the level uses on `test`."""
+    """Recent months used by the calibration level on the test date."""
     return [c for c in calibration_level.cutoffs(test)[1] if c > past[-1]]
 
 
 def level_shifts(run_id: str, matured: pd.DataFrame, early: pd.DataFrame, test: dt.date) -> dict[int, float]:
-    """The calibration level of a LightGBM run on the test cutoff, as scoring would set it."""
+    """Calibration level on the test cutoff, the same way scoring does it."""
     info = run_info(run_id)
     predict = calibration_level.predictor(mlflow.lightgbm.load_model(f"runs:/{run_id}/model"), load_calibrator(run_id),
                                           load_segment_model(run_id), info["features"])
@@ -83,7 +83,7 @@ def level_shifts(run_id: str, matured: pd.DataFrame, early: pd.DataFrame, test: 
 
 
 def _predictions(run_id: str) -> pd.DataFrame:
-    """The run's score of every test row: calibrated probability (LightGBM) or partial hazard (Cox)."""
+    """Score of each test row: calibrated probability (LightGBM) or partial hazard (Cox)."""
     info = run_info(run_id)
     data, split = run_data(info)
     test = data[split == "test"]
@@ -97,7 +97,7 @@ def _predictions(run_id: str) -> pd.DataFrame:
 
 
 def cutoff_metrics(rows: pd.DataFrame, score: str, probability: bool, top_share: float) -> dict:
-    """The plan's metrics of one score on one cutoff's players."""
+    """Metrics of one score on one cutoff."""
     y, s = rows[TARGET].to_numpy(), rows[score].to_numpy(dtype=float)
     top = np.argsort(-s, kind="stable")[: max(1, int(round(len(s) * top_share)))]
     out = {"auc": roc_auc_score(y, s), "c_index": c_index(rows[DURATION], s, rows[EVENT]),
@@ -108,15 +108,13 @@ def cutoff_metrics(rows: pd.DataFrame, score: str, probability: bool, top_share:
 
 
 def top_decile_ratio(precision: pd.DataFrame) -> float:
-    """Mean top-decile precision of the model over the recency rule's (columns model, recency)."""
+    """Mean top-decile precision of the model divided by the recency rule's."""
     return float(precision["model"].mean() / precision["recency"].mean())
 
 
 def replay(rows: pd.DataFrame, n: int) -> list[dict]:
-    """Targeting replay on one cutoff: the top `n` players by each ranking, and what they went on to do.
-    value_30d = trailing-90-day mean daily GGR x 30 (a player who won is worth 0); the candidate ranks by
-    value at risk = value_30d x its churn probability, recency and incumbent by their own score. Realised
-    GGR at risk = value_30d of the players who did churn."""
+    """Campaign replay on one cutoff: take the top `n` players of each ranking and measure the GGR
+    at risk of those who really churned. The model ranks by value at risk."""
     value = (rows["ggr_eur_l90d"].clip(lower=0) / 90 * 30).fillna(0)
     realised = value * rows[TARGET]
     rankings = {"lgbm_optimised": value * rows["lgbm_optimised"], "recency": rows["recency"],
@@ -129,7 +127,7 @@ def replay(rows: pd.DataFrame, n: int) -> list[dict]:
                     "ggr_at_risk_captured": realised.iloc[top].sum() / realised.sum(),
                     "ggr_at_risk_per_1000": realised.iloc[top].sum() / n * 1000})
     out.append({"ranking": "random", "churn_captured": n / len(rows), "ggr_at_risk_captured": n / len(rows),
-                "ggr_at_risk_per_1000": realised.mean() * 1000})  # the expected value of a random pick
+                "ggr_at_risk_per_1000": realised.mean() * 1000})  # expected value of a random pick
     return out
 
 
@@ -165,7 +163,7 @@ def run(config: str | Path = CONFIG_PATH, as_of: str | None = None, brand_id: in
         past = train_cutoffs(cutoffs, test)
         print(f"\n== {i}/{len(tests)} test {test}: train {past[0]}..{past[-n_valid - 1]}, "
               f"validation {[str(c) for c in past[-n_valid:]]}")
-        # Train labels as seen on the test cutoff; test labels as seen on AS_OF (what happened next).
+        # Train labels as known on the test date; test labels as known on AS_OF.
         train_part, _ = with_labels(features[features["cutoff_date"].isin(past)], test)
         test_part, _ = with_labels(features[features["cutoff_date"] == test], as_of_date)
         path = scenario_dir / f"test{test}.parquet"
@@ -179,7 +177,7 @@ def run(config: str | Path = CONFIG_PATH, as_of: str | None = None, brand_id: in
         rows = _predictions(runs["lgbm_optimised"]).rename(columns={"score": "lgbm_optimised"})
         for name in ("lgbm_reference", "cox"):
             rows = rows.merge(_predictions(runs[name])[KEY + ["score"]].rename(columns={"score": name}), on=KEY)
-        # Calibration level re-estimated on the test cutoff, as scoring does (calibration_level.py).
+        # Calibration level on the test date, as in scoring.
         matured = train_part[train_part["cutoff_date"].isin(past[-calibration_level.N_MATURED:])]
         early = features[features["cutoff_date"].isin(early_cutoffs(test, past))]
         shifts = {}
@@ -207,7 +205,7 @@ def run(config: str | Path = CONFIG_PATH, as_of: str | None = None, brand_id: in
 
 
 def _summary(table: pd.DataFrame, by: str, columns: list[str], n_boot: int) -> pd.DataFrame:
-    """Mean, min, max across cutoffs and a bootstrap CI of the mean (cutoffs resampled)."""
+    """Mean, min, max and bootstrap CI of the mean across cutoffs."""
     out = []
     for name, rows in table.groupby(by, sort=False):
         for col in columns:
@@ -221,7 +219,7 @@ def _summary(table: pd.DataFrame, by: str, columns: list[str], n_boot: int) -> p
 
 
 def figure(metrics: pd.DataFrame, replays: pd.DataFrame, cfg: dict, label: str, as_of: str, path: Path) -> Path:
-    """AUC and top-decile precision by cutoff for every comparator, and the targeting replay."""
+    """Figure: AUC and top-decile precision per cutoff, and the campaign replay."""
     rule = cfg["pass_conditions"]
     fig, axes = plt.subplots(1, 3, figsize=(18, 4.5))
     for ax, col, title in ((axes[0], "auc", "AUC by cutoff"), (axes[1], "top_decile_precision", "Top-decile precision")):
@@ -241,8 +239,7 @@ def figure(metrics: pd.DataFrame, replays: pd.DataFrame, cfg: dict, label: str, 
 
 
 def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds, run_id: str | None = None) -> Path:
-    """Write the report; log a new backtest run to MLflow, or with `run_id` (a rewrite) update that run's
-    verdict and report only."""
+    """Write the report and log it to MLflow. With `run_id`, update that run instead."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     doc = Path(str(DOC_PATH).format(brand=label))
     paths = {"metrics": OUTPUT_DIR / f"{backtest_id}_metrics.csv", "replay": OUTPUT_DIR / f"{backtest_id}_replay.csv",
@@ -254,7 +251,7 @@ def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds, 
     summary = _summary(metrics, "comparator", metric_cols, n_boot)
     replay_summary = _summary(replays, "ranking", ["churn_captured", "ggr_at_risk_captured", "ggr_at_risk_per_1000"], n_boot)
 
-    # Pass conditions of the delivery plan, on the candidate.
+    # Pass conditions.
     rule = cfg["pass_conditions"]
     cand, rec = metrics[metrics["comparator"] == CANDIDATE], metrics[metrics["comparator"] == "recency"]
     precision = cand.set_index("cutoff")["top_decile_precision"].to_frame("model").join(
@@ -287,7 +284,7 @@ def _report(metrics, replays, cfg, backtest_id, label, as_of, skipped, seconds, 
         return table(wide, [key] + [c for c in df["metric"].unique()])
 
     per_cutoff = metrics.pivot(index="cutoff", columns="comparator", values="auc").reset_index()
-    level = [c for c in ("ece_static", "level_shift") if c in metrics]  # not in backtests before the calibration level
+    level = [c for c in ("ece_static", "level_shift") if c in metrics]  # missing in older backtests
     per_cutoff = per_cutoff.merge(metrics[metrics["comparator"] == CANDIDATE][["cutoff", "n_players", "churn_rate",
                                                                                "n_train_cutoffs", "ece", *level]], on="cutoff")
     per_cutoff = per_cutoff.rename(columns={"ece": f"ECE {CANDIDATE}", "ece_static": "ECE without level", "level_shift": "level shift"})
@@ -355,7 +352,7 @@ Generated by `src/models/backtest.py` (`make backtest`). Tables: `{os.path.relpa
         mlflow.log_params({"as_of": as_of, "test_cutoffs": sorted(metrics["cutoff"].unique()), "skipped": [str(s) for s in skipped],
                            **{f"config__{k}": v for k, v in cfg.items()}})
         for step, (cutoff, rows) in enumerate(metrics.groupby("cutoff")):
-            for r in rows.itertuples(index=False):  # one point per cutoff: MLflow charts them over time
+            for r in rows.itertuples(index=False):  # one step per cutoff
                 for col in metric_cols:
                     if pd.notna(getattr(r, col, np.nan)):
                         mlflow.log_metric(f"{r.comparator}_{col}", float(getattr(r, col)), step=step)
@@ -371,8 +368,7 @@ Generated by `src/models/backtest.py` (`make backtest`). Tables: `{os.path.relpa
 
 
 def rewrite_report(backtest_id: str, config: str | Path = CONFIG_PATH) -> Path:
-    """The report of a finished backtest, written again from its saved tables with the current pass
-    conditions (no training): its MLflow run gets the new verdict and report."""
+    """Rewrite the report of a finished backtest with the current pass conditions, without training."""
     cfg = yaml.safe_load(Path(config).read_text(encoding="utf-8"))
     runs = mlflow.search_runs(experiment_names=[MLFLOW_EXPERIMENT], filter_string=f"tags.backtest_id = '{backtest_id}'")
     if runs.empty:

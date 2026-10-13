@@ -1,13 +1,12 @@
-"""Winsorisation caps of the monetary features: what the pipeline needs from the anomaly study.
+"""Winsorisation caps for the monetary features, per brand.
 
-Heavy-tailed amounts are capped, never deleted: p99.5 of each monetary column (and p0.5 for
-signed ones), computed on the non-zero values of the training snapshots, per brand, in EUR.
+Large amounts are capped, not deleted: p99.5 of each column (and p0.5 for columns that can be
+negative), computed on the non-zero values of the training cutoffs.
 
-    configs = write_feature_caps(raw)      # raw = raw_features() rows of the training cutoffs
-    capped = winsorise(features)           # each brand's YAML applied, before the sign-log
+    configs = write_feature_caps(raw)
+    capped = winsorise(features)
 
-The full anomaly study (IQR / MAD, Isolation Forest, temporal and structural checks) is EDA:
-eda/anomalies.py. It writes the same YAML through build_winsorisation_config().
+The full anomaly study is in eda/anomalies.py.
 """
 
 from __future__ import annotations
@@ -24,12 +23,12 @@ WINSOR_CONFIG_PATH = PROJECT_ROOT / "configs/winsorisation_features_brand{brand_
 WINSOR_UPPER_Q = 0.995
 WINSOR_LOWER_Q = 0.005
 
-# The monetary features (EUR) of docs/feature_dictionary.md.
+# Monetary features in EUR (docs/feature_dictionary.md).
 MONETARY_FEATURES = (
     "wagered_eur_l7d", "wagered_eur_l30d", "wagered_eur_l90d", "net_loss_7d", "ggr_eur_l30d",
     "deposits_eur_l30d", "prior_wagered_eur_l7d", "prior_ggr_eur_l30d", "avg_bet_eur_l30d",
 )
-# Monetary features that can be negative (the player won): capped at both ends.
+# These can be negative when the player wins, so both ends are capped.
 SIGNED_MONETARY_FEATURES = frozenset({"net_loss_7d", "ggr_eur_l30d", "prior_ggr_eur_l30d"})
 
 
@@ -39,8 +38,7 @@ def _format_date(value):
 
 def build_winsorisation_config(df, monetary_columns, signed_columns, brand_id, source, grain, applies_to,
                                history_start, history_end) -> dict:
-    """Caps of every monetary column present in `df`, on its non-zero values (signed columns: != 0,
-    the others: > 0). An empty column gets infinite (no-op) caps."""
+    """Compute the caps of each monetary column. An empty column gets infinite caps."""
     columns = {}
     for column in [c for c in dict.fromkeys(monetary_columns) if c in df.columns]:
         s = df[column]
@@ -87,7 +85,7 @@ def write_winsorisation_config(config: dict, path: str | Path) -> Path:
 
 
 def feature_caps(raw: pd.DataFrame, brand_id: int) -> dict:
-    """The winsorisation config of one brand's raw feature rows (raw_features(), several cutoffs)."""
+    """Winsorisation config for one brand's raw features."""
     dates = pd.to_datetime(raw["cutoff_date"])
     return build_winsorisation_config(
         raw, MONETARY_FEATURES, SIGNED_MONETARY_FEATURES, brand_id, source="features", grain="player_cutoff",
@@ -96,15 +94,14 @@ def feature_caps(raw: pd.DataFrame, brand_id: int) -> dict:
 
 
 def write_feature_caps(raw: pd.DataFrame) -> list[Path]:
-    """One YAML per brand (configs/winsorisation_features_brand{id}.yaml): caps are never pooled
-    across brands."""
+    """Write one YAML per brand. Caps are never shared between brands."""
     return [write_winsorisation_config(feature_caps(rows, int(brand)),
                                        str(WINSOR_CONFIG_PATH).format(brand_id=int(brand)))
             for brand, rows in raw.groupby("brandId")]
 
 
 def winsorise(df: pd.DataFrame) -> pd.DataFrame:
-    """Clip the monetary columns (in EUR, before scaling) to each brand's caps."""
+    """Clip the monetary columns to each brand's caps, before scaling."""
     df = df.copy()
     for brand_id, rows in df.groupby("brandId").groups.items():
         path = Path(str(WINSOR_CONFIG_PATH).format(brand_id=brand_id))

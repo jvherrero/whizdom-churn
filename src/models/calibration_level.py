@@ -1,10 +1,8 @@
-"""Calibration level, re-estimated on the scoring date.
+"""Calibration level, estimated again on the scoring date.
 
-The isotonic calibration of a training run (train.py) is fitted on its validation month: in use, the
-latest month with a complete 60-day label is 2 to 3 months before the date the model scores. The churn
-rate moves in between (around 50% from November to January, 30 to 40% the rest of the year) and every
-probability is then off by about the same amount: the shape of the calibration holds, its level does not.
-In the backtest, setting only the level right would have kept every month's ECE under 0.06.
+The calibration is fitted on the validation month, which is 2 to 3 months older than the scoring
+date because the label needs 60 days. If the churn rate changes in between, all probabilities move
+by about the same amount. The shape is still right, but the level is not, so we shift it.
 """
 
 from __future__ import annotations
@@ -29,13 +27,12 @@ from train import BRAND, CALIBRATION_BOUND, TARGET, churn_probability  # noqa: E
 
 N_MATURED = 3
 MIN_EARLY_DAYS = 14
-MAX_SHIFT = 2.0  # safety bound: the largest shift the backtest needed was about 0.9
+MAX_SHIFT = 2.0  # the backtest never needed more than about 0.9
 KEY = ["tenant_id", "player_id"]
 
 
 def cutoffs(as_of: dt.date, n_matured: int = N_MATURED) -> tuple[list[dt.date], list[dt.date]]:
-    """(the last n_matured month starts with a complete label on as_of, the later ones with at least
-    MIN_EARLY_DAYS days seen)."""
+    """Return the last months with a complete label and the later months with at least MIN_EARLY_DAYS."""
     months = [d.date() for d in pd.date_range(MIN_CUTOFF, as_of, freq="MS")]
     matured = [c for c in months if c + dt.timedelta(days=LABEL_HORIZON_DAYS) <= as_of][-n_matured:]
     early = [c for c in months if (not matured or c > matured[-1]) and (as_of - c).days >= MIN_EARLY_DAYS
@@ -44,7 +41,7 @@ def cutoffs(as_of: dt.date, n_matured: int = N_MATURED) -> tuple[list[dt.date], 
 
 
 def predictor(model, calibrator, segment_model, features: list[str]) -> Callable[[pd.DataFrame], np.ndarray]:
-    """Rows of the feature table -> the run's calibrated churn probability (no level shift)."""
+    """Function that gives the calibrated churn probability, without the shift."""
     def predict(rows: pd.DataFrame) -> np.ndarray:
         X = add_segment_features(rows, segment_model) if segment_model is not None else rows
         return churn_probability(model, calibrator, X, features)
@@ -52,7 +49,7 @@ def predictor(model, calibrator, segment_model, features: list[str]) -> Callable
 
 
 def needed_shift(p: np.ndarray, rate: float) -> float | None:
-    """The log-odds shift that makes mean(p) equal `rate` (None when it cannot)."""
+    """Log-odds shift that makes mean(p) equal to `rate`, or None."""
     if not 0 < rate < 1 or len(p) == 0:
         return None
     z = logit(np.clip(np.asarray(p, dtype=float), CALIBRATION_BOUND, 1 - CALIBRATION_BOUND))
@@ -63,16 +60,15 @@ def needed_shift(p: np.ndarray, rate: float) -> float | None:
 
 
 def apply(p: np.ndarray, brands, shifts: dict[int, float]) -> np.ndarray:
-    """The probabilities with each brand's shift (0 for a brand without one)."""
+    """Apply each brand's shift to the probabilities."""
     delta = pd.Series(np.asarray(brands)).map(shifts).fillna(0).to_numpy()
     z = logit(np.clip(np.asarray(p, dtype=float), CALIBRATION_BOUND, 1 - CALIBRATION_BOUND))
     return np.clip(expit(z + delta), CALIBRATION_BOUND, 1 - CALIBRATION_BOUND)
 
-#estimates the future churn rate. It does so by multiplying the proportion of current players
-#  who have not yet placed a bet by the historical conditional probability.
+# Estimates the churn rate of a recent month: the share of players with no bet yet, multiplied by
+# the historical probability that they stay silent for 60 days.
 def early_rate(early: pd.DataFrame, matured: pd.DataFrame, as_of: dt.date, brand_id: int) -> float:
-    """The estimated churn rate of an early cohort (one cutoff, rows of one brand) on as_of: share with no
-    bet yet x P(no bet in 60 days | no bet in the first k days) on `matured` (one complete cutoff)."""
+    """Estimated churn rate of a recent cutoff, using a complete cutoff as reference."""
     c_early, c_matured = early["cutoff_date"].iloc[0], matured["cutoff_date"].iloc[0]
     k = (as_of - c_early).days
     act = daily_cache.read("activity", brand_id, start=c_matured + dt.timedelta(days=1), end=as_of,
@@ -80,7 +76,7 @@ def early_rate(early: pd.DataFrame, matured: pd.DataFrame, as_of: dt.date, brand
     act["day"] = pd.to_datetime(act["day"])
 
     def first_bet(rows: pd.DataFrame, cutoff: dt.date) -> pd.Series:
-        """Days from the cutoff to each player's next bet seen (NaN: none up to as_of)."""
+        """Days from the cutoff to each player's next bet (NaN if none yet)."""
         c = pd.Timestamp(cutoff)
         days = (act[act["day"] > c].groupby(KEY)["day"].min() - c).dt.days
         return days.reindex(pd.MultiIndex.from_frame(rows[KEY])).reset_index(drop=True)
@@ -93,8 +89,7 @@ def early_rate(early: pd.DataFrame, matured: pd.DataFrame, as_of: dt.date, brand
 
 def fit(predict: Callable[[pd.DataFrame], np.ndarray], matured: pd.DataFrame, early: pd.DataFrame | None,
         as_of: dt.date) -> dict[int, float]:
-    """One log-odds shift per brand. `matured`: rows of the last cutoffs with a complete label (with TARGET);
-    `early`: rows of the later cutoffs (no label needed), or None."""
+    """One log-odds shift per brand: the median of the shifts needed on the recent months."""
     shifts = {}
     for brand, rows in matured.groupby(BRAND):
         needed = [needed_shift(predict(g), g[TARGET].mean()) for _, g in rows.groupby("cutoff_date")]
@@ -108,8 +103,7 @@ def fit(predict: Callable[[pd.DataFrame], np.ndarray], matured: pd.DataFrame, ea
 
 
 def frames(as_of: dt.date, brand_id: int | str, dataset: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame | None]:
-    """(matured rows with their label, early rows) for a scoring date: from the training dataset when it
-    has the cutoff (its labels are complete there), otherwise rebuilt from the daily caches."""
+    """Rows of the complete and recent months, from the training dataset or the daily caches."""
     matured_cutoffs, early_cutoffs = cutoffs(as_of)
     have = set(pd.to_datetime(dataset["cutoff_date"]).dt.date) if dataset is not None else set()
     parts = []

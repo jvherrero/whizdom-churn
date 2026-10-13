@@ -1,39 +1,29 @@
-"""The whole project in series, "as of" one date:
+"""The full pipeline, run "as of" one date.
 
     .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06
-    .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06 --backtest         # + T10, about 45 min more
+    .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06 --backtest         # adds T10
     .venv/bin/python src/features/run_pipeline.py --as-of 2026-10-06 --skip-anomalies   # keep the current caps
     .venv/bin/python src/features/run_pipeline.py --cutoff-dates 2026-07-01 2026-08-01  # data steps only
 
-Source: the S3 data lake, org/40-gold (src/features/build_features.py). AS_OF is the "today" of the run: nothing
-after it is read. The training cutoffs come from it: N_TRAINING_CUTOFFS monthly cutoffs (the first
-day of each month), the last one being the latest whose 60-day label ends by AS_OF, never before
-MIN_CUTOFF. train.py splits them by month: train = months 1-9, validation = month 10, test = 11-12.
+AS_OF is the "today" of the run: no data after it is read. The training cutoffs are the first day
+of the last N_TRAINING_CUTOFFS months whose 60-day label is complete by AS_OF.
 
 Data
--1. daily caches topped up to AS_OF (activity, and financial + payments for the brand)
- 0. source alerts: the caches on AS_OF vs the training days (rows, nulls, daily totals, expectations)
- 1. raw features per cutoff (in EUR), not winsorised, not scaled
- 2. winsorisation caps from them: configs/winsorisation_features_brand{id}.yaml (the full
-    anomaly study is EDA: make anomalies-features)
- 3. training features: the same raw rows winsorised + sign-log, checked with the pandera feature
-    snapshot suite
- 3b. feature store (Feast, src/features/feature_store.py): the features of every cutoff into the offline
-    store, the definitions registered, and a point-in-time round trip checked
- 4. churn labels for exactly those rows, looking at data up to AS_OF only
- 5. survival dataset: features joined with the labels (build_survival_dataset.py), then EDA stage 4:
-    the snapshot vs the previous dataset of the brand (eda/summary.py, docs/eda_summary_brand{id}.md)
+-1. update the daily caches up to AS_OF
+ 0. source alerts
+ 1. raw features per cutoff
+ 2. winsorisation caps (configs/winsorisation_features_brand{id}.yaml)
+ 3. final features, checked with pandera
+ 3b. Feast offline store and point-in-time check
+ 4. churn labels, using data up to AS_OF only
+ 5. survival dataset and EDA summary (docs/eda_summary_brand{id}.md)
 Models (only with --as-of)
- 6. LightGBM (churn probability) and Cox PH (churn day), with segments, selection and calibration,
-    then evaluated with 95% bootstrap intervals logged into each run (src/evaluation)
- 7. reports: docs/player_segments_brand{id}.md and docs/feature_importance_brand{id}.md
- 8. with --backtest: the rolling-origin backtest (T10), docs/backtest_v0_brand{id}.md; then the model
-    card from the runs and the latest backtest of the brand (docs/model_card_v0_brand{id}.html)
- 9. scores of every active player as of AS_OF (T11, src/models/score.py), after the feature alerts
-    (snapshot vs training dataset): a critical data-quality alert stops the run with no scores written,
-    critical feature drift sets drift_flag (delivery plan) -> data/03_output/player_scores/run_date=AS_OF/
+ 6. LightGBM and Cox PH: training, calibration and evaluation
+ 7. segment and feature importance reports
+ 8. with --backtest: backtest (T10) and model card
+ 9. feature alerts and daily scores (T11) in data/03_output/player_scores/run_date=AS_OF/
 
-Each step gets the exact file or MLflow run the previous one produced, never "the latest one".
+Each step uses the exact file or MLflow run made by the step before.
 """
 
 from __future__ import annotations
@@ -58,11 +48,11 @@ from winsorisation import write_feature_caps
 
 
 N_TRAINING_CUTOFFS = 12
-MIN_TRAINING_CUTOFFS = 4  # train.split_rows: at least 1 train month, 1 validation month, 2 test months
+MIN_TRAINING_CUTOFFS = 4  # 1 train, 1 validation and 2 test months
 
 
 def training_cutoffs(as_of: dt.date) -> list[str]:
-    """The N_TRAINING_CUTOFFS latest month starts whose 60-day label ends by `as_of`."""
+    """Last N_TRAINING_CUTOFFS month starts whose 60-day label is complete by `as_of`."""
     latest = as_of - dt.timedelta(days=LABEL_HORIZON_DAYS)
     last = latest.replace(day=1)
     months = pd.date_range(end=pd.Timestamp(last), periods=N_TRAINING_CUTOFFS, freq="MS")
@@ -88,7 +78,7 @@ def build_training_data(
 
     print("[3] training features")
     features = finalise(raw)
-    # Expectations on the training features: an alert list like the others, critical stops the run.
+    # Pandera checks on the training features. A critical alert stops the run.
     snapshot_alerts = pd.DataFrame(
         [{"stage": "training_features", "table": "feature_snapshot", **a}
          for a in check_expectations(features, "feature_snapshot", load_config()["expectations"])],
@@ -99,7 +89,7 @@ def build_training_data(
     print("[3b] feature store: offline snapshot + Feast registry")
     import feature_store
     feature_store.publish(features)
-    # The platform's churn score rides along as a reference column (finalise keeps the row order of raw).
+    # Keep the platform's churn score as a reference column (same row order as raw).
     features[PLATFORM_SCORE] = raw["churn_score"].astype("float64").to_numpy()
 
     print("[4-5] churn labels + survival dataset")
@@ -114,10 +104,8 @@ def run_pipeline(
     as_of: str | None = None, cutoff_dates: list[str] | None = None, brand_id: int | str = 64,
     skip_anomalies: bool = False, skip_alerts: bool = False, backtest: bool = False,
 ) -> Path:
-    """Without `as_of`: data steps 1-5 only. With it: every step, returns the player scores file.
-    Data alerts (configs/eda_alerts.yaml): expectations on the training features and drift of the
-    scoring snapshot before scoring; a critical alert stops the run (alerts.CriticalAlert), except
-    feature drift, which is only reported. The source tables themselves are checked by `make profile` (T2)."""
+    """Run the pipeline. Without `as_of` only the data steps run; with it, all steps run and the
+    scores file is returned. A critical alert stops the run, except feature drift."""
     start = time.time()
     if as_of is None:
         dataset = build_training_data(cutoff_dates or DEFAULT_CUTOFF_DATES, brand_id, skip_anomalies)
@@ -125,7 +113,7 @@ def run_pipeline(
         return dataset
 
     as_of_date = dt.date.fromisoformat(as_of)
-    # The daily caches are topped up first (only the missing days, plus the last 7, which the source reprocesses).
+    # Update the daily caches first.
     print(f"[-1] daily caches up to {as_of}")
     daily_cache.top_up(as_of_date, brand_id)
     available = data_available_through()
@@ -154,7 +142,7 @@ def run_pipeline(
     cox_run = train("cox_ph", dataset, features_from_run=lgbm_run)  # same features as LightGBM
     from evaluation.evaluate import evaluate
     for run_id in (lgbm_run, cox_run):
-        evaluate(run_id)  # results_* metrics with bootstrap CIs, in the run
+        evaluate(run_id)  # metrics with bootstrap CIs
 
     print("[7] reports")
     segments.run_report(dataset, lgbm_run)

@@ -1,6 +1,6 @@
-"""Unit tests of src/evaluation/metrics.py on synthetic data with known answers.
+"""Tests of the evaluation metrics on synthetic data with known answers.
 
-    .venv/bin/python -m pytest src/evaluation/tests -q      (make test)
+    .venv/bin/python -m pytest src/evaluation/tests -q
 """
 
 import sys
@@ -25,7 +25,7 @@ def _no_censoring_km(n):
     return KaplanMeierFitter().fit(np.full(n, 1000.0), event_observed=np.zeros(n))
 
 
-# ---------------------------------------------------------------- classification
+# Classification
 
 def test_ece_is_small_for_calibrated_probabilities():
     p = RNG.uniform(0, 1, 50_000)
@@ -54,7 +54,7 @@ def test_classification_metrics_lift():
     assert m["churn_rate"] == pytest.approx(0.1)
 
 
-# ---------------------------------------------------------------- survival
+# Survival
 
 def test_c_index_perfect_reversed_and_random():
     d = np.arange(1, 201, dtype=float)
@@ -114,7 +114,7 @@ def test_integrated_brier_score_perfect_and_coin_flip():
     assert integrated_brier_score(brier_contributions(coin, grid, d, e, km), grid) == pytest.approx(0.25)
 
 
-# ---------------------------------------------------------------- uncertainty
+# Uncertainty
 
 def test_bootstrap_ci_contains_the_estimate_and_is_reproducible():
     x = RNG.normal(10, 2, 2000)

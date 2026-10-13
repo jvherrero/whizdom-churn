@@ -1,23 +1,16 @@
-"""EDA stage 1 (data-quality checks) for the source tables the model reads: T2 of the delivery plan.
+"""EDA stage 1 (T2): data-quality profile of the source tables. No rows are sampled.
 
-    .venv/bin/python eda/profile_tables.py                          # every table, every closed day
+    .venv/bin/python eda/profile_tables.py
     .venv/bin/python eda/profile_tables.py --tables gld_player_signals_daily --start 2026-01-01
-    .venv/bin/python eda/profile_tables.py --skip-keys              # parquet metadata only (seconds)
+    .venv/bin/python eda/profile_tables.py --skip-keys              # Parquet metadata only
 
-Two passes, both aggregate-only (no player rows are loaded, nothing is sampled):
+1. Parquet metadata of each daily file: rows, types, nulls, min and max per column. This gives the
+   date range, gaps, schema changes, null rates and value ranges.
+2. One SQL query per day on the key columns: unique keys, duplicated _version rows, and players
+   missing from the signals table.
 
-1. Parquet metadata of every daily file (no data read): rows, column types, null counts and
-   min/max per column, processing time. Gives row counts, date range and gaps, schema drift,
-   null rates, value ranges (e.g. a negative stake) and which days were backfilled at once.
-2. Keys, one SQL aggregation per day over the key columns only: grain uniqueness, rows that repeat
-   a key with another _version (the tables come from ClickHouse ReplacingMergeTree, which keeps
-   old versions until it merges: "READ WITH FINAL" in gld-schemas.xlsx), and players of the daily
-   activity tables missing from that day's signals (referential integrity).
-
-Both passes are cached per (table, day) in data/02_intermediate/profile_tables/, so a rerun only reads
-the new days. Outputs: docs/dq_reports/{table}.html/.json (dq_lib) and the source-table
-register in docs/data_card.md. DATALAKE_ROOT=<local folder> reads a local copy with the same layout
-instead of S3 (tests).
+Results are cached per table and day, so a rerun only reads new days. Output: docs/dq_reports/ and
+the table register in docs/data_card.md.
 """
 
 from __future__ import annotations
@@ -53,7 +46,7 @@ DATA_CARD_PATH = PROJECT_ROOT / "docs/data_card.md"
 REGISTER_START, REGISTER_END = "<!-- source-register:start -->", "<!-- source-register:end -->"
 SIGNALS = "gld_player_signals_daily"
 
-# The source tables the churn model reads (names as deployed in S3; gld-schemas.xlsx describes the rebuild).
+# Source tables read by the model.
 TABLES = {
     SIGNALS: {
         "date": "snapshot_date", "key": ["tenant_id", "player_id", "snapshot_date"],
@@ -90,10 +83,9 @@ TABLES = {
         "use": "signal explorer (T4): bonus dependence",
     },
 }
-SPARSE = [t for t in TABLES if t != SIGNALS and TABLES[t]["key"][1] == "brand_id"]  # checked against signals
+SPARSE = [t for t in TABLES if t != SIGNALS and TABLES[t]["key"][1] == "brand_id"]
 
-# Columns that can never be negative (amounts paid or played, counts, durations); a negative minimum
-# is a data-quality issue. Net figures (GGR, NGR, net cash), deltas and model scores can be negative.
+# Columns that can never be negative. GGR, NGR and other net values can.
 NON_NEGATIVE = re.compile(r"(wagered|deposit|withdraw|won|turnover|payout|granted|released|expired|forfeited|"
                           r"cost|rounds|bets|wins|_count|attempts|sessions|play_secs|active_days|tenure|days_since)")
 SIGNED = re.compile(r"(ggr|ngr|net_|delta|momentum|acceleration|_z|score|escalation|position|velocity|"
@@ -108,7 +100,7 @@ def _number(value):
 
 
 def footer(pfs: fs.FileSystem, path: str, day: dt.date) -> pd.DataFrame:
-    """One row per top-level column of one daily file, from its parquet metadata only."""
+    """One row per column of a daily file, from its Parquet metadata."""
     md = pq.ParquetFile(pfs.open_input_file(path)).metadata
     schema = md.schema.to_arrow_schema()
     cols = {f.name: {"type": str(f.type), "nulls": 0, "min": None, "max": None} for f in schema}
@@ -117,7 +109,7 @@ def footer(pfs: fs.FileSystem, path: str, day: dt.date) -> pd.DataFrame:
         for i in range(rg.num_columns):
             chunk = rg.column(i)
             name = chunk.path_in_schema
-            if name not in cols:  # a leaf of a nested (list) column: not profiled
+            if name not in cols:  # nested column
                 continue
             s = chunk.statistics
             if s is None:
@@ -140,8 +132,7 @@ def footer(pfs: fs.FileSystem, path: str, day: dt.date) -> pd.DataFrame:
 
 
 def key_stats(con, pfs, table: str, path: str, day: dt.date, signals_path: str | None) -> dict:
-    """Grain uniqueness and _version duplicates of one day, plus (sparse tables) players missing from
-    that day's signals. Key columns only."""
+    """Key checks of one day: unique keys, _version duplicates and players missing from signals."""
     key = TABLES[table]["key"]
     source = f"read_parquet('{_uri(pfs, path)}')"
     row = con.sql(f"""
@@ -158,7 +149,7 @@ def key_stats(con, pfs, table: str, path: str, day: dt.date, signals_path: str |
 
 
 def _cached(path: Path, frame_days: list[dt.date], compute, workers: int, label: str) -> pd.DataFrame:
-    """Read the cache, compute the missing days in parallel, write it back."""
+    """Compute the missing days in parallel and update the cache."""
     old = pd.read_parquet(path) if path.exists() else pd.DataFrame()
     done = set(pd.to_datetime(old["day"]).dt.date) if len(old) else set()
     todo = [d for d in frame_days if d not in done]
@@ -189,7 +180,7 @@ def profile_table(table: str, foot: pd.DataFrame, keys: pd.DataFrame | None, end
     null_stats = [ColumnNullStat(c, round(100 * r.nulls / r.rows, 4) if r.rows else 0.0) for c, r in by_col.iterrows()]
 
     issues, notes = [], []
-    # Schema drift: columns that appear, disappear or change type over the history.
+    # Schema changes over time.
     if per_day["schema_hash"].nunique() > 1:
         for c, r in by_col.iterrows():
             if r.first_day > days[0]:
@@ -200,12 +191,12 @@ def profile_table(table: str, foot: pd.DataFrame, keys: pd.DataFrame | None, end
         types = foot.groupby("column")["type"].nunique()
         for c in types[types > 1].index:
             issues.append(ValidationIssue(c, "schema_drift", f"type changes over time: {sorted(foot.loc[foot['column'] == c, 'type'].unique())}"))
-    # Value ranges: amounts, counts and durations below zero.
+    # Negative values where they are not allowed.
     for c, r in by_col.iterrows():
         if NON_NEGATIVE.search(c) and not SIGNED.search(c) and r.min_num is not None and r.min_num < 0:
             n_days = int((foot.loc[foot["column"] == c, "min_num"] < 0).sum())
             issues.append(ValidationIssue(c, "negative_value", f"minimum {r.min_num:,.4f}, on {n_days} day(s)"))
-    # One as-of / event date per daily file, equal to its folder.
+    # Each daily file must have one date, equal to its folder.
     dates = foot[foot["column"] == spec["date"]]
     wrong = dates[(dates["min_str"] != dates["max_str"]) | (dates["min_str"] != dates["day"].astype(str))]
     if len(wrong):
@@ -252,7 +243,7 @@ def profile_table(table: str, foot: pd.DataFrame, keys: pd.DataFrame | None, end
 
 
 def write_register(profiles: list[TableProfile], path: Path) -> None:
-    """The source-table register, kept between markers at the top of the data card."""
+    """Table register for the top of the data card."""
     register = render_source_table_register(profiles).replace(
         "## Source-table register", "## Source-table register", 1)
     block = f"{REGISTER_START}\n{register}{REGISTER_END}\n"
@@ -265,10 +256,9 @@ def write_register(profiles: list[TableProfile], path: Path) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-# ---------------------------------------------------------------- semantic checks
+# Semantic checks
 
-# Signal columns and how to recompute them from the local caches (src/features/daily_cache.py):
-# (cache, column or "days", aggregate, window in days). "recency" = days since the last bet.
+# How to recompute each signal column from the daily caches: (cache, column, aggregate, window).
 SEMANTIC_CHECKS = {
     "days_since_bet": ("activity", None, "recency", None),
     "active_days_l7d": ("activity", "day", "days", 7), "active_days_l30d": ("activity", "day", "days", 30),
@@ -277,13 +267,12 @@ SEMANTIC_CHECKS = {
     "ggr_eur_l7d": ("activity", "ggr_eur", "sum", 7), "ggr_eur_l30d": ("activity", "ggr_eur", "sum", 30),
     "deposits_eur_l30d": ("payments", "deposit_eur", "sum", 30), "withdrawals_eur_l30d": ("payments", "withdraw_eur", "sum", 30),
 }
-MATCH_TOLERANCE = 0.02   # relative; plus 0.5 absolute (one day, one bet, half a euro)
-MIN_MATCH = 0.95         # share of players that must match for the column to be OK
+MATCH_TOLERANCE = 0.02   # relative, plus 0.5 absolute
+MIN_MATCH = 0.95         # share of players that must match
 
 
 def semantic_checks(brand_id: int, days: list[dt.date]) -> pd.DataFrame:
-    """Each signal column of SEMANTIC_CHECKS against the same quantity recomputed from the daily
-    caches, for the brand's players with a bet in the 30 days up to each day. One row per (day, column)."""
+    """Compare each signal column with its value recomputed from the daily caches."""
     import numpy as np
 
     import daily_cache
@@ -319,7 +308,7 @@ def semantic_checks(brand_id: int, days: list[dt.date]) -> pd.DataFrame:
                          "match_share": round(match, 4), "corr": round(float(g.corr(r)), 4) if g.std() and r.std() else None,
                          "table_sum": round(float(g.sum()), 2), "recomputed_sum": round(float(r.sum()), 2),
                          "status": "OK" if match >= MIN_MATCH else "MISMATCH"})
-    # tenure_days must grow by the calendar days between two snapshots for the same player.
+    # tenure_days must grow by the days between two snapshots.
     for prev, day in zip(days, days[1:]):
         a, b = snaps[snaps["snapshot_date"] == prev], snaps[snaps["snapshot_date"] == day]
         both = a.merge(b, on=["tenant_id", "player_id"], suffixes=("_a", "_b"))
@@ -335,9 +324,8 @@ def semantic_checks(brand_id: int, days: list[dt.date]) -> pd.DataFrame:
 
 
 def deposit_completeness(brand_id: int) -> pd.DataFrame:
-    """Completed deposits per month against the players with a bet that month (local caches only).
-    Agreement between source tables cannot show that deposits are missing everywhere; this can: a month
-    whose share of depositing players falls far below the brand's usual level is incomplete."""
+    """Share of active players with a deposit per month. A month far below the usual level is
+    incomplete."""
     import daily_cache
 
     act = daily_cache.read("activity", brand_id, columns="tenant_id, player_id, day")
@@ -350,7 +338,7 @@ def deposit_completeness(brand_id: int) -> pd.DataFrame:
     failed = pay.groupby("month")["failed_deposit_count"].sum().rename("failed_deposits")
     out = pd.concat([active, deposits, failed], axis=1).fillna(0)
     out["depositor_share"] = out["depositors"] / out["players_betting"]
-    usual = out["depositor_share"].quantile(0.75)  # the brand's usual level: robust to a run of empty months
+    usual = out["depositor_share"].quantile(0.75)  # robust to several empty months
     out["status"] = ["OK" if r >= 0.5 * usual else "INCOMPLETE" for r in out["depositor_share"]]
     return out.reset_index().assign(month=lambda d: d["month"].astype(str))
 
@@ -419,7 +407,7 @@ def main() -> None:
         keys = None
         if con is not None:
             def compute(d):
-                cursor = con.cursor()  # one DuckDB cursor per thread
+                cursor = con.cursor()  # one cursor per thread
                 try:
                     return key_stats(cursor, pfs, table, files[d], d, signal_files.get(d) if table in SPARSE else None)
                 finally:

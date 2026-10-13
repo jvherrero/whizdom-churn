@@ -1,16 +1,11 @@
-"""Probability calibration per brand, with a calibration over every brand as the fallback.
+"""Probability calibration per brand, fitted on the validation rows.
 
-Two methods, both fitted on the validation rows:
-    isotonic   a step function, monotone, no shape assumed (needs more rows)
-    platt      a logistic curve on the log-odds of the raw score (two numbers, smooth)
+    isotonic   monotone step function, needs more rows
+    platt      logistic curve on the log-odds of the raw score
 
-Brands have different churn rates, so one calibration for all of them would be wrong for each
-brand on its own. A brand gets its own calibration when it has at least MIN_ROWS validation rows
-with both classes; otherwise (and for a brand never seen in training) the one fitted on every
-brand is used.
-
-It lives in its own module (not in train.py) so the pickled object loads the same way from
-train.py, score.py and feature_importance.py.
+Each brand with at least MIN_ROWS rows of both classes gets its own calibration. Other brands use
+one calibration fitted on all brands. It is a separate module so the pickled object loads the same
+way everywhere.
 """
 
 from __future__ import annotations
@@ -25,7 +20,7 @@ METHODS = ("isotonic", "platt")
 
 
 class _Platt:
-    """Platt scaling: logistic regression on the log-odds of the raw probability."""
+    """Platt scaling: logistic regression on the log-odds of the raw score."""
 
     def __init__(self, bound: float):
         self.bound = bound
@@ -36,7 +31,7 @@ class _Platt:
         return np.log(p / (1 - p)).reshape(-1, 1)
 
     def fit(self, raw, y) -> "_Platt":
-        self.model_ = LogisticRegression(C=1e6).fit(self._logit(raw), y)  # (almost) no penalty
+        self.model_ = LogisticRegression(C=1e6).fit(self._logit(raw), y)  # almost no penalty
         return self
 
     def predict(self, raw) -> np.ndarray:
@@ -47,7 +42,7 @@ class BrandCalibrator:
     def __init__(self, bound: float, min_rows: int = MIN_ROWS, method: str = "isotonic"):
         if method not in METHODS:
             raise ValueError(f"calibration method {method!r} not in {METHODS}")
-        # Both methods are bounded to [bound, 1 - bound]: a sure 0 or 1 is never true for a player.
+        # Never return exactly 0 or 1.
         self.bound, self.min_rows, self.method = bound, min_rows, method
 
     def _new(self):
@@ -75,5 +70,5 @@ class BrandCalibrator:
         return out
 
     def describe(self) -> pd.DataFrame:
-        """Which brands have their own calibration."""
+        """Brands with their own calibration."""
         return pd.DataFrame({"brandId": sorted(self.per_brand_), "calibration": f"own {self.method}"})
