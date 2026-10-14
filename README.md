@@ -17,7 +17,7 @@ aws sso login --profile javier-whizdom-prod-ds
 
 ```bash
 make setup      # uv sync + pre-commit hooks
-make test       # unit tests: evaluation metrics, the feature leakage test, dq_lib
+make test       # unit tests; the two API tests that need a model are skipped until `make pipeline` and `make promote`
 ```
 
 ## 3. Running It
@@ -57,13 +57,25 @@ A critical data alert stops the run before any score is written. Feature drift o
 | `make feature-store` | Feast offline store and registry from each brand's latest training dataset (T6) |
 | `make alerts AS_OF=...` | Data alerts on their own (`configs/eda_alerts.yaml`) |
 | `make anomalies-daily`, `make anomalies-features` | EDA stage 2: outliers and anomalies |
+| `make promote [VERSION=n]` | Set the alias `Production` on a model version, the one the API serves (section 5) |
 | `make serve` | Start the churn API on port 8000 (section 5) |
 
 `BRAND=64` is the default; `BRAND=basel` means every brand.
 
 ## 5. Churn API
 
-A FastAPI service (`serving/`) that serves the scores of the registered model with the alias `Production`. Set the alias once in MLflow (Models tab, or `MlflowClient().set_registered_model_alias(...)`) before starting it.
+A FastAPI service (`serving/`) that serves the scores of one registered model version.
+
+**Which version it serves.** Every training run registers a new version of the model in MLflow (`churn_lightgbm_classifier_brand64`, versions 1, 2, 3...). The API serves the version with the alias `Production`. A fresh clone has no alias, so after the first `make pipeline` set it once:
+
+```bash
+make promote                  # Production -> the latest version of brand 64
+make promote VERSION=3        # or a chosen version
+```
+
+To serve a new model later, train it and run `make promote` again, then restart the API. No code changes.
+
+**Start it:**
 
 ```bash
 make serve                    # local, http://localhost:8000/docs

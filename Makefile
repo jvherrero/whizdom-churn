@@ -22,7 +22,7 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve clean-tmp docker-build docker-run
+        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote clean-tmp docker-build docker-run
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -154,6 +154,9 @@ mlflow-ui:
 
 serve:
 	$(PY) -m uvicorn serving.app:app --port 8000
+
+promote:
+	$(PY) serving/promote.py --brand-id $(BRAND) $(if $(VERSION),--version $(VERSION))
 
 
 clean-tmp:
