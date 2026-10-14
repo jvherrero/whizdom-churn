@@ -22,7 +22,7 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote clean-tmp docker-build docker-run
+        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile clean-tmp docker-build docker-run
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -53,6 +53,11 @@ help:
 	@echo "score               T11 player_scores of every active player: AS_OF=YYYY-MM-DD [BRAND=64] [MODEL_VERSION=n|alias] [NO_LEVEL=1]"
 	@echo "alerts              data alerts (configs/eda_alerts.yaml): AS_OF=YYYY-MM-DD [BRAND=64] [STAGE=source|features|all]"
 	@echo "mlflow-ui           open the MLflow UI on port $(MLFLOW_PORT)"
+	@echo "layers              inventory of the lake layers (bronze, silver, gold) -> docs/dq_reports/layer_inventory.md [ROWS=1] [LAYERS=\"org/30-silver\"]"
+	@echo "contracts-lake      contracts of the lake tables from the inventory -> configs/contracts/lake/"
+	@echo "gx-suites           Great Expectations suites from the lake contracts -> gx/expectations/ [TABLES=\"a b\"]"
+	@echo "validate-gx         validate tables day by day with GE: TABLES=\"a b\" START=YYYY-MM-DD END=YYYY-MM-DD -> docs/dq_reports/gx_summary.md"
+	@echo "reconcile           phase 2: repeated or lost records: START=YYYY-MM-DD END=YYYY-MM-DD [CHECKS=\"kafka same_keys totals\"] -> docs/dq_reports/reconciliation.md"
 	@echo "clean-tmp           delete DuckDB spill files (.tmp/)"
 	@echo "Default BRAND=$(BRAND)."
 
@@ -68,7 +73,7 @@ format:
 	uv run ruff check --fix .
 
 test:
-	$(PY) -m pytest src/evaluation/tests src/features/tests src/models/tests -q
+	$(PY) -m pytest src/evaluation/tests src/features/tests src/models/tests src/quality/tests -q
 	cd eda && ../$(PY) -m pytest dq_lib/tests -q
 	$(PY) -m pytest serving/tests -q
 features:
@@ -154,6 +159,21 @@ mlflow-ui:
 
 serve:
 	$(PY) -m uvicorn serving.app:app --port 8000
+
+layers:
+	$(PY) src/quality/layers.py $(if $(ROWS),--rows) $(if $(LAYERS),--layers $(LAYERS))
+
+contracts-lake:
+	$(PY) src/quality/inventory_to_contracts.py
+
+gx-suites:
+	$(PY) src/quality/suites.py $(if $(TABLES),--tables $(TABLES))
+
+validate-gx:
+	$(PY) src/quality/validate.py --tables $(TABLES) --start $(START) --end $(END)
+
+reconcile:
+	$(PY) src/quality/reconcile.py --start $(START) --end $(END) $(if $(CHECKS),--checks $(CHECKS))
 
 promote:
 	$(PY) serving/promote.py --brand-id $(BRAND) $(if $(VERSION),--version $(VERSION))

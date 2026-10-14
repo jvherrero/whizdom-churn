@@ -22,14 +22,16 @@ def _credentials():
     return boto3.Session(profile_name=AWS_PROFILE).get_credentials().get_frozen_credentials()
 
 
-def s3_filesystem() -> tuple[fs.FileSystem, str]:
-    """Return the filesystem and base path of the source tables."""
+def s3_filesystem(layer: str | None = None) -> tuple[fs.FileSystem, str]:
+    """Return the filesystem and base path of the source tables (gold), or of another layer of the
+    lake, e.g. "org/30-silver". With DATALAKE_ROOT, a layer is a subfolder of that root."""
     root = os.environ.get("DATALAKE_ROOT")
     if root:
-        return fs.LocalFileSystem(), str(Path(root).resolve())
+        base = Path(root).resolve()
+        return fs.LocalFileSystem(), str(base / layer if layer else base)
     c = _credentials()
     return (fs.S3FileSystem(access_key=c.access_key, secret_key=c.secret_key, session_token=c.token, region=REGION),
-            f"{BUCKET}/{S3_PREFIX}")
+            f"{BUCKET}/{layer or S3_PREFIX}")
 
 
 def s3_duckdb(threads: int | None = None) -> duckdb.DuckDBPyConnection:
