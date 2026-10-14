@@ -78,6 +78,13 @@ make docker-build docker-run  # same API in the whizdom-churn-serve image
 
 The player endpoint reads the daily batch, so the API and `player_scores` always give the same number. The Docker image does not contain data or models: `make docker-run` mounts `data/`, `mlflow.db` and `mlruns/`.
 
+**S3 access.** `/score/batch` reads S3 when a date is recent: the signal snapshot of a date is built again until 30 days of later activity are in the local cache. The container has no AWS credentials, so in Docker:
+
+- dates whose data is already cached (at least 30 days before the last cached day) work with no credentials;
+- recent dates fail with `ProfileNotFound`. To test them on your own machine, start an AWS SSO session (`aws sso login --profile javier-whizdom-prod-ds`) and add `-v $HOME/.aws:/root/.aws:ro` to `docker run`. Never copy credentials into the image; a deployed container would use its IAM role instead.
+
+`/health` and the player endpoint never read S3.
+
 ## 6. Repository Layout
 
 | Path | Content |
