@@ -11,7 +11,9 @@ dependencies = [
     "black>=26.5.1",
     "boto3==1.43.104",
     "duckdb==1.5.6",
+    "fastapi>=0.141.1",
     "feast>=0.66.0",
+    "httpx>=0.28.1",
     "lifelines>=0.30.3",
     "lightgbm>=4.7.0",
     "matplotlib>=3.11.2",
@@ -27,6 +29,7 @@ dependencies = [
     "ruff>=0.16.9",
     "scikit-learn>=1.9.1",
     "scipy>=1.18.1",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]

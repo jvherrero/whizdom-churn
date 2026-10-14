@@ -22,7 +22,7 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui clean-tmp
+        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve clean-tmp
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -70,7 +70,7 @@ format:
 test:
 	$(PY) -m pytest src/evaluation/tests src/features/tests src/models/tests -q
 	cd eda && ../$(PY) -m pytest dq_lib/tests -q
-
+	$(PY) -m pytest serving/tests -q
 features:
 	@test -n "$(AS_OF)" || (echo "usage: make features AS_OF=YYYY-MM-DD [BRAND=64|basel]"; exit 1)
 	$(PY) src/features/build_features.py --as-of $(AS_OF) --brand-id $(BRAND)
@@ -151,6 +151,10 @@ alerts:
 
 mlflow-ui:
 	$(PY) -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port $(MLFLOW_PORT)
+
+serve:
+	$(PY) -m uvicorn serving.app:app --port 8000
+
 
 clean-tmp:
 	rm -rf .tmp
