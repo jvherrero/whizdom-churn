@@ -22,7 +22,7 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve clean-tmp
+        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve clean-tmp docker-build docker-run
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -158,3 +158,13 @@ serve:
 
 clean-tmp:
 	rm -rf .tmp
+
+docker-build:
+	docker build -t whizdom-churn-serve .
+
+docker-run:
+	docker run --rm -p 8000:8000 \
+	  -v $(CURDIR)/data:/app/data \
+	  -v $(CURDIR)/mlflow.db:/app/mlflow.db \
+	  -v $(CURDIR)/mlruns:$(CURDIR)/mlruns \
+	  whizdom-churn-serve

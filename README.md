@@ -57,16 +57,35 @@ A critical data alert stops the run before any score is written. Feature drift o
 | `make feature-store` | Feast offline store and registry from each brand's latest training dataset (T6) |
 | `make alerts AS_OF=...` | Data alerts on their own (`configs/eda_alerts.yaml`) |
 | `make anomalies-daily`, `make anomalies-features` | EDA stage 2: outliers and anomalies |
+| `make serve` | Start the churn API on port 8000 (section 5) |
 
 `BRAND=64` is the default; `BRAND=basel` means every brand.
 
-## 5. Repository Layout
+## 5. Churn API
+
+A FastAPI service (`serving/`) that serves the scores of the registered model with the alias `Production`. Set the alias once in MLflow (Models tab, or `MlflowClient().set_registered_model_alias(...)`) before starting it.
+
+```bash
+make serve                    # local, http://localhost:8000/docs
+make docker-build docker-run  # same API in the whizdom-churn-serve image
+```
+
+| Endpoint | What it does |
+|---|---|
+| `GET /health` | 200 with the model version once the model is found, 503 if not |
+| `POST /score/batch` | Scores every active player of a brand on one date, like `make score`, and returns a summary. Body: `{"as_of": "2026-10-06", "brand_id": 64}` |
+| `GET /score/{brand_id}/{player_id}` | Latest scores of one player, read from the last batch run; 404 if the player is not active |
+
+The player endpoint reads the daily batch, so the API and `player_scores` always give the same number. The Docker image does not contain data or models: `make docker-run` mounts `data/`, `mlflow.db` and `mlruns/`.
+
+## 6. Repository Layout
 
 | Path | Content |
 |---|---|
 | `src/features/` | S3 access and daily caches, features (`build_features.py`), Feast feature store (`feature_store.py`, definitions in `feature_repo/`), labels, survival dataset, alerts, the pipeline (`run_pipeline.py`) |
 | `src/models/` | Training (`train.py`), feature selection, calibration, segments, importance, results, backtest, robustness, scoring |
 | `src/evaluation/` | Metrics and `evaluate --run-id` |
+| `serving/` | Churn API (FastAPI): endpoints (`app.py`), request and response models (`schemas.py`), data access (`features.py`), tests |
 | `eda/` | Source-table profiling, signal explorer, anomaly study, pandera suites (`expectations/`), notebooks |
 | `configs/` | Alert thresholds, backtest settings, winsorisation caps |
 | `catalog/` | Model catalog: every model's class, parameters and training settings |
@@ -76,7 +95,7 @@ A critical data alert stops the run before any score is written. Feature drift o
 
 Every training, dataset, alert and backtest run is logged to MLflow (`mlflow.db` + `mlruns/`, local).
 
-## 6. Types of Tasks
+## 7. Types of Tasks
 
 All the work in this project is divided into five types of tasks:
 

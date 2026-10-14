@@ -1,4 +1,7 @@
 # player_scores Schema v0
+
+The churn API (`GET /score/{brand_id}/{player_id}`, `serving/`) returns a subset of these columns for one player.
+
 `player_scores` holds one row per active player, brand and run date: the churn scores the business reads. Consumers read this table; they never call the model.
 
 ## 1. How It Is Written
