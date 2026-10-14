@@ -7,3 +7,4 @@
 alerts/
 
 # Figures (*.png) ARE versioned: the documents in docs/ link to them.
+signal_validation/brand*/
