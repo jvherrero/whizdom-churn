@@ -76,7 +76,7 @@ def proposed_grain(columns: list[str]) -> list[str]:
 
 
 def contract(item: dict, design: dict, index: dict, cfg: dict) -> tuple[str, str]:
-    name = item["table"].split("/")[-1]
+    name = item["table"]   # the path inside the layer, e.g. kafka-sink/primus/whizdomai-payments
     columns = [c for c, _ in item["schema"]]
     matched = design.get((item.get("contract") or {}).get("contract") or "")
     pii = re.compile(cfg["pii_columns"])
@@ -121,17 +121,21 @@ def contract(item: dict, design: dict, index: dict, cfg: dict) -> tuple[str, str
     return name, "\n".join(lines) + "\n"
 
 
-def run(out_dir: Path = OUT_DIR, inventory: Path = INVENTORY) -> list[str]:
+def run(out_dir: Path = OUT_DIR, inventory: Path | None = None) -> list[str]:
+    """Contracts from the main inventory and from the inventories of other layers
+    (layer_inventory_<layer>.json, e.g. 10-landing)."""
     cfg = yaml.safe_load(CONFIG_PATH.read_text())
     design = contracts.load("design")
     index = design_index(design)
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
-    for item in json.loads(inventory.read_text()):
+    inventories = [inventory] if inventory else sorted(INVENTORY.parent.glob("layer_inventory*.json"))
+    items = [item for path in inventories for item in json.loads(path.read_text())]
+    for item in items:
         if not item.get("schema"):
             continue
         name, text = contract(item, design, index, cfg)
-        (out_dir / f"{name}.yaml").write_text(text)
+        (out_dir / f"{name.replace('/', '__')}.yaml").write_text(text)
         written.append(name)
     print(f"{len(written)} contracts saved in {out_dir}")
     return written

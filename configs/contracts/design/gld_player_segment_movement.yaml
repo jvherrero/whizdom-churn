@@ -1,0 +1,18 @@
+# gld_player_segment_movement: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_segment_movement
+grain: [tenant_id, brand_id, event_date, player_id, segment_kind]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: event_date, type: Date, key: true, group: key}
+  - {name: player_id, type: Int32, key: true, group: key}
+  - {name: segment_kind, type: LowCardinality(String), key: true, group: key}
+  - {name: from_band, type: LowCardinality(Nullable(String)), group: transition}
+  - {name: to_band, type: LowCardinality(String), group: transition}
+  - {name: changed_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: transition}
+  - {name: _version, type: UInt64, group: meta}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta}

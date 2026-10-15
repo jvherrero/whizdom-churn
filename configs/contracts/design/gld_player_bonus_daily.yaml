@@ -1,0 +1,37 @@
+# gld_player_bonus_daily: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_bonus_daily
+grain: [tenant_id, brand_id, player_id, event_date, award_type, currency]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: exists}
+  - {name: player_id, type: Int32, key: true, group: key, status: exists}
+  - {name: event_date, type: Date, key: true, group: key, status: exists}
+  - {name: award_type, type: LowCardinality(Nullable(String)), key: true, group: key, status: exists}
+  - {name: currency, type: LowCardinality(Nullable(String)), key: true, group: key, status: exists}
+  - {name: bonuses_granted, type: UInt32, group: bonus count, unit: bonuses, additive: true, status: exists}
+  - {name: bonuses_released, type: UInt32, group: bonus count, unit: bonuses, additive: true, status: exists}
+  - {name: bonuses_expired, type: UInt32, group: bonus count, unit: bonuses, additive: true, status: exists}
+  - {name: bonuses_forfeited, type: Nullable(UInt32), group: bonus count, unit: bonuses, additive: true, status: exists}
+  - {name: bonus_granted, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_granted_eur, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_released, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_released_eur, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_expired, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_expired_eur, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_forfeited, type: 'Nullable(Decimal(18, 4))', group: bonus flow, status: exists}
+  - {name: bonus_forfeited_eur, type: 'Nullable(Decimal(18, 4))', group: bonus flow, status: exists}
+  - {name: bonus_wagered_toward_req, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: bonus_wagered_toward_req_eur, type: 'Decimal(18, 4)', group: bonus flow, unit: currency, additive: true, status: exists}
+  - {name: wager_requirement, type: 'Decimal(38, 4)', group: bonus flow, unit: currency, additive: false, status: new}
+  - {name: wager_requirement_eur, type: 'Decimal(38, 4)', group: bonus flow, unit: currency, additive: false, status: new}
+  - {name: dq_status, type: LowCardinality(String), group: quality, status: exists}
+  - {name: fx_rate_to_eur, type: 'Decimal(18, 8)', group: fx, status: exists}
+  - {name: fx_rate_date_used, type: Date, group: fx, status: exists}
+  - {name: fx_is_provisional, type: Bool, group: fx, status: exists}
+  - {name: fx_rate_is_historic, type: Bool, group: fx, status: new}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

@@ -1,0 +1,37 @@
+# gld_game: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_game
+grain: [tenant_id, brand_id, game_id, platform_id]
+partition_by: null
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: game_id, type: String, key: true, group: key, status: exists}
+  - {name: platform_id, type: Int64, key: true, group: key, status: exists}
+  - {name: provider_code, type: LowCardinality(String), group: attribute, status: new}
+  - {name: name, type: String, group: catalogue, status: exists}
+  - {name: provider, type: LowCardinality(String), group: catalogue, status: exists}
+  - {name: vertical, type: LowCardinality(String), group: catalogue, status: exists}
+  - {name: game_type, type: LowCardinality(String), group: catalogue, status: exists}
+  - {name: theme, type: LowCardinality(String), group: catalogue, status: exists}
+  - {name: rtp_theoretical, type: Float32, group: catalogue, status: exists}
+  - {name: volatility_class, type: LowCardinality(String), group: catalogue, status: exists}
+  - {name: status, type: LowCardinality(String), group: lifecycle, status: exists}
+  - {name: is_active, type: UInt8, group: lifecycle, status: exists}
+  - {name: first_seen, type: 'DateTime64(3, ''UTC'')', group: lifecycle, status: exists}
+  - {name: last_seen, type: 'DateTime64(3, ''UTC'')', group: lifecycle, status: exists}
+  - {name: lifetime_wagered_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: exists}
+  - {name: lifetime_ggr_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: exists}
+  - {name: lifetime_real_ggr_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: exists}
+  - {name: lifetime_bonus_ggr_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: exists}
+  - {name: lifetime_tax_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: exists}
+  - {name: lifetime_cashout_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: exists}
+  - {name: lifetime_rounds, type: UInt64, group: lifetime cache, unit: rounds, additive: true, status: exists}
+  - {name: lifetime_bets, type: UInt64, group: lifetime cache, unit: bets, additive: true, status: new}
+  - {name: best_win_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: false, status: new}
+  - {name: unique_players_lifetime, type: UInt64, group: lifetime cache, unit: players, additive: false, status: exists}
+  - {name: metric_version, type: UInt32, group: meta, status: new}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

@@ -1,0 +1,55 @@
+{
+ "name": "transactions",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "kafka_topic",
+     "kafka_partition",
+     "kafka_offset"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "kafka_topic"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "kafka_partition"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "kafka_offset"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/transactions.yaml",
+  "batch_day_column": null,
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

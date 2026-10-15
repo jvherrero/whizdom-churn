@@ -1,0 +1,19 @@
+# gld_brand_segments_movements: table in org/40-gold/gld_brand_segments_movements, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: gld_player_segment_movement. See configs/contracts/README.md.
+table: gld_brand_segments_movements
+layer: org/40-gold
+grain: [tenant_id, event_date, band_kind, from_band, to_band]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: band_kind, type: string, key: true, nullable: false}
+  - {name: from_band, type: string, key: true, group: transition, nullable: false}
+  - {name: to_band, type: string, key: true, group: transition, nullable: false}
+  - {name: player_count, type: uint32, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

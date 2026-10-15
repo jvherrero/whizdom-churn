@@ -1,0 +1,69 @@
+# gld_player_gaming_daily: table in org/40-gold/gld_player_gaming_daily, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: gld_player_gaming_daily. See configs/contracts/README.md.
+table: gld_player_gaming_daily
+layer: org/40-gold
+grain: [tenant_id, brand_id, player_id, provider_code, game_id, event_date, currency]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, group: key, nullable: false}
+  - {name: game_id, type: string, key: true, group: key, nullable: false}
+  - {name: provider_code, type: int32, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: currency, type: string, key: true, group: key, nullable: false}
+  - {name: source_system, type: string, nullable: true}
+  - {name: rounds, type: uint32, group: count, unit: rounds, additive: true, nullable: true}
+  - {name: bets, type: uint32, group: count, unit: bets, additive: true, nullable: true}
+  - {name: wins, type: uint32, group: count, unit: payouts, additive: true, nullable: true}
+  - {name: winning_rounds, type: uint32, group: count, unit: rounds, additive: true, nullable: true}
+  - {name: bet_count_real, type: uint32, group: count, unit: bets, additive: true, nullable: true}
+  - {name: bet_count_released_bonus, type: uint32, group: count, unit: bets, additive: true, nullable: true}
+  - {name: bet_count_playable_bonus, type: uint32, group: count, unit: bets, additive: true, nullable: true}
+  - {name: big_win_rounds, type: uint32, group: count, unit: rounds, additive: true, nullable: true}
+  - {name: wagered_real, type: 'decimal128(18, 4)', group: money/BET, unit: currency, additive: true, nullable: true}
+  - {name: wagered_released_bonus, type: 'decimal128(18, 4)', group: money/BET, unit: currency, additive: true, nullable: true}
+  - {name: wagered_playable_bonus, type: 'decimal128(18, 4)', group: money/BET, unit: currency, additive: true, nullable: true}
+  - {name: won_real, type: 'decimal128(18, 4)', group: money/WIN, unit: currency, additive: true, nullable: true}
+  - {name: won_released_bonus, type: 'decimal128(18, 4)', group: money/WIN, unit: currency, additive: true, nullable: true}
+  - {name: won_playable_bonus, type: 'decimal128(18, 4)', group: money/WIN, unit: currency, additive: true, nullable: true}
+  - {name: tax_real, type: 'decimal128(18, 4)', group: money/TAX, unit: currency, additive: true, nullable: true}
+  - {name: tax_released_bonus, type: 'decimal128(18, 4)', group: money/TAX, unit: currency, additive: true, nullable: true}
+  - {name: tax_playable_bonus, type: 'decimal128(18, 4)', group: money/TAX, unit: currency, additive: true, nullable: true}
+  - {name: max_win, type: 'decimal128(18, 4)', group: extrema, unit: currency, additive: false, nullable: true}
+  - {name: play_secs, type: 'decimal128(14, 3)', group: engagement, unit: seconds, additive: true, range: [0.0, 86400.0], nullable: true}
+  - {name: event_count, type: uint64, group: count, unit: records, additive: true, nullable: true}
+  - {name: first_played_at, type: 'timestamp[ms, tz=UTC]', group: engagement, nullable: true}
+  - {name: last_played_at, type: 'timestamp[ms, tz=UTC]', group: engagement, nullable: true}
+  - {name: loyalty_points_delta, type: int64, group: engagement, unit: points, additive: true, nullable: true}
+  - {name: fx_rate_to_eur, type: 'decimal128(18, 8)', group: fx, nullable: true}
+  - {name: fx_rate_date_used, type: 'date32[day]', group: fx, nullable: true}
+  - {name: fx_is_provisional, type: bool, group: fx, nullable: true}
+  - {name: wagered_real_eur, type: 'decimal128(18, 4)', group: money/BET, unit: currency, additive: true, nullable: true}
+  - {name: wagered_released_bonus_eur, type: 'decimal128(18, 4)', group: money/BET, unit: currency, additive: true, nullable: true}
+  - {name: wagered_playable_bonus_eur, type: 'decimal128(18, 4)', group: money/BET, unit: currency, additive: true, nullable: true}
+  - {name: won_real_eur, type: 'decimal128(18, 4)', group: money/WIN, unit: currency, additive: true, nullable: true}
+  - {name: won_released_bonus_eur, type: 'decimal128(18, 4)', group: money/WIN, unit: currency, additive: true, nullable: true}
+  - {name: won_playable_bonus_eur, type: 'decimal128(18, 4)', group: money/WIN, unit: currency, additive: true, nullable: true}
+  - {name: tax_real_eur, type: 'decimal128(18, 4)', group: money/TAX, unit: currency, additive: true, nullable: true}
+  - {name: tax_released_bonus_eur, type: 'decimal128(18, 4)', group: money/TAX, unit: currency, additive: true, nullable: true}
+  - {name: tax_playable_bonus_eur, type: 'decimal128(18, 4)', group: money/TAX, unit: currency, additive: true, nullable: true}
+  - {name: turnover_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: payout_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: bonus_ggr_eur, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: tax_eur, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: max_win_eur, type: 'decimal128(18, 4)', group: extrema, unit: currency, additive: false, nullable: true}
+  - {name: rtp_actual, type: float, nullable: true}
+  - {name: hold_pct, type: float, nullable: true}
+  - {name: avg_bet_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: win_rate, type: float, nullable: true}
+  - {name: net_position_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: dq_status, type: string, group: quality, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

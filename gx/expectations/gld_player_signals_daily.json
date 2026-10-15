@@ -1,0 +1,590 @@
+{
+ "name": "gld_player_signals_daily",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "tenant_id",
+     "player_id",
+     "snapshot_date"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "tenant_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "player_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "snapshot_date"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "confidence_score",
+    "min_value": 0.0,
+    "max_value": 1.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_eur_l7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_eur_l90d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_eur_l180d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_eur_l7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_eur_l90d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_eur_l180d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_l7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_l90d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_l180d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdrawals_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdrawals_eur_l7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdrawals_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdrawals_eur_l90d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdrawals_eur_l180d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_real_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_real_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_bonus_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_bonus_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "bonus_granted_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "bonus_wagered_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_wagered_eur_l7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_wagered_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_deposits_eur_l7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_deposits_eur_l30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "play_secs_today",
+    "min_value": 0.0,
+    "max_value": 86400.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "play_secs_l7d",
+    "min_value": 0.0,
+    "max_value": 604800.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "play_secs_l30d",
+    "min_value": 0.0,
+    "max_value": 2592000.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "play_secs_l90d",
+    "min_value": 0.0,
+    "max_value": 7776000.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "play_secs_l180d",
+    "min_value": 0.0,
+    "max_value": 15552000.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "engagement_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "tp_avg_sessions_per_active_day",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "betting_aggression_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "risk_appetite_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposit_frequency_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposit_recency_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "session_intensity_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "risk_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "value_decline",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "churn_score",
+    "min_value": 0.0,
+    "max_value": 100.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_in_set",
+   "kwargs": {
+    "column": "_batch_day",
+    "value_set": {
+     "$PARAMETER": "batch_days"
+    }
+   },
+   "meta": {
+    "rule": "batch_day",
+    "column": "snapshot_date"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/gld_player_signals_daily.yaml",
+  "batch_day_column": "snapshot_date",
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

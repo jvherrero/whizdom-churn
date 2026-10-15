@@ -8,3 +8,7 @@ alerts/
 
 # Figures (*.png) ARE versioned: the documents in docs/ link to them.
 signal_validation/brand*/
+
+# Great Expectations Data Docs (src/quality/validate.py): they show example values that fail a
+# check, which can be player ids. The versioned summary is docs/dq_reports/gx_summary.md.
+gx_docs/

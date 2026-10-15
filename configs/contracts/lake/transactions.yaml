@@ -1,0 +1,48 @@
+# transactions: table in org/20-bronze/transactions, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: none. See configs/contracts/README.md.
+table: transactions
+layer: org/20-bronze
+grain: [kafka_topic, kafka_partition, kafka_offset]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: uuid, type: string, nullable: true}
+  - {name: transaction_id, type: int64, nullable: true}
+  - {name: platform_id, type: int64, group: key, nullable: true}
+  - {name: account_id, type: int32, nullable: true}
+  - {name: party_id, type: int32, nullable: true}
+  - {name: firstname, type: string, nullable: true, pii: true}
+  - {name: lastname, type: string, nullable: true, pii: true}
+  - {name: address, type: string, nullable: true, pii: true}
+  - {name: email, type: string, nullable: true, pii: true}
+  - {name: nickname, type: string, nullable: true, pii: true}
+  - {name: ip, type: string, nullable: true, pii: true}
+  - {name: mobile, type: bool, nullable: true}
+  - {name: os, type: string, nullable: true}
+  - {name: ua, type: string, nullable: true, pii: true}
+  - {name: device, type: string, nullable: true}
+  - {name: brand_id, type: int32, group: key, nullable: true}
+  - {name: date_time, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: tran_type, type: string, nullable: true}
+  - {name: currency, type: string, nullable: true}
+  - {name: amount_real, type: 'decimal128(38, 18)', nullable: true}
+  - {name: amount_released_bonus, type: 'decimal128(38, 18)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: amount_playable_bonus, type: 'decimal128(38, 18)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: amount_raw_loyalty, type: int64, nullable: true}
+  - {name: balance_raw_loyalty, type: int64, nullable: true}
+  - {name: balance_real, type: 'decimal128(38, 18)', group: balance, unit: currency, additive: false, nullable: true}
+  - {name: balance_released_bonus, type: 'decimal128(38, 18)', group: balance, unit: currency, additive: false, nullable: true}
+  - {name: balance_playable_bonus, type: 'decimal128(38, 18)', group: balance, unit: currency, additive: false, nullable: true}
+  - {name: platform_tran_id, type: string, nullable: true}
+  - {name: game_tran_id, type: string, nullable: true}
+  - {name: game_id, type: string, group: key, nullable: true}
+  - {name: rollback_tran_id, type: int64, nullable: true}
+  - {name: rolled_back, type: bool, nullable: true}
+  - {name: source_system, type: string, nullable: true}
+  - {name: kafka_topic, type: string, key: true, group: meta, nullable: false}
+  - {name: kafka_partition, type: int64, key: true, group: meta, nullable: false}
+  - {name: kafka_offset, type: int64, key: true, group: meta, nullable: false}
+  - {name: kafka_timestamp, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

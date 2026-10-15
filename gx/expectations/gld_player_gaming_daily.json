@@ -1,0 +1,279 @@
+{
+ "name": "gld_player_gaming_daily",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "tenant_id",
+     "brand_id",
+     "player_id",
+     "provider_code",
+     "game_id",
+     "event_date",
+     "currency"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "tenant_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "brand_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "player_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "game_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "provider_code"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "event_date"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "currency"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_real",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_released_bonus",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_playable_bonus",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_real",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_released_bonus",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_playable_bonus",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "play_secs",
+    "min_value": 0.0,
+    "max_value": 86400.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_real_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_released_bonus_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "wagered_playable_bonus_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_real_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_released_bonus_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "won_playable_bonus_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "turnover_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "payout_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_in_set",
+   "kwargs": {
+    "column": "_batch_day",
+    "value_set": {
+     "$PARAMETER": "batch_days"
+    }
+   },
+   "meta": {
+    "rule": "batch_day",
+    "column": "event_date"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/gld_player_gaming_daily.yaml",
+  "batch_day_column": "event_date",
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

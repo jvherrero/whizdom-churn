@@ -1,0 +1,35 @@
+# gld_player_payment_daily: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_payment_daily
+grain: [tenant_id, brand_id, player_id, event_date, currency, transaction_method]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: exists}
+  - {name: player_id, type: Int32, key: true, group: key, status: exists}
+  - {name: event_date, type: Date, key: true, group: key, status: exists}
+  - {name: currency, type: LowCardinality(Nullable(String)), key: true, group: key, status: new}
+  - {name: transaction_method, type: LowCardinality(String), key: true, group: key, status: new}
+  - {name: deposit_count, type: UInt32, group: cash count, unit: payments, additive: true, status: exists}
+  - {name: withdraw_count, type: UInt32, group: cash count, unit: payments, additive: true, status: exists}
+  - {name: deposit_attempts, type: UInt32, group: cash count, unit: payments, additive: true, status: exists}
+  - {name: withdraw_attempts, type: UInt32, group: cash count, unit: payments, additive: true, status: exists}
+  - {name: failed_deposit_count, type: UInt32, group: cash count, unit: payments, additive: true, status: exists}
+  - {name: failed_withdraw_count, type: UInt32, group: cash count, unit: payments, additive: true, status: exists}
+  - {name: deposit_amount, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: deposit_amount_eur, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: withdraw_amount, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: withdraw_amount_eur, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: requested_withdraw_amount, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: requested_withdraw_amount_eur, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: withdraw_settlement_secs_total, type: UInt64, group: settlement, unit: seconds, additive: true, status: new}
+  - {name: withdraw_settled_count, type: UInt32, group: settlement, unit: payments, additive: true, status: new}
+  - {name: fx_rates_state, type: 'AggregateFunction(uniq, Decimal(18, 8))', group: fx, status: new}
+  - {name: dq_status, type: LowCardinality(String), group: quality, status: exists}
+  - {name: fx_rate_to_eur, type: 'Decimal(18, 8)', group: fx, status: exists}
+  - {name: fx_rate_date_used, type: Date, group: fx, status: exists}
+  - {name: fx_is_provisional, type: Bool, group: fx, status: exists}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

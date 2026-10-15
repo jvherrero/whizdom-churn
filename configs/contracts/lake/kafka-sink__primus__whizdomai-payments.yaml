@@ -1,0 +1,24 @@
+# kafka-sink/primus/whizdomai-payments: table in org/10-landing/kafka-sink/primus/whizdomai-payments, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml. Not checked on the data yet.
+# Design contract: none. See configs/contracts/README.md.
+table: kafka-sink/primus/whizdomai-payments
+layer: org/10-landing
+grain: [paymentId, status]
+grain_checked: false
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: paymentId, type: int32, key: true, nullable: false}
+  - {name: partyId, type: int32, nullable: true}
+  - {name: userId, type: string, nullable: true, pii: true}
+  - {name: brandId, type: int32, nullable: true}
+  - {name: transactionType, type: string, nullable: true}
+  - {name: transactionMethod, type: string, nullable: true}
+  - {name: accountNumber, type: int32, nullable: true, pii: true}
+  - {name: requestedAmount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: processedAmount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: fee, type: 'decimal128(38, 18)', nullable: true}
+  - {name: status, type: string, key: true, nullable: false}
+  - {name: requestDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: processDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: currency, type: string, nullable: true}

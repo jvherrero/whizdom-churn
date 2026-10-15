@@ -65,6 +65,13 @@ def test_inventory(lake):
     assert pd.isna(results["gld_player"].get("first_day"))   # no date in the path: an SCD table
 
 
+def test_other_layers_keep_the_main_inventory(lake):
+    layers.run(["org/20-bronze", "org/30-silver", "org/40-gold"], rows=False, workers=2)
+    layers.run(["org/40-gold"], rows=False, workers=2)
+    assert (lake / "out/layer_inventory.json").exists() and (lake / "out/layer_inventory_40-gold.json").exists()
+    assert "kafka-sink/payments" in (lake / "out/layer_inventory.json").read_text()
+
+
 def test_rerun_reads_only_new_files(lake, monkeypatch):
     layers.run(["org/40-gold"], rows=True, workers=2)
     calls = []
@@ -123,3 +130,15 @@ def test_lake_contracts(tmp_path):
     new = tables["gld_new_table"]
     assert new.grain == ["tenant_id", "player_id", "snapshot_date"] and not new.grain_checked   # proposal
     assert new.column("email").pii
+
+
+def test_sink_offsets():
+    """Partition 0: files at offsets 0 (10 rows), 10 (10 rows) and 25: offsets 20 to 24 are missing.
+    Partition 1: files at 0 (10 rows) and 5: offsets 5 to 9 are written twice."""
+    names = ["t+0+0.parquet", "t+0+10.parquet", "t+0+25.parquet", "t+1+0.parquet", "t+1+5.parquet"]
+    files = pd.DataFrame({"relative": [f"2026/01/0{i + 1}/{n}" for i, n in enumerate(names)],
+                          "n_rows": [10, 10, 10, 10, 10], "day": [dt.date(2026, 1, i + 1) for i in range(5)]})
+    o = layers.sink_offsets(files)
+    assert (o["gaps"], o["offsets_missing"], o["overlaps"], o["offsets_twice"]) == (1, 5, 1, 5)
+    assert o["days"] == ["2026-01-03", "2026-01-05"]
+    assert layers.sink_offsets(files.assign(relative="2026/01/01/data.parquet")) is None   # not a sink table

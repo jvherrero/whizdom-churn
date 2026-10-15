@@ -1,0 +1,51 @@
+# gld_player_signal: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_signal
+grain: [tenant_id, brand_id, event_date, player_id]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: event_date, type: Date, key: true, group: key}
+  - {name: player_id, type: Int32, key: true, group: key}
+  - {name: active_streak_days, type: Nullable(UInt16), group: lifecycle, unit: days, additive: false}
+  - {name: engagement_score, type: Nullable(Float32), group: engagement, unit: 0-1, range: [0.0, 100.0], additive: false}  # rule clamps to 0..100 but the unit is 0-1: check on prod
+  - {name: value_score_eur, type: 'Nullable(Decimal(18, 4))', group: value, unit: currency, additive: false}
+  - {name: momentum_score, type: Nullable(Float32), group: trend, unit: ratio, additive: false}
+  - {name: acceleration_score, type: Nullable(Float32), group: trend, unit: ratio, additive: false}
+  - {name: volatility_score, type: Nullable(Float32), group: trend, unit: ratio, additive: false}
+  - {name: rg_risk_score, type: Nullable(Float32), group: risk, unit: 0-1, range: [0.0, 100.0], additive: false}  # rule clamps to 0..100 but the unit is 0-1: check on prod
+  - {name: risk_appetite_score, type: Nullable(Float32), group: risk, unit: 0-1, range: [0.0, 100.0], additive: false}  # rule clamps to 0..100 but the unit is 0-1: check on prod
+  - {name: betting_aggression_score, type: Nullable(Float32), group: risk, unit: 0-1, range: [0.0, 100.0], additive: false}  # rule clamps to 0..100 but the unit is 0-1: check on prod
+  - {name: bet_z_score, type: Nullable(Float32), group: risk, unit: std dev, additive: false}
+  - {name: session_len_z, type: Nullable(Float32), group: risk, unit: std dev, additive: false}
+  - {name: stake_escalation, type: Nullable(Float32), group: risk, unit: ratio, additive: false}
+  - {name: rg_loss_chasing, type: Nullable(Float32), group: responsible gaming, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: deposit_velocity, type: Nullable(Float32), group: responsible gaming, unit: ratio, additive: false}
+  - {name: net_loss_velocity, type: Nullable(Float32), group: responsible gaming, unit: ratio, additive: false}
+  - {name: session_intensity_score, type: Nullable(Float32), group: responsible gaming, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: churn_score, type: Nullable(Float32), group: churn, unit: 0-1, range: [0.0, 100.0], additive: false}  # rule clamps to 0..100 but the unit is 0-1: check on prod
+  - {name: churn_propensity_raw, type: Nullable(Float32), group: churn, unit: model units, additive: false}
+  - {name: recency_score, type: Nullable(Float32), group: churn, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: frequency_score, type: Nullable(Float32), group: churn, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: monetary_score, type: Nullable(Float32), group: churn, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: typical_bet_gap_days, type: Nullable(Float32), group: churn, unit: days, additive: false, status: new}
+  - {name: deposit_frequency_score, type: Nullable(Float32), group: deposit behaviour, unit: 0-1, range: [0.0, 100.0], additive: false}  # rule clamps to 0..100 but the unit is 0-1: check on prod
+  - {name: deposit_recency_score, type: Nullable(Float32), group: deposit behaviour, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: deposit_monetary_score, type: Nullable(Float32), group: deposit behaviour, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: typical_deposit_gap_days, type: Nullable(Float32), group: deposit behaviour, unit: days, additive: false, status: new}
+  - {name: was_on_tilt, type: Nullable(UInt8), group: behaviour persistence, unit: true/false, additive: false, status: new}
+  - {name: tilt_events, type: Nullable(UInt16), group: behaviour persistence, unit: episodes, additive: true, status: new}
+  - {name: max_loss_streak, type: Nullable(UInt16), group: behaviour persistence, unit: rounds, additive: false, status: new}
+  - {name: max_win_streak, type: Nullable(UInt16), group: behaviour persistence, unit: rounds, additive: false, status: new}
+  - {name: peak_bet_rate_per_min, type: Nullable(Float32), group: behaviour persistence, unit: stakes/minute, additive: false, status: new}
+  - {name: extended_sessions, type: Nullable(UInt16), group: behaviour persistence, unit: sessions, additive: true, status: new}
+  - {name: unusual_bet_size_events, type: Nullable(UInt16), group: behaviour persistence, unit: stakes, additive: true, status: new}
+  - {name: has_sufficient_data, type: UInt8, group: computation meta, unit: true/false, additive: false}
+  - {name: confidence_score, type: Nullable(Float32), group: computation meta, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: gap_days, type: Nullable(UInt16), group: computation meta, unit: days, additive: false}
+  - {name: param_version, type: UInt32, group: computation meta}
+  - {name: _version, type: UInt64, group: meta}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta}

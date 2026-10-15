@@ -1,0 +1,85 @@
+# gld_player: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player
+grain: [tenant_id, brand_id, player_id]
+partition_by: null
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key}
+  - {name: brand_id, type: Int32, key: true, group: key}
+  - {name: player_id, type: Int32, key: true, group: key}
+  - {name: currency, type: LowCardinality(Nullable(String)), group: identity}
+  - {name: country, type: LowCardinality(Nullable(String)), group: identity}
+  - {name: language, type: LowCardinality(Nullable(String)), group: identity}
+  - {name: registered_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: first_bet_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: last_bet_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: first_deposit_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: last_deposit_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: first_withdrawal_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: last_withdrawal_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: first_bonus_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: last_bonus_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: first_activity_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: last_activity_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: last_locked_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: kyc_verified_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: self_excluded_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: self_exclusion_ends_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: milestone}
+  - {name: lifetime_wagered_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_ggr_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_ngr_eur, type: 'Nullable(Decimal(18, 4))', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_deposit_amount_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_withdraw_amount_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_bonus_ggr_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_tax_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_cashout_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true}
+  - {name: lifetime_rounds, type: UInt64, group: lifetime cache, unit: rounds, additive: true}
+  - {name: lifetime_active_days, type: UInt32, group: lifetime cache, unit: days, additive: true}
+  - {name: lifetime_sessions, type: UInt32, group: lifetime cache, unit: sessions, additive: true}
+  - {name: lifetime_bets, type: UInt64, group: lifetime cache, unit: bets, additive: true}
+  - {name: lifetime_won_eur, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: new}
+  - {name: lifetime_won_local, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: new}
+  - {name: lifetime_wins, type: UInt64, group: lifetime cache, unit: payouts, additive: true, status: new}
+  - {name: lifetime_winning_rounds, type: UInt64, group: lifetime cache, unit: rounds, additive: true, status: new}
+  - {name: best_win_eur, type: 'Nullable(Decimal(18, 4))', group: lifetime cache, unit: currency, additive: false}
+  - {name: best_net_day_eur, type: 'Nullable(Decimal(18, 4))', group: lifetime cache, unit: currency, additive: true}
+  - {name: max_loss_streak, type: Nullable(UInt16), group: lifetime cache, unit: rounds, additive: false}
+  - {name: lifetime_deposit_count, type: UInt32, group: lifetime cache, unit: payments, additive: true}
+  - {name: lifetime_withdraw_count, type: UInt32, group: lifetime cache, unit: payments, additive: true}
+  - {name: lifetime_deposit_amount_local, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: in_silver}
+  - {name: lifetime_withdraw_amount_local, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: in_silver}
+  - {name: lifetime_wagered_local, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: in_silver}
+  - {name: lifetime_ggr_local, type: 'Decimal(18, 4)', group: lifetime cache, unit: currency, additive: true, status: in_silver}
+  - {name: lifetime_max_value_score_eur, type: 'Nullable(Decimal(18, 4))', group: lifetime cache, unit: currency, additive: false, status: new}
+  - {name: lifetime_max_rg_risk_score, type: Nullable(Float32), group: lifetime cache, unit: 0-1, range: [0.0, 1.0], additive: false, status: new}
+  - {name: lifetime_max_engagement_score, type: Nullable(Float32), group: lifetime cache, unit: 0-1, range: [0.0, 1.0], additive: false, status: new}
+  - {name: lifetime_max_value_tier, type: LowCardinality(Nullable(String)), group: lifetime cache, status: new}
+  - {name: acquisition_channel_group, type: LowCardinality(Nullable(String)), group: acquisition, status: needs_pipeline}
+  - {name: acquisition_source, type: LowCardinality(Nullable(String)), group: acquisition, status: needs_pipeline}
+  - {name: acquisition_medium, type: LowCardinality(Nullable(String)), group: acquisition, status: needs_pipeline}
+  - {name: acquisition_campaign, type: Nullable(String), group: acquisition, status: needs_pipeline}
+  - {name: acquisition_campaign_id, type: Nullable(String), group: acquisition, status: needs_pipeline}
+  - {name: acquisition_referrer_host, type: Nullable(String), group: acquisition, status: needs_pipeline}
+  - {name: acquisition_first_touch_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: acquisition, status: needs_pipeline}
+  - {name: acquisition_btag, type: Nullable(String), group: acquisition, status: in_silver}
+  - {name: tracking_codes, type: 'Array(Tuple(code String, value String))', group: acquisition, status: in_silver}
+  - {name: registration_device_category, type: LowCardinality(Nullable(String)), group: acquisition, status: needs_pipeline}
+  - {name: is_active, type: UInt8, group: status}
+  - {name: locked_status, type: LowCardinality(String), group: status}
+  - {name: kyc_status, type: LowCardinality(String), group: status}
+  - {name: vip_status, type: LowCardinality(Nullable(String)), group: vip programme, status: needs_source}
+  - {name: vip_status_updated_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: vip programme, status: needs_source}
+  - {name: vip_manager, type: LowCardinality(Nullable(String)), group: vip programme, status: needs_source}
+  - {name: balance_real, type: 'Nullable(Decimal(18, 4))', group: balance, unit: currency, additive: false, status: in_silver}
+  - {name: balance_released_bonus, type: 'Nullable(Decimal(18, 4))', group: balance, unit: currency, additive: false, status: in_silver}
+  - {name: balance_playable_bonus, type: 'Nullable(Decimal(18, 4))', group: balance, unit: currency, additive: false, status: in_silver}
+  - {name: loyalty_points_balance, type: Nullable(Int64), group: balance, unit: points, additive: false, status: in_silver}
+  - {name: balance_as_of, type: 'Nullable(DateTime64(3, ''UTC''))', group: balance, status: in_silver}
+  - {name: preferred_device_category, type: LowCardinality(Nullable(String)), group: device cache, status: needs_pipeline}
+  - {name: preferred_os, type: LowCardinality(Nullable(String)), group: device cache, status: needs_pipeline}
+  - {name: preferred_browser, type: LowCardinality(Nullable(String)), group: device cache, status: needs_pipeline}
+  - {name: metric_version, type: UInt32, group: meta}
+  - {name: _version, type: UInt64, group: meta}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta}

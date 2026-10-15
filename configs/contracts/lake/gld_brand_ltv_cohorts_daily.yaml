@@ -1,0 +1,23 @@
+# gld_brand_ltv_cohorts_daily: table in org/40-gold/gld_brand_ltv_cohorts_daily, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_brand_ltv_cohorts_daily
+layer: org/40-gold
+grain: [tenant_id, acquisition_month, tenure_months, currency]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: acquisition_month, type: 'date32[day]', key: true, nullable: false}
+  - {name: tenure_months, type: uint16, key: true, nullable: false}
+  - {name: currency, type: string, key: true, nullable: false}
+  - {name: cohort_size, type: uint32, nullable: true}
+  - {name: players_matured, type: uint32, nullable: true}
+  - {name: cumulative_ggr_eur_avg, type: 'decimal128(18, 4)', nullable: true}
+  - {name: cumulative_ggr_eur_sum, type: 'decimal128(18, 4)', nullable: true}
+  - {name: cumulative_deposits_eur_avg, type: 'decimal128(18, 4)', nullable: true}
+  - {name: retained_pct, type: float, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

@@ -1,0 +1,32 @@
+# live_game: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: live_game
+grain: [tenant_id, brand_id, game_id, platform_id, currency]
+partition_by: null
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: game_id, type: String, key: true, group: key, status: exists}
+  - {name: platform_id, type: Int64, key: true, group: key, status: exists}
+  - {name: currency, type: LowCardinality(String), key: true, group: key, status: new}
+  - {name: wagered_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: wagered_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: renamed}
+  - {name: won_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: won_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: renamed}
+  - {name: ggr_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: ggr_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: renamed}
+  - {name: tax_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: tax_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: renamed}
+  - {name: cashout_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: cashout_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: renamed}
+  - {name: rounds_today, type: UInt32, group: cumulative to COD, status: renamed}
+  - {name: bets_today, type: UInt32, group: cumulative to COD, status: renamed}
+  - {name: biggest_win_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: biggest_win_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: renamed}
+  - {name: active_players_now, type: UInt32, group: current state, status: exists}
+  - {name: live_velocity, type: Float32, group: live signal, unit: rounds/minute, additive: false, status: renamed}
+  - {name: last_event_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: new}
+  - {name: fx_rate_to_eur, type: 'Decimal(18, 8)', group: fx, status: new}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

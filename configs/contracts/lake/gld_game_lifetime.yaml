@@ -1,0 +1,26 @@
+# gld_game_lifetime: table in org/40-gold/gld_game_lifetime, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_game. See configs/contracts/README.md.
+table: gld_game_lifetime
+layer: org/40-gold
+grain: [tenant_id, game_id, platform_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: game_id, type: string, key: true, group: key, nullable: false}
+  - {name: platform_id, type: int64, key: true, group: key, nullable: false}
+  - {name: lifetime_wagered_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_ggr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_real_ggr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_bonus_ggr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_tax_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_cashout_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_rounds, type: uint64, group: lifetime cache, unit: rounds, additive: true, nullable: true}
+  - {name: unique_players_lifetime, type: uint32, group: lifetime cache, unit: players, additive: false, nullable: true}
+  - {name: first_seen, type: 'timestamp[ms, tz=UTC]', group: lifecycle, nullable: true}
+  - {name: last_seen, type: 'timestamp[ms, tz=UTC]', group: lifecycle, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

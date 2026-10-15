@@ -1,0 +1,56 @@
+# gld_player_lifetime: table in org/40-gold/gld_player_lifetime, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_player. See configs/contracts/README.md.
+table: gld_player_lifetime
+layer: org/40-gold
+grain: [tenant_id, brand_id, player_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, group: key, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: currency, type: string, group: identity, nullable: true}
+  - {name: country, type: string, group: identity, nullable: true}
+  - {name: language, type: string, group: identity, nullable: true}
+  - {name: registered_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: first_bet_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: last_bet_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: first_deposit_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: last_deposit_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: first_withdrawal_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: last_withdrawal_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: first_bonus_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: last_bonus_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: first_activity_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: last_activity_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: last_locked_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: kyc_verified_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: self_excluded_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: self_exclusion_ends_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: lifecycle_stage, type: string, nullable: true}
+  - {name: lifecycle_changed_at, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: current_active_streak_days, type: uint16, nullable: true}
+  - {name: max_loss_streak, type: uint32, group: lifetime cache, unit: rounds, additive: false, nullable: true}
+  - {name: best_win_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: false, nullable: true}
+  - {name: best_net_day_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_wagered_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_ggr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_ngr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_deposits_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: lifetime_withdrawals_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: lifetime_rounds, type: uint64, group: lifetime cache, unit: rounds, additive: true, nullable: true}
+  - {name: lifetime_active_days, type: uint32, group: lifetime cache, unit: days, additive: true, nullable: true}
+  - {name: lifetime_bonus_ggr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_tax_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_cashout_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: total_sessions, type: uint32, nullable: true}
+  - {name: total_bets, type: uint64, nullable: true}
+  - {name: typical_gap_days, type: float, nullable: true}
+  - {name: lifetime_value_tier, type: string, nullable: true}
+  - {name: has_sufficient_data, type: bool, group: computation meta, unit: true/false, additive: false, nullable: true}
+  - {name: confidence_score, type: float, group: computation meta, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

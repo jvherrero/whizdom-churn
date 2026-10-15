@@ -1,0 +1,48 @@
+# gld_player_segment_daily: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_segment_daily
+grain: [tenant_id, brand_id, event_date, segment_kind, segment_band, currency]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedAggregatingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: new}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: event_date, type: Date, key: true, group: key, status: new}
+  - {name: segment_kind, type: LowCardinality(String), key: true, group: key, status: new}
+  - {name: segment_band, type: LowCardinality(String), key: true, group: key, status: new}
+  - {name: currency, type: LowCardinality(Nullable(String)), key: true, group: key, status: new}
+  - {name: players_count, type: UInt32, group: day-only scalar, unit: players, additive: false, status: new}
+  - {name: active_players_count, type: UInt32, group: day-only scalar, unit: players, additive: false, status: new}
+  - {name: rounds, type: UInt64, group: count, unit: rounds, additive: true, status: new}
+  - {name: bets, type: UInt64, group: count, unit: bets, additive: true, status: new}
+  - {name: deposit_count, type: UInt32, group: count, unit: payments, additive: true, status: new}
+  - {name: withdraw_count, type: UInt32, group: count, unit: payments, additive: true, status: new}
+  - {name: sessions, type: UInt32, group: count, unit: sessions, additive: true, status: new}
+  - {name: wagered_real_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: wagered_released_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: wagered_playable_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: won_real_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: won_released_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: won_playable_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: cashout_real_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: cashout_released_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: cashout_playable_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: tax_real_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: tax_released_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: tax_playable_bonus_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: deposit_amount_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: withdraw_amount_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: bonus_granted_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: bonus_released_eur, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: new}
+  - {name: players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: unique_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, status: new}
+  - {name: unique_players_count, type: UInt32, group: day-only scalar, status: new}
+  - {name: active_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: depositors_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: entrants_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: exits_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: metric_version, type: UInt32, group: meta, status: new}
+  - {name: param_version, type: UInt32, group: meta, status: new}
+  - {name: _version, type: UInt64, group: meta, status: new}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: new}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: new}

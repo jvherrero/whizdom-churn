@@ -1,0 +1,50 @@
+# kafka-sink/primus/whizdomai-players: table in org/10-landing/kafka-sink/primus/whizdomai-players, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml. Not checked on the data yet.
+# Design contract: none. See configs/contracts/README.md.
+table: kafka-sink/primus/whizdomai-players
+layer: org/10-landing
+grain: [uuid]
+grain_checked: false
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: uuid, type: string, key: true, nullable: false}
+  - {name: partyId, type: int32, nullable: true}
+  - {name: brandId, type: int32, nullable: true}
+  - {name: isActive, type: bool, nullable: true}
+  - {name: lockedStatus, type: string, nullable: true}
+  - {name: lockedSince, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: lockedUntil, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: loginAttempts, type: int32, nullable: true}
+  - {name: firstname, type: string, nullable: true, pii: true}
+  - {name: lastname, type: string, nullable: true, pii: true}
+  - {name: birthdate, type: 'timestamp[ms, tz=UTC]', nullable: true, pii: true}
+  - {name: regdate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: country, type: string, group: identity, nullable: true}
+  - {name: city, type: string, nullable: true, pii: true}
+  - {name: province, type: string, nullable: true, pii: true}
+  - {name: address, type: string, nullable: true, pii: true}
+  - {name: postalCode, type: string, nullable: true, pii: true}
+  - {name: building, type: string, nullable: true, pii: true}
+  - {name: unit, type: string, nullable: true, pii: true}
+  - {name: language, type: string, group: identity, nullable: true}
+  - {name: currency, type: string, nullable: true}
+  - {name: nationalRegNumber, type: string, nullable: true, pii: true}
+  - {name: birthCountry, type: string, nullable: true}
+  - {name: birthCity, type: string, nullable: true, pii: true}
+  - {name: profession, type: string, nullable: true}
+  - {name: nationality, type: string, nullable: true}
+  - {name: phone, type: string, nullable: true, pii: true}
+  - {name: email, type: string, nullable: true, pii: true}
+  - {name: nickname, type: string, nullable: true, pii: true}
+  - {name: iban, type: string, nullable: true, pii: true}
+  - {name: documentNumber, type: string, nullable: true, pii: true}
+  - {name: documentType, type: string, nullable: true}
+  - {name: kycStatus, type: string, nullable: true}
+  - {name: lastKycRequestedDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: lastDepositDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: lastDepositAmount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: lastDepositType, type: string, nullable: true}
+  - {name: lastWithdrawDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: lastWithdrawAmount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: trackingCodes, type: 'list<array: struct<code: string not null, value: string not null> not null>', nullable: true, pii: true}

@@ -1,0 +1,80 @@
+{
+ "name": "gld_game_affinity",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "tenant_id",
+     "window_end_date",
+     "game_id_a",
+     "game_id_b"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "window_end_date"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "tenant_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "game_id_a"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "game_id_b"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_in_set",
+   "kwargs": {
+    "column": "_batch_day",
+    "value_set": {
+     "$PARAMETER": "batch_days"
+    }
+   },
+   "meta": {
+    "rule": "batch_day",
+    "column": "window_end_date"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/gld_game_affinity.yaml",
+  "batch_day_column": "window_end_date",
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

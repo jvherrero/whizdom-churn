@@ -1,0 +1,42 @@
+# kafka-sink/secundus/whizdomai-transactions: table in org/10-landing/kafka-sink/secundus/whizdomai-transactions, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml. Not checked on the data yet.
+# Design contract: none. See configs/contracts/README.md.
+table: kafka-sink/secundus/whizdomai-transactions
+layer: org/10-landing
+grain: [uuid]
+grain_checked: false
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: uuid, type: string, key: true, nullable: false}
+  - {name: transactionId, type: int64, nullable: true}
+  - {name: platformId, type: int64, nullable: true}
+  - {name: accountId, type: int32, nullable: true}
+  - {name: partyId, type: int32, nullable: true}
+  - {name: firstname, type: string, nullable: true, pii: true}
+  - {name: lastname, type: string, nullable: true, pii: true}
+  - {name: address, type: string, nullable: true, pii: true}
+  - {name: email, type: string, nullable: true, pii: true}
+  - {name: nickname, type: string, nullable: true, pii: true}
+  - {name: ip, type: string, nullable: true, pii: true}
+  - {name: mobile, type: bool, nullable: true}
+  - {name: os, type: string, nullable: true}
+  - {name: ua, type: string, nullable: true, pii: true}
+  - {name: device, type: string, nullable: true}
+  - {name: brandId, type: int32, nullable: true}
+  - {name: dateTime, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: tranType, type: string, nullable: true}
+  - {name: currency, type: string, nullable: true}
+  - {name: amountReal, type: 'decimal128(38, 18)', nullable: true}
+  - {name: amountReleasedBonus, type: 'decimal128(38, 18)', nullable: true}
+  - {name: amountPlayableBonus, type: 'decimal128(38, 18)', nullable: true}
+  - {name: amountRawLoyalty, type: int64, nullable: true}
+  - {name: balanceRawLoyalty, type: int64, nullable: true}
+  - {name: balanceReal, type: 'decimal128(38, 18)', nullable: true}
+  - {name: balanceReleasedBonus, type: 'decimal128(38, 18)', nullable: true}
+  - {name: balancePlayableBonus, type: 'decimal128(38, 18)', nullable: true}
+  - {name: platformTranId, type: string, nullable: true}
+  - {name: gameTranId, type: string, nullable: true}
+  - {name: gameId, type: string, nullable: true}
+  - {name: rollbackTranId, type: int64, nullable: true}
+  - {name: rolledBack, type: bool, nullable: true}

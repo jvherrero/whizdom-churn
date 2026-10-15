@@ -1,0 +1,41 @@
+# gld_player_payments_daily: table in org/40-gold/gld_player_payments_daily, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: gld_player_payment_daily. See configs/contracts/README.md.
+table: gld_player_payments_daily
+layer: org/40-gold
+grain: [tenant_id, brand_id, player_id, event_date, currency, source_system]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: currency, type: string, key: true, group: key, nullable: false}
+  - {name: source_system, type: string, key: true, nullable: false}
+  - {name: deposit_count, type: uint32, group: cash count, unit: payments, additive: true, nullable: true}
+  - {name: withdraw_count, type: uint32, group: cash count, unit: payments, additive: true, nullable: true}
+  - {name: deposit_attempts, type: uint32, group: cash count, unit: payments, additive: true, nullable: true}
+  - {name: withdraw_attempts, type: uint32, group: cash count, unit: payments, additive: true, nullable: true}
+  - {name: failed_deposit_count, type: uint32, group: cash count, unit: payments, additive: true, nullable: true}
+  - {name: failed_withdraw_count, type: uint32, group: cash count, unit: payments, additive: true, nullable: true}
+  - {name: deposit_amount, type: 'decimal128(18, 4)', group: cash money, unit: currency, additive: true, nullable: true}
+  - {name: withdraw_amount, type: 'decimal128(18, 4)', group: cash money, unit: currency, additive: true, nullable: true}
+  - {name: deposit_fee, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdraw_fee, type: 'decimal128(18, 4)', nullable: true}
+  - {name: requested_withdraw_amount, type: 'decimal128(18, 4)', group: cash money, unit: currency, additive: true, nullable: true}
+  - {name: avg_withdraw_settlement_secs, type: float, nullable: true}
+  - {name: fx_rate_to_eur, type: 'decimal128(18, 8)', group: fx, nullable: true}
+  - {name: fx_rate_date_used, type: 'date32[day]', group: fx, nullable: true}
+  - {name: fx_is_provisional, type: bool, group: fx, nullable: true}
+  - {name: deposit_amount_eur, type: 'decimal128(18, 4)', group: cash money, unit: currency, additive: true, nullable: true}
+  - {name: withdraw_amount_eur, type: 'decimal128(18, 4)', group: cash money, unit: currency, additive: true, nullable: true}
+  - {name: deposit_fee_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdraw_fee_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: requested_withdraw_amount_eur, type: 'decimal128(18, 4)', group: cash money, unit: currency, additive: true, nullable: true}
+  - {name: net_deposit_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: dq_status, type: string, group: quality, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

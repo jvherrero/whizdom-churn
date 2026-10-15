@@ -1,0 +1,34 @@
+# gld_brand_daily: table in org/40-gold/gld_brand_daily, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_brand_daily. See configs/contracts/README.md.
+table: gld_brand_daily
+layer: org/40-gold
+grain: [tenant_id, event_date, currency]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: currency, type: string, key: true, group: key, nullable: false}
+  - {name: turnover_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: payout_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: bonus_ggr_eur, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: arpu_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: hold_pct, type: float, nullable: true}
+  - {name: deposits_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_granted_eur, type: 'decimal128(18, 4)', group: bonus money, unit: currency, additive: true, nullable: true}
+  - {name: bonus_released_eur, type: 'decimal128(18, 4)', group: bonus money, unit: currency, additive: true, nullable: true}
+  - {name: bonus_expired_eur, type: 'decimal128(18, 4)', group: bonus money, unit: currency, additive: true, nullable: true}
+  - {name: bonus_wagered_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: players_wagered, type: uint32, nullable: true}
+  - {name: new_players, type: uint32, nullable: true}
+  - {name: depositors, type: uint32, nullable: true}
+  - {name: withdrawers, type: uint32, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

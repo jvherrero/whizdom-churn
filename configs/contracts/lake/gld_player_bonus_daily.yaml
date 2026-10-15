@@ -1,0 +1,42 @@
+# gld_player_bonus_daily: table in org/40-gold/gld_player_bonus_daily, from the layer inventory of 2026-10-15.
+# Grain: design contract gld_player_bonus_daily.
+# Design contract: gld_player_bonus_daily. See configs/contracts/README.md.
+table: gld_player_bonus_daily
+layer: org/40-gold
+grain: [tenant_id, brand_id, player_id, event_date, award_type, currency]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: award_type, type: string, key: true, group: key, nullable: false}
+  - {name: currency, type: string, key: true, group: key, nullable: false}
+  - {name: source_system, type: string, nullable: true}
+  - {name: bonuses_granted, type: uint32, group: bonus count, unit: bonuses, additive: true, nullable: true}
+  - {name: bonuses_released, type: uint32, group: bonus count, unit: bonuses, additive: true, nullable: true}
+  - {name: bonuses_expired, type: uint32, group: bonus count, unit: bonuses, additive: true, nullable: true}
+  - {name: bonuses_forfeited, type: uint32, group: bonus count, unit: bonuses, additive: true, nullable: true}
+  - {name: granted, type: 'decimal128(18, 4)', nullable: true}
+  - {name: released, type: 'decimal128(18, 4)', nullable: true}
+  - {name: expired, type: 'decimal128(18, 4)', nullable: true}
+  - {name: forfeited, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_toward_req, type: 'decimal128(18, 4)', nullable: true}
+  - {name: active_bonus_balance, type: 'decimal128(18, 4)', nullable: true}
+  - {name: fx_rate_to_eur, type: 'decimal128(18, 8)', group: fx, nullable: true}
+  - {name: fx_rate_date_used, type: 'date32[day]', group: fx, nullable: true}
+  - {name: fx_is_provisional, type: bool, group: fx, nullable: true}
+  - {name: granted_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: released_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: expired_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: forfeited_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_toward_req_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: active_bonus_balance_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_cost, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_cost_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: dq_status, type: string, group: quality, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

@@ -1,0 +1,21 @@
+# gld_game_signal: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_game_signal
+grain: [tenant_id, brand_id, event_date, game_id, platform_id]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: event_date, type: Date, key: true, group: key, status: renamed}
+  - {name: game_id, type: String, key: true, group: key, status: exists}
+  - {name: platform_id, type: Int64, key: true, group: key, status: exists}
+  - {name: popularity_score, type: Float32, group: signal, unit: 0-1, range: [0.0, 1.0], additive: false, status: exists}
+  - {name: margin_band, type: LowCardinality(String), group: signal, status: exists}
+  - {name: risk_score, type: Float32, group: signal, unit: 0-1, range: [0.0, 1.0], additive: false, status: exists}
+  - {name: volatility_score, type: Float32, group: signal, unit: ratio, additive: false, status: renamed}
+  - {name: rtp_deviation, type: Float32, group: signal, unit: percentage points, additive: false, status: new}
+  - {name: has_sufficient_data, type: UInt8, group: computation meta, unit: true/false, additive: false, status: new}
+  - {name: param_version, type: UInt32, group: computation meta, status: new}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

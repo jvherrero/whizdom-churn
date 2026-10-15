@@ -1,0 +1,36 @@
+# gld_player_risk_daily: table in org/40-gold/gld_player_risk_daily, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_player_risk_daily
+layer: org/40-gold
+grain: [tenant_id, player_id, snapshot_date]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, nullable: false}
+  - {name: snapshot_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: risk_score, type: float, group: signal, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: risk_band, type: string, nullable: true}
+  - {name: rg_loss_chasing_30d, type: float, nullable: true}
+  - {name: rg_deposit_velocity, type: float, nullable: true}
+  - {name: rg_night_play_ratio, type: float, nullable: true}
+  - {name: net_loss_velocity, type: float, group: responsible gaming, unit: ratio, additive: false, nullable: true}
+  - {name: session_intensity_score, type: float, group: responsible gaming, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: bet_z_score, type: float, group: risk, unit: std dev, additive: false, nullable: true}
+  - {name: session_len_z, type: float, group: risk, unit: std dev, additive: false, nullable: true}
+  - {name: stake_escalation, type: float, group: risk, unit: ratio, additive: false, nullable: true}
+  - {name: betting_aggression_score, type: float, group: risk, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: risk_appetite_score, type: float, group: risk, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: churn_score, type: float, group: churn, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: churn_propensity_raw, type: float, group: churn, unit: model units, additive: false, nullable: true}
+  - {name: churn_band, type: string, nullable: true}
+  - {name: recency_pressure, type: float, nullable: true}
+  - {name: frequency_decline, type: float, nullable: true}
+  - {name: value_decline, type: float, range: [0.0, 100.0], nullable: true}
+  - {name: deposit_frequency_score, type: float, group: deposit behaviour, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: deposit_recency_score, type: float, group: deposit behaviour, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

@@ -1,0 +1,70 @@
+# gld_players: table in org/40-gold/gld_players, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_players
+layer: org/40-gold
+grain: [tenant_id, brand_id, player_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: currency, type: string, nullable: true}
+  - {name: country, type: string, group: identity, nullable: true}
+  - {name: language, type: string, group: identity, nullable: true}
+  - {name: is_active, type: bool, nullable: true}
+  - {name: locked_status, type: string, group: status, nullable: true}
+  - {name: kyc_status, type: string, group: status, nullable: true}
+  - {name: has_pii, type: bool, nullable: true}
+  - {name: registered_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: first_bet_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: last_bet_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: first_deposit_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: last_deposit_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: first_withdrawal_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: last_withdrawal_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: first_bonus_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: last_bonus_at, type: 'date32[day]', group: milestone, nullable: true}
+  - {name: first_activity_at, type: 'date32[day]', nullable: true}
+  - {name: last_activity_at, type: 'date32[day]', nullable: true}
+  - {name: last_locked_at, type: 'timestamp[ms, tz=UTC]', group: milestone, nullable: true}
+  - {name: lifecycle_stage, type: string, nullable: true}
+  - {name: prev_lifecycle_stage, type: string, nullable: true}
+  - {name: lifecycle_changed_at, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: tenure_days, type: uint16, nullable: true}
+  - {name: days_since_bet, type: uint16, nullable: true}
+  - {name: days_since_last_activity, type: uint16, nullable: true}
+  - {name: current_active_streak_days, type: uint16, nullable: true}
+  - {name: lifetime_wagered_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_ggr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_ngr_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: true, nullable: true}
+  - {name: lifetime_deposits_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: lifetime_withdrawals_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: lifetime_rounds, type: uint64, group: lifetime cache, unit: rounds, additive: true, nullable: true}
+  - {name: lifetime_active_days, type: uint32, group: lifetime cache, unit: days, additive: true, nullable: true}
+  - {name: total_sessions, type: uint32, nullable: true}
+  - {name: total_bets, type: uint64, nullable: true}
+  - {name: best_win_eur, type: 'decimal128(18, 4)', group: lifetime cache, unit: currency, additive: false, nullable: true}
+  - {name: max_loss_streak, type: uint32, nullable: true}
+  - {name: lifetime_value_tier, type: string, nullable: true}
+  - {name: signals_as_of, type: 'date32[day]', nullable: true}
+  - {name: value_score_eur, type: 'decimal128(18, 4)', group: value, unit: currency, additive: false, nullable: true}
+  - {name: value_tier, type: string, nullable: true}
+  - {name: churn_score, type: float, group: churn, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: churn_band, type: string, nullable: true}
+  - {name: risk_score, type: float, group: signal, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: risk_band, type: string, nullable: true}
+  - {name: engagement_score, type: float, group: engagement, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: prev_value_tier, type: string, nullable: true}
+  - {name: value_tier_changed_at, type: 'date32[day]', nullable: true}
+  - {name: prev_churn_band, type: string, nullable: true}
+  - {name: churn_band_changed_at, type: 'date32[day]', nullable: true}
+  - {name: prev_risk_band, type: string, nullable: true}
+  - {name: risk_band_changed_at, type: 'date32[day]', nullable: true}
+  - {name: has_sufficient_data, type: bool, group: computation meta, unit: true/false, additive: false, nullable: true}
+  - {name: confidence_score, type: float, group: computation meta, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: gap_days, type: uint16, group: computation meta, unit: days, additive: false, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

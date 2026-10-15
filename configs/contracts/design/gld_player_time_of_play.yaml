@@ -1,0 +1,52 @@
+# gld_player_time_of_play: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_time_of_play
+grain: [tenant_id, brand_id, player_id]
+partition_by: null
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: player_id, type: Int32, key: true, group: key}
+  - {name: computation_window_days, type: UInt16, group: profile}
+  - {name: total_sessions_in_window, type: UInt32, group: profile, unit: sessions, additive: true}
+  - {name: hourly_entropy, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: daily_entropy, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: hourly_concentration, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: daily_concentration, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: weekend_index, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: night_index, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: business_hours_ratio, type: Float32, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: avg_session_duration_secs, type: UInt32, group: profile, unit: seconds, additive: false}
+  - {name: median_session_duration_secs, type: Nullable(UInt32), group: profile, unit: seconds, additive: false}
+  - {name: avg_sessions_per_active_day, type: Float32, group: profile, unit: sessions/day, additive: false}
+  - {name: max_sessions_single_day, type: UInt16, group: profile, unit: sessions, additive: false}
+  - {name: avg_session_gap_hours, type: Nullable(Float32), group: profile, unit: hours, additive: false}
+  - {name: bet_size_cv, type: Nullable(Float32), group: profile, unit: ratio, additive: false}
+  - {name: peak_hour, type: UInt8, group: profile}
+  - {name: peak_day, type: UInt8, group: profile}
+  - {name: peak_weekday_hour_day, type: UInt8, group: profile}
+  - {name: peak_weekday_hour_hour, type: UInt8, group: profile}
+  - {name: peak_day_of_month, type: UInt8, group: profile}
+  - {name: comparison_window_days, type: Nullable(UInt16), group: profile}
+  - {name: prior_hourly_entropy, type: Nullable(Float32), group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: prior_hourly_concentration, type: Nullable(Float32), group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: prior_night_index, type: Nullable(Float32), group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: prior_weekend_index, type: Nullable(Float32), group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: prior_business_hours_ratio, type: Nullable(Float32), group: profile, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: prior_avg_session_duration_secs, type: Nullable(UInt32), group: profile, unit: seconds, additive: false}
+  - {name: prior_avg_sessions_per_active_day, type: Nullable(Float32), group: profile, unit: sessions/day, additive: false}
+  - {name: hourly_session_counts, type: Array(UInt32), group: distribution}
+  - {name: daily_session_counts, type: Array(UInt32), group: distribution}
+  - {name: monthly_session_counts, type: Array(UInt32), group: distribution}
+  - {name: hourly_wagered_amounts, type: 'Array(Decimal(18, 4))', group: distribution}
+  - {name: daily_wagered_amounts, type: 'Array(Decimal(18, 4))', group: distribution}
+  - {name: monthly_wagered_amounts, type: 'Array(Decimal(18, 4))', group: distribution}
+  - {name: session_duration_dist, type: Array(UInt32), group: distribution}
+  - {name: session_gap_dist, type: Array(UInt32), group: distribution}
+  - {name: bet_size_relative_dist, type: Array(UInt32), group: distribution}
+  - {name: weekday_hour_session_counts, type: Array(UInt32), group: distribution}
+  - {name: day_of_month_session_counts, type: Array(UInt32), group: distribution}
+  - {name: _version, type: UInt64, group: meta}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta}

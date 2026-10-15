@@ -1,0 +1,77 @@
+# gld_brand_daily: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_brand_daily
+grain: [tenant_id, brand_id, event_date, currency]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedAggregatingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: event_date, type: Date, key: true, group: key, status: exists}
+  - {name: currency, type: LowCardinality(Nullable(String)), key: true, group: key, status: exists}
+  - {name: active_players_count, type: UInt32, group: day-only scalar, unit: players, additive: false, status: exists}
+  - {name: depositors_count, type: UInt32, group: day-only scalar, unit: players, additive: false, status: exists}
+  - {name: withdrawers_count, type: UInt32, group: day-only scalar, unit: players, additive: false, status: exists}
+  - {name: new_players_count, type: UInt32, group: day-only scalar, unit: players, additive: false, status: exists}
+  - {name: ftd_players_count, type: UInt32, group: day-only scalar, status: new}
+  - {name: ftd_suspect_players_count, type: UInt32, group: day-only scalar}
+  - {name: rounds, type: UInt64, group: count, unit: rounds, additive: true, status: new}
+  - {name: bets, type: UInt64, group: count, unit: bets, additive: true, status: new}
+  - {name: deposit_count, type: UInt32, group: count, unit: payments, additive: true, status: new}
+  - {name: withdraw_count, type: UInt32, group: count, unit: payments, additive: true, status: new}
+  - {name: sessions, type: UInt32, group: count, unit: sessions, additive: true, status: new}
+  - {name: play_secs, type: 'Decimal(18, 3)', group: count, unit: seconds, additive: true, status: new}
+  - {name: wagered_real, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: wagered_real_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: wagered_released_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: wagered_released_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: wagered_playable_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: wagered_playable_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: won_real, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: won_real_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: won_released_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: won_released_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: won_playable_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: won_playable_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: cashout_real, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: cashout_real_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: cashout_released_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: cashout_released_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: cashout_playable_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: cashout_playable_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: tax_real, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: tax_real_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: tax_released_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: tax_released_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: tax_playable_bonus, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: new}
+  - {name: tax_playable_bonus_eur, type: 'Decimal(18, 4)', group: gaming money, unit: currency, additive: true, status: exists}
+  - {name: deposit_amount, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: new}
+  - {name: deposit_amount_eur, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: withdraw_amount, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: new}
+  - {name: withdraw_amount_eur, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: exists}
+  - {name: bonus_granted, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: new}
+  - {name: bonus_granted_eur, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: exists}
+  - {name: bonus_released, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: new}
+  - {name: bonus_released_eur, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: exists}
+  - {name: bonus_expired, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: new}
+  - {name: bonus_expired_eur, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: exists}
+  - {name: bonus_wagered_toward_req, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: new}
+  - {name: bonus_wagered_toward_req_eur, type: 'Decimal(18, 4)', group: bonus money, unit: currency, additive: true, status: exists}
+  - {name: ftd_amount, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: new}
+  - {name: ftd_amount_eur, type: 'Decimal(18, 4)', group: cash money, unit: currency, additive: true, status: new}
+  - {name: unique_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, status: new}
+  - {name: unique_players_count, type: UInt32, group: day-only scalar, status: new}
+  - {name: active_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: depositors_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: withdrawers_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: new_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, unit: players, additive: false, status: new}
+  - {name: ftd_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, status: new}
+  - {name: ftd_suspect_players_state, type: 'AggregateFunction(uniqExact, Int32)', group: DISTINCT-PLAYER STATE, status: new}
+  - {name: games_played_state, type: 'AggregateFunction(uniq, String)', group: state, unit: games, additive: false, status: new}
+  - {name: fx_rates_state, type: 'AggregateFunction(uniq, Decimal(18, 8))', group: fx, status: new}
+  - {name: fx_weight_local, type: 'Decimal(38, 4)', group: fx, status: new}
+  - {name: fx_weight_eur, type: 'Decimal(38, 4)', group: fx, status: new}
+  - {name: metric_version, type: UInt32, group: meta, status: new}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

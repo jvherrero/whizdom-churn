@@ -1,0 +1,34 @@
+# gld_payment: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_payment
+grain: [tenant_id, brand_id, payment_id]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: exists}
+  - {name: payment_id, type: String, key: true, group: key, status: exists}
+  - {name: player_id, type: Int32, group: identity, status: exists}
+  - {name: event_date, type: Date, group: date, status: exists}
+  - {name: currency, type: LowCardinality(Nullable(String)), group: money, status: exists}
+  - {name: requested_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: date, status: exists}
+  - {name: settled_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: date, status: exists}
+  - {name: settlement_secs, type: Nullable(UInt32), group: date, unit: seconds, additive: false, status: exists}
+  - {name: transaction_type, type: LowCardinality(String), group: classification, status: exists}
+  - {name: transaction_method, type: LowCardinality(String), group: classification, status: exists}
+  - {name: is_deposit, type: UInt8, group: classification, status: exists}
+  - {name: is_withdrawal, type: UInt8, group: classification, status: exists}
+  - {name: is_completed, type: UInt8, group: classification, status: exists}
+  - {name: status, type: LowCardinality(String), group: classification, status: exists}
+  - {name: requested_amount, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: requested_amount_eur, type: 'Nullable(Decimal(18, 4))', group: money, unit: currency, additive: true, status: new}
+  - {name: processed_amount, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: processed_amount_eur, type: 'Nullable(Decimal(18, 4))', group: money, unit: currency, additive: true, status: exists}
+  - {name: dq_status, type: LowCardinality(String), group: quality, status: exists}
+  - {name: dq_reason, type: LowCardinality(Nullable(String)), group: quality, status: exists}
+  - {name: fx_rate_to_eur, type: 'Nullable(Decimal(18, 8))', group: fx, status: exists}
+  - {name: fx_rate_date_used, type: Nullable(Date), group: fx, status: exists}
+  - {name: fx_is_provisional, type: Bool, group: fx, status: exists}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

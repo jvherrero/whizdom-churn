@@ -1,0 +1,54 @@
+# gld_player_time_of_play: table in org/40-gold/gld_player_time_of_play, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_player_time_of_play. See configs/contracts/README.md.
+table: gld_player_time_of_play
+layer: org/40-gold
+grain: [tenant_id, player_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, group: key, nullable: false}
+  - {name: computation_window_days, type: uint16, group: profile, nullable: true}
+  - {name: total_sessions_in_window, type: uint32, group: profile, unit: sessions, additive: true, nullable: true}
+  - {name: hourly_session_counts, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: daily_session_counts, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: monthly_session_counts, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: hourly_wagered_amounts, type: 'list<element: decimal128(18, 4) not null>', group: distribution, nullable: true}
+  - {name: daily_wagered_amounts, type: 'list<element: decimal128(18, 4) not null>', group: distribution, nullable: true}
+  - {name: monthly_wagered_amounts, type: 'list<element: decimal128(18, 4) not null>', group: distribution, nullable: true}
+  - {name: hourly_entropy, type: float, group: profile, range: [0.0, 4.585], additive: false, nullable: true}
+  - {name: daily_entropy, type: float, group: profile, range: [0.0, 2.808], additive: false, nullable: true}
+  - {name: hourly_concentration, type: float, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: daily_concentration, type: float, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: weekend_index, type: float, group: profile, range: [0.0, 3.5], additive: false, nullable: true}
+  - {name: night_index, type: float, group: profile, range: [0.0, 4.0], additive: false, nullable: true}
+  - {name: business_hours_ratio, type: float, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: session_duration_dist, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: avg_session_duration_secs, type: uint32, group: profile, unit: seconds, additive: false, nullable: true}
+  - {name: median_session_duration_secs, type: uint32, group: profile, unit: seconds, additive: false, nullable: true}
+  - {name: avg_sessions_per_active_day, type: float, group: profile, unit: sessions/day, additive: false, nullable: true}
+  - {name: max_sessions_single_day, type: uint16, group: profile, unit: sessions, additive: false, nullable: true}
+  - {name: session_gap_dist, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: avg_session_gap_hours, type: float, group: profile, unit: hours, additive: false, nullable: true}
+  - {name: bet_size_relative_dist, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: bet_size_cv, type: float, group: profile, unit: ratio, additive: false, nullable: true}
+  - {name: weekday_hour_session_counts, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: day_of_month_session_counts, type: 'list<element: uint32 not null>', group: distribution, nullable: true}
+  - {name: peak_hour, type: uint8, group: profile, nullable: true}
+  - {name: peak_day, type: uint8, group: profile, nullable: true}
+  - {name: peak_weekday_hour_day, type: uint8, group: profile, nullable: true}
+  - {name: peak_weekday_hour_hour, type: uint8, group: profile, nullable: true}
+  - {name: peak_day_of_month, type: uint8, group: profile, nullable: true}
+  - {name: comparison_window_days, type: uint16, group: profile, nullable: true}
+  - {name: prior_hourly_entropy, type: float, group: profile, range: [0.0, 4.585], additive: false, nullable: true}
+  - {name: prior_hourly_concentration, type: float, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: prior_night_index, type: float, group: profile, range: [0.0, 4.0], additive: false, nullable: true}
+  - {name: prior_weekend_index, type: float, group: profile, range: [0.0, 3.5], additive: false, nullable: true}
+  - {name: prior_business_hours_ratio, type: float, group: profile, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: prior_avg_session_duration_secs, type: uint32, group: profile, unit: seconds, additive: false, nullable: true}
+  - {name: prior_avg_sessions_per_active_day, type: float, group: profile, unit: sessions/day, additive: false, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

@@ -1,0 +1,38 @@
+# kafka-sink/secundus/whizdomai-bonus-plan: table in org/10-landing/kafka-sink/secundus/whizdomai-bonus-plan, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml. Not checked on the data yet.
+# Design contract: none. See configs/contracts/README.md.
+table: kafka-sink/secundus/whizdomai-bonus-plan
+layer: org/10-landing
+grain: [bonusPlanId, operation]
+grain_checked: false
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: operation, type: string, key: true, nullable: false}
+  - {name: bonusPlanId, type: int32, key: true, nullable: false}
+  - {name: planName, type: string, nullable: true}
+  - {name: brandId, type: 'list<array: int32 not null>', nullable: true}
+  - {name: status, type: string, nullable: true}
+  - {name: isPlayable, type: bool, nullable: true}
+  - {name: currencies, type: 'list<array: string not null>', nullable: true}
+  - {name: startDate, type: string, nullable: true}
+  - {name: endDate, type: string, nullable: true}
+  - {name: expiryDays, type: int32, nullable: true}
+  - {name: gameType, type: 'list<array: string not null>', nullable: true}
+  - {name: description, type: string, nullable: true}
+  - {name: awardType, type: string, nullable: true}
+  - {name: amount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: wagerReq, type: 'decimal128(38, 18)', nullable: true}
+  - {name: multiplier, type: string, nullable: true}
+  - {name: wagerRequirementAction, type: string, nullable: true}
+  - {name: isIncremental, type: bool, nullable: true}
+  - {name: incrementalCount, type: int32, nullable: true}
+  - {name: isCancelOnWithdrawal, type: bool, nullable: true}
+  - {name: playableBonusQualifies, type: bool, nullable: true}
+  - {name: isPlayableWinningsReleased, type: bool, nullable: true}
+  - {name: maxTriggerAll, type: int32, nullable: true}
+  - {name: maxTriggerPlayer, type: int32, nullable: true}
+  - {name: minBalanceThreshold, type: 'decimal128(38, 18)', nullable: true}
+  - {name: maxReleaseEnabled, type: bool, nullable: true}
+  - {name: triggerType, type: string, nullable: true}
+  - {name: triggerSettings, type: string, nullable: true}

@@ -1,0 +1,23 @@
+# gld_game_affinity: table in org/40-gold/gld_game_affinity, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: gld_game_affinity. See configs/contracts/README.md.
+table: gld_game_affinity
+layer: org/40-gold
+grain: [tenant_id, window_end_date, game_id_a, game_id_b]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: window_end_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: game_id_a, type: string, key: true, group: key, nullable: false}
+  - {name: game_id_b, type: string, key: true, group: key, nullable: false}
+  - {name: co_players, type: uint32, group: measure, unit: players, additive: false, nullable: true}
+  - {name: players_a, type: uint32, group: measure, unit: players, additive: false, nullable: true}
+  - {name: players_b, type: uint32, group: measure, unit: players, additive: false, nullable: true}
+  - {name: confidence_a_to_b, type: float, nullable: true}
+  - {name: confidence_b_to_a, type: float, nullable: true}
+  - {name: jaccard, type: float, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

@@ -1,0 +1,38 @@
+# gld_player_payments: table in org/40-gold/gld_player_payments, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: gld_payment. See configs/contracts/README.md.
+table: gld_player_payments
+layer: org/40-gold
+grain: [tenant_id, brand_id, payment_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, group: identity, nullable: true}
+  - {name: payment_id, type: int32, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', group: date, nullable: true}
+  - {name: source_system, type: string, nullable: true}
+  - {name: transaction_type, type: string, group: classification, nullable: true}
+  - {name: transaction_method, type: string, group: classification, nullable: true}
+  - {name: is_deposit, type: bool, group: classification, nullable: true}
+  - {name: is_withdrawal, type: bool, group: classification, nullable: true}
+  - {name: is_completed, type: bool, group: classification, nullable: true}
+  - {name: status, type: string, group: classification, nullable: true}
+  - {name: currency, type: string, group: money, nullable: true}
+  - {name: requested_amount, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: processed_amount, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: fee, type: 'decimal128(18, 4)', nullable: true}
+  - {name: requested_at, type: 'timestamp[ms, tz=UTC]', group: date, nullable: true}
+  - {name: settled_at, type: 'timestamp[ms, tz=UTC]', group: date, nullable: true}
+  - {name: settlement_secs, type: int64, group: date, unit: seconds, additive: false, nullable: true}
+  - {name: fx_rate_to_eur, type: 'decimal128(18, 8)', group: fx, nullable: true}
+  - {name: fx_rate_date_used, type: 'date32[day]', group: fx, nullable: true}
+  - {name: fx_is_provisional, type: bool, group: fx, nullable: true}
+  - {name: processed_amount_eur, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: dq_status, type: string, group: quality, nullable: true}
+  - {name: dq_reason, type: string, group: quality, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

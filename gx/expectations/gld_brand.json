@@ -1,0 +1,110 @@
+{
+ "name": "gld_brand",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "tenant_id",
+     "brand_id"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "tenant_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "brand_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_today",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_7d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposits_eur_90d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "bonus_cost_eur_30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdrawal_eur_30d",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/gld_brand.yaml",
+  "batch_day_column": null,
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

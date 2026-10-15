@@ -1,0 +1,20 @@
+# gld_game_signals_hourly: table in org/40-gold/gld_game_signals_hourly, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_game_hourly. See configs/contracts/README.md.
+table: gld_game_signals_hourly
+layer: org/40-gold
+grain: [tenant_id, game_id, platform_id, event_hour]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: game_id, type: string, key: true, group: key, nullable: false}
+  - {name: platform_id, type: int64, key: true, group: key, nullable: false}
+  - {name: event_hour, type: 'timestamp[ms, tz=UTC]', key: true, group: key, nullable: false}
+  - {name: momentum, type: float, nullable: true}
+  - {name: volatility, type: float, nullable: true}
+  - {name: popularity, type: float, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

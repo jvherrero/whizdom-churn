@@ -1,0 +1,56 @@
+# live_player: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: live_player
+grain: [tenant_id, brand_id, player_id, currency]
+partition_by: null
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: player_id, type: Int32, key: true, group: key}
+  - {name: currency, type: LowCardinality(Nullable(String)), key: true, group: key, status: new}
+  - {name: wagered_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: wagered_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: won_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: won_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: ggr_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: ggr_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: real_ggr_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: real_ggr_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: bonus_ggr_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: bonus_ggr_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: tax_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: tax_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: cashout_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: cashout_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: deposit_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: deposit_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: withdraw_today, type: 'Decimal(18, 4)', group: cumulative to COD, status: new}
+  - {name: withdraw_eur_today, type: 'Decimal(18, 4)', group: cumulative to COD}
+  - {name: rounds_today, type: UInt32, group: cumulative to COD}
+  - {name: bets_today, type: UInt32, group: cumulative to COD}
+  - {name: games_played_today, type: UInt16, group: cumulative to COD}
+  - {name: biggest_win_today, type: 'Nullable(Decimal(18, 4))', group: cumulative to COD, status: new}
+  - {name: biggest_win_eur_today, type: 'Nullable(Decimal(18, 4))', group: cumulative to COD}
+  - {name: withdraw_count_today, type: UInt16, group: cumulative to COD}
+  - {name: deposit_events, type: 'Array(Tuple(DateTime64(3, ''UTC''), Decimal(18, 4)))', group: event primitive}
+  - {name: withdraw_events, type: 'Array(Tuple(DateTime64(3, ''UTC''), Decimal(18, 4)))', group: event primitive}
+  - {name: bet_times, type: 'Array(DateTime64(3, ''UTC''))', group: event primitive}
+  - {name: current_session_start, type: 'Nullable(DateTime64(3, ''UTC''))', group: session}
+  - {name: session_rounds, type: UInt32, group: session, unit: rounds, additive: true}
+  - {name: session_wagered, type: 'Decimal(18, 4)', group: session, unit: currency, additive: true, status: new}
+  - {name: session_wagered_eur, type: 'Decimal(18, 4)', group: session, unit: currency, additive: true}
+  - {name: live_risk_score, type: Nullable(Float32), group: live signal, unit: 0-1, range: [0.0, 1.0], additive: false}
+  - {name: live_stake_escalation, type: Nullable(Float32), group: live signal, unit: ratio, additive: false}
+  - {name: momentum_score, type: Nullable(Float32), group: trend, unit: ratio, additive: false}
+  - {name: acceleration_score, type: Nullable(Float32), group: trend, unit: ratio, additive: false}
+  - {name: loss_streak, type: UInt16, group: flags, unit: rounds, additive: false}
+  - {name: win_streak, type: UInt16, group: flags, unit: rounds, additive: false}
+  - {name: on_tilt, type: Nullable(UInt8), group: flags, unit: true/false, additive: false}
+  - {name: loss_chasing, type: Nullable(UInt8), group: flags, unit: true/false, additive: false}
+  - {name: is_extended_session, type: Bool, group: flags, unit: true/false, additive: false}
+  - {name: is_unusual_bet_size, type: Bool, group: flags, unit: true/false, additive: false}
+  - {name: last_event_at, type: 'DateTime64(3, ''UTC'')', group: meta}
+  - {name: fx_rate_to_eur, type: 'Nullable(Decimal(18, 8))', group: fx, status: new}
+  - {name: _version, type: UInt64, group: meta}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta}

@@ -1,0 +1,50 @@
+# gld_bonus: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_bonus
+grain: [tenant_id, brand_id, bonus_id]
+partition_by: toYYYYMM(triggered_at)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: exists}
+  - {name: brand_id, type: Int32, key: true, group: key, status: exists}
+  - {name: bonus_id, type: String, key: true, group: key, status: exists}
+  - {name: player_id, type: Int32, group: identity, status: exists}
+  - {name: currency, type: LowCardinality(Nullable(String)), group: money, status: exists}
+  - {name: triggered_at, type: 'DateTime64(3, ''UTC'')', group: lifecycle date, status: exists}
+  - {name: released_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: lifecycle date, status: exists}
+  - {name: expired_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: lifecycle date, status: exists}
+  - {name: forfeited_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: lifecycle date, status: new}
+  - {name: bonus_plan_id, type: String, group: classification, status: exists}
+  - {name: plan_name, type: Nullable(String), group: bonus plan (snapshot), status: new}
+  - {name: plan_trigger_type, type: LowCardinality(Nullable(String)), group: bonus plan (snapshot), status: new}
+  - {name: plan_amount, type: 'Nullable(Decimal(18, 4))', group: bonus plan (snapshot), unit: currency, additive: false, status: new}
+  - {name: plan_wager_multiplier, type: 'Nullable(Decimal(18, 4))', group: bonus plan (snapshot), unit: multiple, additive: false, status: new}
+  - {name: plan_expiry_days, type: Nullable(Int32), group: bonus plan (snapshot), status: new}
+  - {name: plan_is_incremental, type: Nullable(Bool), group: bonus plan (snapshot), status: new}
+  - {name: plan_is_cancel_on_withdrawal, type: Nullable(Bool), group: bonus plan (snapshot), status: new}
+  - {name: plan_is_playable, type: Nullable(Bool), group: bonus plan (snapshot), status: new}
+  - {name: plan_snapshot_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: bonus plan (snapshot), status: new}
+  - {name: plan_dq_status, type: LowCardinality(Nullable(String)), group: bonus plan (snapshot), status: new}
+  - {name: award_type, type: LowCardinality(Nullable(String)), group: classification, status: exists}
+  - {name: status, type: LowCardinality(String), group: classification, status: exists}
+  - {name: days_to_release, type: Nullable(UInt16), group: lifecycle, unit: days, additive: false, status: new}
+  - {name: bonus_granted, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: bonus_granted_eur, type: 'Nullable(Decimal(18, 4))', group: money, unit: currency, additive: true, status: exists}
+  - {name: bonus_released, type: 'Nullable(Decimal(18, 4))', group: money, unit: currency, additive: true, status: exists}
+  - {name: bonus_released_eur, type: 'Nullable(Decimal(18, 4))', group: money, unit: currency, additive: true, status: exists}
+  - {name: amount_released_bonus, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: won_released_bonus, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: amount_playable_bonus, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: won_playable_bonus, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: wager_requirement, type: 'Decimal(38, 4)', group: money, unit: currency, additive: false, status: exists}
+  - {name: bonus_wagered_toward_req, type: 'Decimal(18, 4)', group: money, unit: currency, additive: true, status: exists}
+  - {name: dq_status, type: LowCardinality(String), group: quality, status: exists}
+  - {name: dq_reason, type: LowCardinality(Nullable(String)), group: quality, status: exists}
+  - {name: fx_rate_to_eur, type: 'Nullable(Decimal(18, 8))', group: fx, status: exists}
+  - {name: fx_rate_date_used, type: Nullable(Date), group: fx, status: exists}
+  - {name: fx_is_provisional, type: Bool, group: fx, status: exists}
+  - {name: fx_rate_is_historic, type: Nullable(Bool), group: fx, status: new}
+  - {name: change_count, type: UInt16, group: lineage, unit: records, additive: false, status: new}
+  - {name: _version, type: UInt64, group: meta, status: exists}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: exists}

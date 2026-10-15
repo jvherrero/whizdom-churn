@@ -1,0 +1,28 @@
+# kafka-sink/secundus/whizdomai-bonuses: table in org/10-landing/kafka-sink/secundus/whizdomai-bonuses, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml. Not checked on the data yet.
+# Design contract: none. See configs/contracts/README.md.
+table: kafka-sink/secundus/whizdomai-bonuses
+layer: org/10-landing
+grain: [changeId]
+grain_checked: false
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: changeId, type: int64, key: true, nullable: false}
+  - {name: changeStatusTimestamp, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: id, type: int32, nullable: true}
+  - {name: partyId, type: int32, nullable: true}
+  - {name: bonusPlanId, type: int32, nullable: true}
+  - {name: triggerDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: expiryDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: releaseDate, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: status, type: string, nullable: true}
+  - {name: amountWagered, type: 'decimal128(38, 18)', nullable: true}
+  - {name: wagerRequirement, type: 'decimal128(38, 18)', nullable: true}
+  - {name: amount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: releasedBonusWinnings, type: 'decimal128(38, 18)', nullable: true}
+  - {name: releasedBonus, type: 'decimal128(38, 18)', nullable: true}
+  - {name: releasedBonusWinningsAmount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: releasedBonusAmount, type: 'decimal128(38, 18)', nullable: true}
+  - {name: playableBonusWinnings, type: 'decimal128(38, 18)', nullable: true}
+  - {name: playableBonus, type: 'decimal128(38, 18)', nullable: true}

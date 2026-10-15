@@ -1,0 +1,179 @@
+{
+ "name": "gld_player_payments_daily",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "tenant_id",
+     "brand_id",
+     "player_id",
+     "event_date",
+     "currency",
+     "source_system"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "tenant_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "brand_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "player_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "event_date"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "currency"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "source_system"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposit_amount",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdraw_amount",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "requested_withdraw_amount",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "avg_withdraw_settlement_secs",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "deposit_amount_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "withdraw_amount_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "requested_withdraw_amount_eur",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_in_set",
+   "kwargs": {
+    "column": "_batch_day",
+    "value_set": {
+     "$PARAMETER": "batch_days"
+    }
+   },
+   "meta": {
+    "rule": "batch_day",
+    "column": "event_date"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/gld_player_payments_daily.yaml",
+  "batch_day_column": "event_date",
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

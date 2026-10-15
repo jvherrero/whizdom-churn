@@ -1,0 +1,40 @@
+# gld_player_bonuses: table in org/40-gold/gld_player_bonuses, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: gld_bonus. See configs/contracts/README.md.
+table: gld_player_bonuses
+layer: org/40-gold
+grain: [tenant_id, brand_id, bonus_id, change_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: brand_id, type: int32, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, group: identity, nullable: true}
+  - {name: bonus_id, type: int32, key: true, group: key, nullable: false}
+  - {name: change_id, type: int64, key: true, nullable: false}
+  - {name: bonus_plan_id, type: int32, group: classification, nullable: true}
+  - {name: event_date, type: 'date32[day]', nullable: true}
+  - {name: source_system, type: string, nullable: true}
+  - {name: status, type: string, group: classification, nullable: true}
+  - {name: award_type, type: string, group: classification, nullable: true}
+  - {name: currency, type: string, group: money, nullable: true}
+  - {name: triggered_at, type: 'timestamp[ms, tz=UTC]', group: lifecycle date, nullable: true}
+  - {name: released_at, type: 'timestamp[ms, tz=UTC]', group: lifecycle date, nullable: true}
+  - {name: expired_at, type: 'timestamp[ms, tz=UTC]', group: lifecycle date, nullable: true}
+  - {name: granted_amount, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_amount, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wager_requirement, type: 'decimal128(38, 4)', group: money, unit: currency, additive: false, range: [0.0, 1000000000.0], nullable: true}
+  - {name: amount_released_bonus, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: won_released_bonus, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: amount_playable_bonus, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: won_playable_bonus, type: 'decimal128(18, 4)', group: money, unit: currency, additive: true, nullable: true}
+  - {name: fx_rate_to_eur, type: 'decimal128(18, 8)', group: fx, nullable: true}
+  - {name: fx_rate_date_used, type: 'date32[day]', group: fx, nullable: true}
+  - {name: fx_is_provisional, type: bool, group: fx, nullable: true}
+  - {name: granted_amount_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: dq_status, type: string, group: quality, nullable: true}
+  - {name: dq_reason, type: string, group: quality, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

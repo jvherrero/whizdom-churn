@@ -1,0 +1,28 @@
+# gld_player_financial_daily: table in org/40-gold/gld_player_financial_daily, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_player_financial_daily
+layer: org/40-gold
+grain: [tenant_id, player_id, snapshot_date]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, nullable: false}
+  - {name: snapshot_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: wagered_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: ggr_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: ngr_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: won_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: deposits_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_ggr_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: wagered_real_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_bonus_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: value_score_eur, type: 'decimal128(18, 4)', group: value, unit: currency, additive: false, nullable: true}
+  - {name: value_tier, type: string, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

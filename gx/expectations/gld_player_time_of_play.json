@@ -1,0 +1,210 @@
+{
+ "name": "gld_player_time_of_play",
+ "expectations": [
+  {
+   "type": "expect_compound_columns_to_be_unique",
+   "kwargs": {
+    "column_list": [
+     "tenant_id",
+     "player_id"
+    ]
+   },
+   "meta": {
+    "rule": "grain"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "tenant_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_not_be_null",
+   "kwargs": {
+    "column": "player_id"
+   },
+   "meta": {
+    "rule": "not_null"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "hourly_entropy",
+    "min_value": 0.0,
+    "max_value": 4.585
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "daily_entropy",
+    "min_value": 0.0,
+    "max_value": 2.808
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "hourly_concentration",
+    "min_value": 0.0,
+    "max_value": 1.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "daily_concentration",
+    "min_value": 0.0,
+    "max_value": 1.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "weekend_index",
+    "min_value": 0.0,
+    "max_value": 3.5
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "night_index",
+    "min_value": 0.0,
+    "max_value": 4.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "business_hours_ratio",
+    "min_value": 0.0,
+    "max_value": 1.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "avg_sessions_per_active_day",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_hourly_entropy",
+    "min_value": 0.0,
+    "max_value": 4.585
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_hourly_concentration",
+    "min_value": 0.0,
+    "max_value": 1.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_night_index",
+    "min_value": 0.0,
+    "max_value": 4.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_weekend_index",
+    "min_value": 0.0,
+    "max_value": 3.5
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_business_hours_ratio",
+    "min_value": 0.0,
+    "max_value": 1.0
+   },
+   "meta": {
+    "rule": "range"
+   },
+   "severity": "critical"
+  },
+  {
+   "type": "expect_column_values_to_be_between",
+   "kwargs": {
+    "column": "prior_avg_sessions_per_active_day",
+    "min_value": 0.0
+   },
+   "meta": {
+    "rule": "non_negative"
+   },
+   "severity": "critical"
+  }
+ ],
+ "meta": {
+  "contract": "configs/contracts/lake/gld_player_time_of_play.yaml",
+  "batch_day_column": null,
+  "great_expectations_version": "1.24.0"
+ },
+ "notes": null
+}

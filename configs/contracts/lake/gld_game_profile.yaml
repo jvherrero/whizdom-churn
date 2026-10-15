@@ -1,0 +1,27 @@
+# gld_game_profile: table in org/40-gold/gld_game_profile, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_game. See configs/contracts/README.md.
+table: gld_game_profile
+layer: org/40-gold
+grain: [tenant_id, game_id, platform_id]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: game_id, type: string, key: true, group: key, nullable: false}
+  - {name: platform_id, type: int64, key: true, group: key, nullable: false}
+  - {name: name, type: string, group: catalogue, nullable: true}
+  - {name: provider, type: string, group: catalogue, nullable: true}
+  - {name: vertical, type: string, group: catalogue, nullable: true}
+  - {name: game_type, type: string, group: catalogue, nullable: true}
+  - {name: theme, type: string, group: catalogue, nullable: true}
+  - {name: rtp_theoretical, type: float, group: catalogue, nullable: true}
+  - {name: volatility_class, type: string, group: catalogue, nullable: true}
+  - {name: status, type: string, group: lifecycle, nullable: true}
+  - {name: is_active, type: bool, group: lifecycle, nullable: true}
+  - {name: first_seen, type: 'timestamp[ms, tz=UTC]', group: lifecycle, nullable: true}
+  - {name: last_seen, type: 'timestamp[ms, tz=UTC]', group: lifecycle, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

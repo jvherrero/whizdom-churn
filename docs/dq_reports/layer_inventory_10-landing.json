@@ -1,0 +1,1530 @@
+[
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/primus/whizdomai-bonus-plan",
+  "n_files": 1758,
+  "size_gb": 0.022,
+  "suffixes": {
+   ".parquet": 1758
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-12",
+  "last_day": "2026-10-14",
+  "n_days": 123,
+  "missing_days": 2,
+  "missing_examples": [
+   "2026-08-09",
+   "2026-08-30"
+  ],
+  "n_rows": 10734,
+  "rows_per_day_median": 73,
+  "rows_per_day_min": 1,
+  "rows_per_day_max": 464,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 4,
+   "offsets_twice": 26,
+   "days": [
+    "2026-07-16"
+   ]
+  },
+  "schema": [
+   [
+    "operation",
+    "string"
+   ],
+   [
+    "bonusPlanId",
+    "int32"
+   ],
+   [
+    "planName",
+    "string"
+   ],
+   [
+    "brandId",
+    "list<array: int32 not null>"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "isPlayable",
+    "bool"
+   ],
+   [
+    "currencies",
+    "list<array: string not null>"
+   ],
+   [
+    "startDate",
+    "string"
+   ],
+   [
+    "endDate",
+    "string"
+   ],
+   [
+    "expiryDays",
+    "int32"
+   ],
+   [
+    "gameType",
+    "list<array: string not null>"
+   ],
+   [
+    "description",
+    "string"
+   ],
+   [
+    "awardType",
+    "string"
+   ],
+   [
+    "amount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "wagerReq",
+    "decimal128(38, 18)"
+   ],
+   [
+    "multiplier",
+    "string"
+   ],
+   [
+    "wagerRequirementAction",
+    "string"
+   ],
+   [
+    "isIncremental",
+    "bool"
+   ],
+   [
+    "incrementalCount",
+    "int32"
+   ],
+   [
+    "isCancelOnWithdrawal",
+    "bool"
+   ],
+   [
+    "playableBonusQualifies",
+    "bool"
+   ],
+   [
+    "isPlayableWinningsReleased",
+    "bool"
+   ],
+   [
+    "maxTriggerAll",
+    "int32"
+   ],
+   [
+    "maxTriggerPlayer",
+    "int32"
+   ],
+   [
+    "minBalanceThreshold",
+    "decimal128(38, 18)"
+   ],
+   [
+    "maxReleaseEnabled",
+    "bool"
+   ],
+   [
+    "triggerType",
+    "string"
+   ],
+   [
+    "triggerSettings",
+    "string"
+   ]
+  ],
+  "n_columns": 28,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-bonus-plan",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/primus/whizdomai-bonuses",
+  "n_files": 4783,
+  "size_gb": 0.403,
+  "suffixes": {
+   ".parquet": 4783
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-11",
+  "last_day": "2026-10-15",
+  "n_days": 127,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 7233657,
+  "rows_per_day_median": 56167,
+  "rows_per_day_min": 7807,
+  "rows_per_day_max": 84473,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 5,
+   "offsets_twice": 12805,
+   "days": [
+    "2026-07-16"
+   ]
+  },
+  "schema": [
+   [
+    "changeId",
+    "int64"
+   ],
+   [
+    "changeStatusTimestamp",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "id",
+    "int32"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "bonusPlanId",
+    "int32"
+   ],
+   [
+    "triggerDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "expiryDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "releaseDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "amountWagered",
+    "decimal128(38, 18)"
+   ],
+   [
+    "wagerRequirement",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonusWinnings",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonusWinningsAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonusAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "playableBonusWinnings",
+    "decimal128(38, 18)"
+   ],
+   [
+    "playableBonus",
+    "decimal128(38, 18)"
+   ]
+  ],
+  "n_columns": 18,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-bonuses",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/primus/whizdomai-payments",
+  "n_files": 4784,
+  "size_gb": 0.27,
+  "suffixes": {
+   ".parquet": 4784
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-11",
+  "last_day": "2026-10-15",
+  "n_days": 127,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 9506193,
+  "rows_per_day_median": 74486,
+  "rows_per_day_min": 10015,
+  "rows_per_day_max": 104124,
+  "n_schemas": 2,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 4,
+   "offsets_twice": 9841,
+   "days": [
+    "2026-07-16"
+   ]
+  },
+  "schema": [
+   [
+    "paymentId",
+    "int32"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "userId",
+    "string"
+   ],
+   [
+    "brandId",
+    "int32"
+   ],
+   [
+    "transactionType",
+    "string"
+   ],
+   [
+    "transactionMethod",
+    "string"
+   ],
+   [
+    "accountNumber",
+    "int32"
+   ],
+   [
+    "requestedAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "processedAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "fee",
+    "decimal128(38, 18)"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "requestDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "processDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "currency",
+    "string"
+   ]
+  ],
+  "n_columns": 14,
+  "schema_changed": true,
+  "columns_added": [
+   "currency"
+  ],
+  "columns_removed": [],
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-payments",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/primus/whizdomai-players",
+  "n_files": 4696,
+  "size_gb": 0.289,
+  "suffixes": {
+   ".parquet": 4696
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-18",
+  "last_day": "2026-10-15",
+  "n_days": 120,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 1431725,
+  "rows_per_day_median": 11556,
+  "rows_per_day_min": 2279,
+  "rows_per_day_max": 19917,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 66,
+   "offsets_missing": 8474,
+   "overlaps": 1,
+   "offsets_twice": 57,
+   "days": [
+    "2026-07-08",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-19",
+    "2026-07-28",
+    "2026-07-31",
+    "2026-08-01",
+    "2026-08-04",
+    "2026-08-10",
+    "2026-08-18",
+    "2026-09-03",
+    "2026-09-11",
+    "2026-10-07"
+   ]
+  },
+  "schema": [
+   [
+    "uuid",
+    "string"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "brandId",
+    "int32"
+   ],
+   [
+    "isActive",
+    "bool"
+   ],
+   [
+    "lockedStatus",
+    "string"
+   ],
+   [
+    "lockedSince",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lockedUntil",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "loginAttempts",
+    "int32"
+   ],
+   [
+    "firstname",
+    "string"
+   ],
+   [
+    "lastname",
+    "string"
+   ],
+   [
+    "birthdate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "regdate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "country",
+    "string"
+   ],
+   [
+    "city",
+    "string"
+   ],
+   [
+    "province",
+    "string"
+   ],
+   [
+    "address",
+    "string"
+   ],
+   [
+    "postalCode",
+    "string"
+   ],
+   [
+    "building",
+    "string"
+   ],
+   [
+    "unit",
+    "string"
+   ],
+   [
+    "language",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "nationalRegNumber",
+    "string"
+   ],
+   [
+    "birthCountry",
+    "string"
+   ],
+   [
+    "birthCity",
+    "string"
+   ],
+   [
+    "profession",
+    "string"
+   ],
+   [
+    "nationality",
+    "string"
+   ],
+   [
+    "phone",
+    "string"
+   ],
+   [
+    "email",
+    "string"
+   ],
+   [
+    "nickname",
+    "string"
+   ],
+   [
+    "iban",
+    "string"
+   ],
+   [
+    "documentNumber",
+    "string"
+   ],
+   [
+    "documentType",
+    "string"
+   ],
+   [
+    "kycStatus",
+    "string"
+   ],
+   [
+    "lastKycRequestedDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lastDepositDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lastDepositAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "lastDepositType",
+    "string"
+   ],
+   [
+    "lastWithdrawDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lastWithdrawAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "trackingCodes",
+    "list<array: struct<code: string not null, value: string not null> not null>"
+   ]
+  ],
+  "n_columns": 40,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-players",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/primus/whizdomai-transactions",
+  "n_files": 18835,
+  "size_gb": 175.097,
+  "suffixes": {
+   ".parquet": 18835
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-18",
+  "last_day": "2026-10-15",
+  "n_days": 120,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 1605977445,
+  "rows_per_day_median": 13411906,
+  "rows_per_day_min": 2613084,
+  "rows_per_day_max": 16353760,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 6,
+   "offsets_twice": 468345,
+   "days": [
+    "2026-07-16"
+   ]
+  },
+  "schema": [
+   [
+    "uuid",
+    "string"
+   ],
+   [
+    "transactionId",
+    "int64"
+   ],
+   [
+    "platformId",
+    "int64"
+   ],
+   [
+    "accountId",
+    "int32"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "firstname",
+    "string"
+   ],
+   [
+    "lastname",
+    "string"
+   ],
+   [
+    "address",
+    "string"
+   ],
+   [
+    "email",
+    "string"
+   ],
+   [
+    "nickname",
+    "string"
+   ],
+   [
+    "ip",
+    "string"
+   ],
+   [
+    "mobile",
+    "bool"
+   ],
+   [
+    "os",
+    "string"
+   ],
+   [
+    "ua",
+    "string"
+   ],
+   [
+    "device",
+    "string"
+   ],
+   [
+    "brandId",
+    "int32"
+   ],
+   [
+    "dateTime",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "tranType",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "amountReal",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amountReleasedBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amountPlayableBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amountRawLoyalty",
+    "int64"
+   ],
+   [
+    "balanceRawLoyalty",
+    "int64"
+   ],
+   [
+    "balanceReal",
+    "decimal128(38, 18)"
+   ],
+   [
+    "balanceReleasedBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "balancePlayableBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "platformTranId",
+    "string"
+   ],
+   [
+    "gameTranId",
+    "string"
+   ],
+   [
+    "gameId",
+    "string"
+   ],
+   [
+    "rollbackTranId",
+    "int64"
+   ],
+   [
+    "rolledBack",
+    "bool"
+   ]
+  ],
+  "n_columns": 32,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-transactions",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/secundus/whizdomai-bonus-plan",
+  "n_files": 1228,
+  "size_gb": 0.015,
+  "suffixes": {
+   ".parquet": 1228
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-12",
+  "last_day": "2026-10-14",
+  "n_days": 120,
+  "missing_days": 5,
+  "missing_examples": [
+   "2026-08-22",
+   "2026-09-12",
+   "2026-09-13",
+   "2026-09-26",
+   "2026-10-04"
+  ],
+  "n_rows": 4558,
+  "rows_per_day_median": 26,
+  "rows_per_day_min": 1,
+  "rows_per_day_max": 153,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 0,
+   "offsets_twice": 0,
+   "days": []
+  },
+  "schema": [
+   [
+    "operation",
+    "string"
+   ],
+   [
+    "bonusPlanId",
+    "int32"
+   ],
+   [
+    "planName",
+    "string"
+   ],
+   [
+    "brandId",
+    "list<array: int32 not null>"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "isPlayable",
+    "bool"
+   ],
+   [
+    "currencies",
+    "list<array: string not null>"
+   ],
+   [
+    "startDate",
+    "string"
+   ],
+   [
+    "endDate",
+    "string"
+   ],
+   [
+    "expiryDays",
+    "int32"
+   ],
+   [
+    "gameType",
+    "list<array: string not null>"
+   ],
+   [
+    "description",
+    "string"
+   ],
+   [
+    "awardType",
+    "string"
+   ],
+   [
+    "amount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "wagerReq",
+    "decimal128(38, 18)"
+   ],
+   [
+    "multiplier",
+    "string"
+   ],
+   [
+    "wagerRequirementAction",
+    "string"
+   ],
+   [
+    "isIncremental",
+    "bool"
+   ],
+   [
+    "incrementalCount",
+    "int32"
+   ],
+   [
+    "isCancelOnWithdrawal",
+    "bool"
+   ],
+   [
+    "playableBonusQualifies",
+    "bool"
+   ],
+   [
+    "isPlayableWinningsReleased",
+    "bool"
+   ],
+   [
+    "maxTriggerAll",
+    "int32"
+   ],
+   [
+    "maxTriggerPlayer",
+    "int32"
+   ],
+   [
+    "minBalanceThreshold",
+    "decimal128(38, 18)"
+   ],
+   [
+    "maxReleaseEnabled",
+    "bool"
+   ],
+   [
+    "triggerType",
+    "string"
+   ],
+   [
+    "triggerSettings",
+    "string"
+   ]
+  ],
+  "n_columns": 28,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-bonus-plan",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/secundus/whizdomai-bonuses",
+  "n_files": 4776,
+  "size_gb": 0.322,
+  "suffixes": {
+   ".parquet": 4776
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-11",
+  "last_day": "2026-10-15",
+  "n_days": 127,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 5436936,
+  "rows_per_day_median": 43214,
+  "rows_per_day_min": 6054,
+  "rows_per_day_max": 72784,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 8,
+   "offsets_twice": 26274,
+   "days": [
+    "2026-07-16"
+   ]
+  },
+  "schema": [
+   [
+    "changeId",
+    "int64"
+   ],
+   [
+    "changeStatusTimestamp",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "id",
+    "int32"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "bonusPlanId",
+    "int32"
+   ],
+   [
+    "triggerDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "expiryDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "releaseDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "amountWagered",
+    "decimal128(38, 18)"
+   ],
+   [
+    "wagerRequirement",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonusWinnings",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonusWinningsAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "releasedBonusAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "playableBonusWinnings",
+    "decimal128(38, 18)"
+   ],
+   [
+    "playableBonus",
+    "decimal128(38, 18)"
+   ]
+  ],
+  "n_columns": 18,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-bonuses",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/secundus/whizdomai-payments",
+  "n_files": 4782,
+  "size_gb": 0.175,
+  "suffixes": {
+   ".parquet": 4782
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-11",
+  "last_day": "2026-10-15",
+  "n_days": 127,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 5729393,
+  "rows_per_day_median": 44985,
+  "rows_per_day_min": 6357,
+  "rows_per_day_max": 66537,
+  "n_schemas": 2,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 0,
+   "offsets_missing": 0,
+   "overlaps": 7,
+   "offsets_twice": 18683,
+   "days": [
+    "2026-07-16"
+   ]
+  },
+  "schema": [
+   [
+    "paymentId",
+    "int32"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "userId",
+    "string"
+   ],
+   [
+    "brandId",
+    "int32"
+   ],
+   [
+    "transactionType",
+    "string"
+   ],
+   [
+    "transactionMethod",
+    "string"
+   ],
+   [
+    "accountNumber",
+    "int32"
+   ],
+   [
+    "requestedAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "processedAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "fee",
+    "decimal128(38, 18)"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "requestDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "processDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "currency",
+    "string"
+   ]
+  ],
+  "n_columns": 14,
+  "schema_changed": true,
+  "columns_added": [
+   "currency"
+  ],
+  "columns_removed": [],
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-payments",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/secundus/whizdomai-players",
+  "n_files": 4664,
+  "size_gb": 0.227,
+  "suffixes": {
+   ".parquet": 4664
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-18",
+  "last_day": "2026-10-15",
+  "n_days": 120,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 1547568,
+  "rows_per_day_median": 11358,
+  "rows_per_day_min": 1223,
+  "rows_per_day_max": 35938,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 62,
+   "offsets_missing": 8927,
+   "overlaps": 1,
+   "offsets_twice": 76,
+   "days": [
+    "2026-07-08",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-28",
+    "2026-07-31",
+    "2026-08-01",
+    "2026-08-04",
+    "2026-08-10",
+    "2026-08-18",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-11",
+    "2026-10-07"
+   ]
+  },
+  "schema": [
+   [
+    "uuid",
+    "string"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "brandId",
+    "int32"
+   ],
+   [
+    "isActive",
+    "bool"
+   ],
+   [
+    "lockedStatus",
+    "string"
+   ],
+   [
+    "lockedSince",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lockedUntil",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "loginAttempts",
+    "int32"
+   ],
+   [
+    "firstname",
+    "string"
+   ],
+   [
+    "lastname",
+    "string"
+   ],
+   [
+    "birthdate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "regdate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "country",
+    "string"
+   ],
+   [
+    "city",
+    "string"
+   ],
+   [
+    "province",
+    "string"
+   ],
+   [
+    "address",
+    "string"
+   ],
+   [
+    "postalCode",
+    "string"
+   ],
+   [
+    "building",
+    "string"
+   ],
+   [
+    "unit",
+    "string"
+   ],
+   [
+    "language",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "nationalRegNumber",
+    "string"
+   ],
+   [
+    "birthCountry",
+    "string"
+   ],
+   [
+    "birthCity",
+    "string"
+   ],
+   [
+    "profession",
+    "string"
+   ],
+   [
+    "nationality",
+    "string"
+   ],
+   [
+    "phone",
+    "string"
+   ],
+   [
+    "email",
+    "string"
+   ],
+   [
+    "nickname",
+    "string"
+   ],
+   [
+    "iban",
+    "string"
+   ],
+   [
+    "documentNumber",
+    "string"
+   ],
+   [
+    "documentType",
+    "string"
+   ],
+   [
+    "kycStatus",
+    "string"
+   ],
+   [
+    "lastKycRequestedDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lastDepositDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lastDepositAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "lastDepositType",
+    "string"
+   ],
+   [
+    "lastWithdrawDate",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lastWithdrawAmount",
+    "decimal128(38, 18)"
+   ],
+   [
+    "trackingCodes",
+    "list<array: struct<code: string not null, value: string not null> not null>"
+   ]
+  ],
+  "n_columns": 40,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-players",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/10-landing",
+  "table": "kafka-sink/secundus/whizdomai-transactions",
+  "n_files": 11884,
+  "size_gb": 96.852,
+  "suffixes": {
+   ".parquet": 11884
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-18",
+  "last_day": "2026-10-15",
+  "n_days": 120,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 931167295,
+  "rows_per_day_median": 7930661,
+  "rows_per_day_min": 1234014,
+  "rows_per_day_max": 9131874,
+  "n_schemas": 1,
+  "sink_offsets": {
+   "partitions": 5,
+   "gaps": 10,
+   "offsets_missing": 140056,
+   "overlaps": 11,
+   "offsets_twice": 679764,
+   "days": [
+    "2026-07-16",
+    "2026-08-04",
+    "2026-09-03",
+    "2026-09-11"
+   ]
+  },
+  "schema": [
+   [
+    "uuid",
+    "string"
+   ],
+   [
+    "transactionId",
+    "int64"
+   ],
+   [
+    "platformId",
+    "int64"
+   ],
+   [
+    "accountId",
+    "int32"
+   ],
+   [
+    "partyId",
+    "int32"
+   ],
+   [
+    "firstname",
+    "string"
+   ],
+   [
+    "lastname",
+    "string"
+   ],
+   [
+    "address",
+    "string"
+   ],
+   [
+    "email",
+    "string"
+   ],
+   [
+    "nickname",
+    "string"
+   ],
+   [
+    "ip",
+    "string"
+   ],
+   [
+    "mobile",
+    "bool"
+   ],
+   [
+    "os",
+    "string"
+   ],
+   [
+    "ua",
+    "string"
+   ],
+   [
+    "device",
+    "string"
+   ],
+   [
+    "brandId",
+    "int32"
+   ],
+   [
+    "dateTime",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "tranType",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "amountReal",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amountReleasedBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amountPlayableBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amountRawLoyalty",
+    "int64"
+   ],
+   [
+    "balanceRawLoyalty",
+    "int64"
+   ],
+   [
+    "balanceReal",
+    "decimal128(38, 18)"
+   ],
+   [
+    "balanceReleasedBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "balancePlayableBonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "platformTranId",
+    "string"
+   ],
+   [
+    "gameTranId",
+    "string"
+   ],
+   [
+    "gameId",
+    "string"
+   ],
+   [
+    "rollbackTranId",
+    "int64"
+   ],
+   [
+    "rolledBack",
+    "bool"
+   ]
+  ],
+  "n_columns": 32,
+  "schema_changed": false,
+  "meta_columns": [],
+  "contract": {
+   "contract": "kafka-sink/primus/whizdomai-transactions",
+   "same_name": false,
+   "contract_columns_present": 1.0,
+   "table_columns_in_contract": 1.0,
+   "missing": [],
+   "extra": []
+  }
+ }
+]

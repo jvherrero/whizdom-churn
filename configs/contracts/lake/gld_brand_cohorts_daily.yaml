@@ -1,0 +1,22 @@
+# gld_brand_cohorts_daily: table in org/40-gold/gld_brand_cohorts_daily, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_brand_cohorts_daily
+layer: org/40-gold
+grain: [tenant_id, event_date, cohort, currency]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: cohort, type: string, key: true, nullable: false}
+  - {name: currency, type: string, key: true, nullable: false}
+  - {name: player_count, type: uint32, nullable: true}
+  - {name: pct_of_tenant_players, type: float, nullable: true}
+  - {name: ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: avg_tenure_days, type: float, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

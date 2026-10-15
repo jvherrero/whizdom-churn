@@ -22,7 +22,7 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile clean-tmp docker-build docker-run
+        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile distributions clean-tmp docker-build docker-run
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -57,7 +57,8 @@ help:
 	@echo "contracts-lake      contracts of the lake tables from the inventory -> configs/contracts/lake/"
 	@echo "gx-suites           Great Expectations suites from the lake contracts -> gx/expectations/ [TABLES=\"a b\"]"
 	@echo "validate-gx         validate tables day by day with GE: TABLES=\"a b\" START=YYYY-MM-DD END=YYYY-MM-DD -> docs/dq_reports/gx_summary.md"
-	@echo "reconcile           phase 2: repeated or lost records: START=YYYY-MM-DD END=YYYY-MM-DD [CHECKS=\"kafka same_keys totals\"] -> docs/dq_reports/reconciliation.md"
+	@echo "reconcile           phase 2: repeated or lost records: START=YYYY-MM-DD END=YYYY-MM-DD [CHECKS=\"kafka duplicates same_keys totals period_totals\"] -> docs/dq_reports/reconciliation_<start>_<end>.md"
+	@echo "distributions       phase 3: distribution and bins of the gold metrics: START=YYYY-MM-DD END=YYYY-MM-DD [TABLES=\"a b\"] -> docs/dq_reports/distributions_<start>_<end>.md"
 	@echo "clean-tmp           delete DuckDB spill files (.tmp/)"
 	@echo "Default BRAND=$(BRAND)."
 
@@ -174,6 +175,9 @@ validate-gx:
 
 reconcile:
 	$(PY) src/quality/reconcile.py --start $(START) --end $(END) $(if $(CHECKS),--checks $(CHECKS))
+
+distributions:
+	$(PY) src/quality/distributions.py --start $(START) --end $(END) $(if $(TABLES),--tables $(TABLES))
 
 promote:
 	$(PY) serving/promote.py --brand-id $(BRAND) $(if $(VERSION),--version $(VERSION))

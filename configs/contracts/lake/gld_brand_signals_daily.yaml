@@ -1,0 +1,52 @@
+# gld_brand_signals_daily: table in org/40-gold/gld_brand_signals_daily, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_brand_signals_daily
+layer: org/40-gold
+grain: [tenant_id, snapshot_date]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: snapshot_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: turnover_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: payout_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: ngr_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: active_players_today, type: uint32, nullable: true}
+  - {name: new_players_today, type: uint32, nullable: true}
+  - {name: ggr_eur_7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: turnover_eur_7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: turnover_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: turnover_eur_90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: payout_eur_7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: payout_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: payout_eur_90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_ggr_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_granted_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_wagered_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: actives_7d, type: uint32, nullable: true}
+  - {name: actives_30d, type: uint32, nullable: true}
+  - {name: arpu_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: arppu_eur_30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: hold_pct_30d, type: float, nullable: true}
+  - {name: vertical_ggr_mix, type: 'map<string, decimal128(18, 4) (''vertical_ggr_mix'')>', nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

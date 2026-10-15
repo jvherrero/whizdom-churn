@@ -1,0 +1,25 @@
+# gld_player_session: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_session
+grain: [tenant_id, brand_id, player_id, session_start]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key, status: new}
+  - {name: brand_id, type: Int32, key: true, group: key, status: new}
+  - {name: player_id, type: Int32, key: true, group: key, status: new}
+  - {name: session_start, type: 'DateTime64(3, ''UTC'')', key: true, group: key, status: new}
+  - {name: event_date, type: Date, group: attribute, status: new}
+  - {name: device_category, type: LowCardinality(Nullable(String)), group: attribute, status: new}
+  - {name: session_end, type: 'Nullable(DateTime64(3, ''UTC''))', group: timing, status: new}
+  - {name: duration_secs, type: UInt32, group: timing, unit: seconds, additive: false, status: new}
+  - {name: prev_session_end, type: 'Nullable(DateTime64(3, ''UTC''))', group: timing, status: new}
+  - {name: rounds, type: UInt32, group: measure, unit: rounds, additive: true, status: new}
+  - {name: bets, type: Nullable(UInt32), group: measure, unit: bets, additive: true, status: new}
+  - {name: wagered_eur, type: 'Decimal(18, 4)', group: measure, unit: currency, additive: true, status: new}
+  - {name: games_played, type: Nullable(UInt16), group: measure, unit: games, additive: false, status: new}
+  - {name: is_open_at_write, type: Bool, group: quality, status: new}
+  - {name: dq_status, type: LowCardinality(Nullable(String)), group: quality, status: new}
+  - {name: _version, type: UInt64, group: meta, status: new}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: new}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta, status: new}

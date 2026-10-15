@@ -1,0 +1,24 @@
+# gld_brand_top_movers_daily: table in org/40-gold/gld_brand_top_movers_daily, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_brand_top_movers_daily
+layer: org/40-gold
+grain: [tenant_id, event_date, entity_kind, entity_id, period, direction]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: entity_kind, type: string, key: true, nullable: false}
+  - {name: entity_id, type: string, key: true, nullable: false}
+  - {name: period, type: string, key: true, nullable: false}
+  - {name: direction, type: string, key: true, nullable: false}
+  - {name: current_value_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_value_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: delta_eur, type: 'decimal128(18, 4)', nullable: true}
+  - {name: pct_change, type: float, nullable: true}
+  - {name: rank_within_tenant, type: uint32, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

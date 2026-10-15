@@ -1,0 +1,69 @@
+# gld_player_gaming_daily: target design of the gold rebuild (2026-09-01), used as the contract of the data checks.
+# See configs/contracts/README.md for the fields.
+table: gld_player_gaming_daily
+grain: [tenant_id, brand_id, player_id, game_id, platform_id, event_date, currency]
+partition_by: toYYYYMM(event_date)
+engine: ReplicatedReplacingMergeTree
+columns:
+  - {name: tenant_id, type: LowCardinality(String), key: true, group: key}
+  - {name: brand_id, type: Int32, key: true, group: key}
+  - {name: player_id, type: Int32, key: true, group: key}
+  - {name: game_id, type: String, key: true, group: key}
+  - {name: platform_id, type: Int64, key: true, group: key}
+  - {name: provider_code, type: LowCardinality(Nullable(String)), key: true, group: key}
+  - {name: event_date, type: Date, key: true, group: key}
+  - {name: currency, type: LowCardinality(String), key: true, group: key}
+  - {name: rounds, type: UInt64, group: count, unit: rounds, additive: true}
+  - {name: bets, type: UInt32, group: count, unit: bets, additive: true}
+  - {name: wins, type: UInt64, group: count, unit: payouts, additive: true}
+  - {name: winning_rounds, type: UInt64, group: count, unit: rounds, additive: true}
+  - {name: big_win_rounds, type: UInt64, group: count, unit: rounds, additive: true}
+  - {name: bet_count_real, type: UInt32, group: count, unit: bets, additive: true}
+  - {name: bet_count_released_bonus, type: UInt32, group: count, unit: bets, additive: true}
+  - {name: bet_count_playable_bonus, type: UInt32, group: count, unit: bets, additive: true}
+  - {name: win_count_real, type: UInt32, group: count}
+  - {name: win_count_released_bonus, type: UInt32, group: count}
+  - {name: win_count_playable_bonus, type: UInt32, group: count}
+  - {name: event_count, type: UInt64, group: count, unit: records, additive: true}
+  - {name: play_secs, type: 'Decimal(14, 3)', group: engagement, unit: seconds, additive: true}
+  - {name: first_played_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: engagement}
+  - {name: last_played_at, type: 'Nullable(DateTime64(3, ''UTC''))', group: engagement}
+  - {name: loyalty_points_delta, type: Int64, group: engagement, unit: points, additive: true}
+  - {name: wagered_real, type: 'Decimal(18, 4)', group: money/BET, unit: currency, additive: true}
+  - {name: wagered_real_eur, type: 'Nullable(Decimal(18, 4))', group: money/BET, unit: currency, additive: true}
+  - {name: wagered_released_bonus, type: 'Decimal(18, 4)', group: money/BET, unit: currency, additive: true}
+  - {name: wagered_released_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/BET, unit: currency, additive: true}
+  - {name: wagered_playable_bonus, type: 'Decimal(18, 4)', group: money/BET, unit: currency, additive: true}
+  - {name: wagered_playable_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/BET, unit: currency, additive: true}
+  - {name: won_real, type: 'Decimal(18, 4)', group: money/WIN, unit: currency, additive: true}
+  - {name: won_real_eur, type: 'Nullable(Decimal(18, 4))', group: money/WIN, unit: currency, additive: true}
+  - {name: won_released_bonus, type: 'Decimal(18, 4)', group: money/WIN, unit: currency, additive: true}
+  - {name: won_released_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/WIN, unit: currency, additive: true}
+  - {name: won_playable_bonus, type: 'Decimal(18, 4)', group: money/WIN, unit: currency, additive: true}
+  - {name: won_playable_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/WIN, unit: currency, additive: true}
+  - {name: cashout_real, type: 'Decimal(18, 4)', group: money/CASH_OUT, unit: currency, additive: true}
+  - {name: cashout_real_eur, type: 'Nullable(Decimal(18, 4))', group: money/CASH_OUT, unit: currency, additive: true}
+  - {name: cashout_released_bonus, type: 'Decimal(18, 4)', group: money/CASH_OUT, unit: currency, additive: true}
+  - {name: cashout_released_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/CASH_OUT, unit: currency, additive: true}
+  - {name: cashout_playable_bonus, type: 'Decimal(18, 4)', group: money/CASH_OUT, unit: currency, additive: true}
+  - {name: cashout_playable_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/CASH_OUT, unit: currency, additive: true}
+  - {name: tax_real, type: 'Decimal(18, 4)', group: money/TAX, unit: currency, additive: true}
+  - {name: tax_real_eur, type: 'Nullable(Decimal(18, 4))', group: money/TAX, unit: currency, additive: true}
+  - {name: tax_released_bonus, type: 'Decimal(18, 4)', group: money/TAX, unit: currency, additive: true}
+  - {name: tax_released_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/TAX, unit: currency, additive: true}
+  - {name: tax_playable_bonus, type: 'Decimal(18, 4)', group: money/TAX, unit: currency, additive: true}
+  - {name: tax_playable_bonus_eur, type: 'Nullable(Decimal(18, 4))', group: money/TAX, unit: currency, additive: true}
+  - {name: max_win, type: 'Nullable(Decimal(18, 4))', group: extrema, unit: currency, additive: false}
+  - {name: balance_real_open, type: 'Nullable(Decimal(18, 4))', group: balance}
+  - {name: balance_real_close, type: 'Nullable(Decimal(18, 4))', group: balance}
+  - {name: balance_released_bonus_close, type: 'Nullable(Decimal(18, 4))', group: balance}
+  - {name: balance_playable_bonus_close, type: 'Nullable(Decimal(18, 4))', group: balance}
+  - {name: max_win_eur, type: 'Nullable(Decimal(18, 4))', group: extrema, unit: currency, additive: false}
+  - {name: fx_rates_state, type: 'AggregateFunction(uniq, Decimal(18, 8))', group: fx}
+  - {name: dq_status, type: LowCardinality(String), group: quality}
+  - {name: fx_rate_to_eur, type: 'Nullable(Decimal(18, 8))', group: fx}
+  - {name: fx_rate_date_used, type: Nullable(Date), group: fx}
+  - {name: fx_is_provisional, type: Bool, group: fx}
+  - {name: _version, type: UInt64, group: meta}
+  - {name: _ingested_at, type: 'DateTime64(3, ''UTC'')', group: meta}
+  - {name: _processed_at, type: 'DateTime64(3, ''UTC'')', group: meta}

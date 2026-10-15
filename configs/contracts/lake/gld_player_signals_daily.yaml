@@ -1,0 +1,175 @@
+# gld_player_signals_daily: table in org/40-gold/gld_player_signals_daily, from the layer inventory of 2026-10-15.
+# Grain: set by hand in configs/quality.yaml.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_player_signals_daily
+layer: org/40-gold
+grain: [tenant_id, player_id, snapshot_date]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, nullable: false}
+  - {name: snapshot_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: brand_id, type: int32, group: key, nullable: true}
+  - {name: currency, type: string, nullable: true}
+  - {name: country, type: string, group: identity, nullable: true}
+  - {name: language, type: string, group: identity, nullable: true}
+  - {name: has_sufficient_data, type: bool, group: computation meta, unit: true/false, additive: false, nullable: true}
+  - {name: confidence_score, type: float, group: computation meta, unit: 0-1, range: [0.0, 1.0], additive: false, nullable: true}
+  - {name: gap_days, type: uint16, group: computation meta, unit: days, additive: false, nullable: true}
+  - {name: param_version, type: 'timestamp[ms, tz=UTC]', nullable: true}
+  - {name: lifecycle_stage, type: string, nullable: true}
+  - {name: tenure_days, type: uint16, nullable: true}
+  - {name: days_since_bet, type: uint16, nullable: true}
+  - {name: current_active_streak_days, type: uint16, nullable: true}
+  - {name: lifetime_value_tier, type: string, nullable: true}
+  - {name: wagered_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: wagered_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: ggr_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ggr_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: ngr_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: won_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: won_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: won_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: won_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: won_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: deposits_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: withdrawals_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: net_cash_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_ggr_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: bonus_ggr_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_ggr_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_ggr_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: real_ggr_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: real_ggr_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: tax_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: tax_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: tax_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: tax_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: tax_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: cashout_eur_today, type: 'decimal128(18, 4)', group: cumulative to COD, nullable: true}
+  - {name: cashout_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: cashout_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: cashout_eur_l90d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: cashout_eur_l180d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_real_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_real_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_bonus_eur_today, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_bonus_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_granted_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bonus_wagered_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_ggr_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_wagered_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_wagered_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_active_days_l7d, type: uint16, nullable: true}
+  - {name: prior_active_days_l30d, type: uint16, nullable: true}
+  - {name: prior_bets_l7d, type: uint32, nullable: true}
+  - {name: prior_bets_l30d, type: uint32, nullable: true}
+  - {name: prior_deposits_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_deposits_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: value_score_eur, type: 'decimal128(18, 4)', group: value, unit: currency, additive: false, nullable: true}
+  - {name: value_tier, type: string, nullable: true}
+  - {name: value_rank_within_tenant, type: uint32, nullable: true}
+  - {name: active_days_today, type: uint8, nullable: true}
+  - {name: active_days_l7d, type: uint8, nullable: true}
+  - {name: active_days_l30d, type: uint8, nullable: true}
+  - {name: active_days_l90d, type: uint16, nullable: true}
+  - {name: active_days_l180d, type: uint16, nullable: true}
+  - {name: sessions_today, type: uint16, nullable: true}
+  - {name: sessions_l7d, type: uint16, nullable: true}
+  - {name: sessions_l30d, type: uint16, nullable: true}
+  - {name: sessions_l90d, type: uint32, nullable: true}
+  - {name: sessions_l180d, type: uint32, nullable: true}
+  - {name: bets_today, type: uint32, group: cumulative to COD, nullable: true}
+  - {name: bets_l7d, type: uint32, nullable: true}
+  - {name: bets_l30d, type: uint32, nullable: true}
+  - {name: bets_l90d, type: uint32, nullable: true}
+  - {name: bets_l180d, type: uint32, nullable: true}
+  - {name: play_secs_today, type: uint32, range: [0.0, 86400.0], nullable: true}
+  - {name: play_secs_l7d, type: uint32, range: [0.0, 604800.0], nullable: true}
+  - {name: play_secs_l30d, type: uint32, range: [0.0, 2592000.0], nullable: true}
+  - {name: play_secs_l90d, type: uint32, range: [0.0, 7776000.0], nullable: true}
+  - {name: play_secs_l180d, type: uint32, range: [0.0, 15552000.0], nullable: true}
+  - {name: games_breadth_l30d, type: uint16, nullable: true}
+  - {name: sessions_with_bonus_l30d, type: uint16, nullable: true}
+  - {name: engagement_score, type: float, group: engagement, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: top_peak_hour, type: uint8, nullable: true}
+  - {name: top_peak_day, type: uint8, nullable: true}
+  - {name: tp_hourly_entropy, type: float, nullable: true}
+  - {name: tp_night_index, type: float, nullable: true}
+  - {name: tp_weekend_index, type: float, nullable: true}
+  - {name: tp_business_hours_ratio, type: float, nullable: true}
+  - {name: tp_avg_session_duration_secs, type: uint32, nullable: true}
+  - {name: tp_median_session_duration_secs, type: uint32, nullable: true}
+  - {name: tp_avg_sessions_per_active_day, type: float, nullable: true}
+  - {name: tp_avg_session_gap_hours, type: float, nullable: true}
+  - {name: tp_max_sessions_single_day, type: uint16, nullable: true}
+  - {name: tp_window_days, type: uint16, nullable: true}
+  - {name: avg_bet_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: avg_bet_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: prior_avg_bet_eur_l7d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: hold_pct_l30d, type: float, nullable: true}
+  - {name: theo_win_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: bet_z_score, type: float, group: risk, unit: std dev, additive: false, nullable: true}
+  - {name: session_len_z, type: float, group: risk, unit: std dev, additive: false, nullable: true}
+  - {name: stake_escalation, type: float, group: risk, unit: ratio, additive: false, nullable: true}
+  - {name: betting_aggression_score, type: float, group: risk, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: risk_appetite_score, type: float, group: risk, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: deposit_frequency_score, type: float, group: deposit behaviour, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: deposit_recency_score, type: float, group: deposit behaviour, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: rg_loss_chasing_30d, type: float, nullable: true}
+  - {name: rg_deposit_velocity, type: float, nullable: true}
+  - {name: rg_night_play_ratio, type: float, nullable: true}
+  - {name: net_loss_velocity, type: float, group: responsible gaming, unit: ratio, additive: false, nullable: true}
+  - {name: session_intensity_score, type: float, group: responsible gaming, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: risk_score, type: float, group: signal, unit: 0-100, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: risk_band, type: string, nullable: true}
+  - {name: recency_pressure, type: float, nullable: true}
+  - {name: frequency_decline, type: float, nullable: true}
+  - {name: value_decline, type: float, range: [0.0, 100.0], nullable: true}
+  - {name: churn_score, type: float, group: churn, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: churn_propensity_raw, type: float, group: churn, unit: model units, additive: false, nullable: true}
+  - {name: churn_band, type: string, nullable: true}
+  - {name: prior_engagement_score, type: float, nullable: true}
+  - {name: prior_risk_score, type: float, nullable: true}
+  - {name: prior_churn_score, type: float, nullable: true}
+  - {name: prior_betting_aggression_score, type: float, nullable: true}
+  - {name: prev_value_tier, type: string, nullable: true}
+  - {name: value_tier_changed_at, type: 'date32[day]', nullable: true}
+  - {name: prev_churn_band, type: string, nullable: true}
+  - {name: churn_band_changed_at, type: 'date32[day]', nullable: true}
+  - {name: prev_risk_band, type: string, nullable: true}
+  - {name: risk_band_changed_at, type: 'date32[day]', nullable: true}
+  - {name: prev_lifecycle_stage, type: string, nullable: true}
+  - {name: lifecycle_stage_changed_at, type: 'date32[day]', nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

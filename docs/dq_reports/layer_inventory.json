@@ -1,0 +1,5043 @@
+[
+ {
+  "layer": "org/20-bronze",
+  "table": "medallion",
+  "n_files": 0,
+  "size_gb": 0.0,
+  "suffixes": {},
+  "layout": null
+ },
+ {
+  "layer": "org/20-bronze",
+  "table": "transactions",
+  "n_files": 1182,
+  "size_gb": 703.967,
+  "suffixes": {
+   ".parquet": 1182
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-05-31",
+  "n_days": 426,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 8330447064,
+  "rows_per_day_median": 19816336,
+  "rows_per_day_min": 8338994,
+  "rows_per_day_max": 32071605,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "uuid",
+    "string"
+   ],
+   [
+    "transaction_id",
+    "int64"
+   ],
+   [
+    "platform_id",
+    "int64"
+   ],
+   [
+    "account_id",
+    "int32"
+   ],
+   [
+    "party_id",
+    "int32"
+   ],
+   [
+    "firstname",
+    "string"
+   ],
+   [
+    "lastname",
+    "string"
+   ],
+   [
+    "address",
+    "string"
+   ],
+   [
+    "email",
+    "string"
+   ],
+   [
+    "nickname",
+    "string"
+   ],
+   [
+    "ip",
+    "string"
+   ],
+   [
+    "mobile",
+    "bool"
+   ],
+   [
+    "os",
+    "string"
+   ],
+   [
+    "ua",
+    "string"
+   ],
+   [
+    "device",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "date_time",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "tran_type",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "amount_real",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amount_released_bonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amount_playable_bonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "amount_raw_loyalty",
+    "int64"
+   ],
+   [
+    "balance_raw_loyalty",
+    "int64"
+   ],
+   [
+    "balance_real",
+    "decimal128(38, 18)"
+   ],
+   [
+    "balance_released_bonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "balance_playable_bonus",
+    "decimal128(38, 18)"
+   ],
+   [
+    "platform_tran_id",
+    "string"
+   ],
+   [
+    "game_tran_id",
+    "string"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "rollback_tran_id",
+    "int64"
+   ],
+   [
+    "rolled_back",
+    "bool"
+   ],
+   [
+    "source_system",
+    "string"
+   ],
+   [
+    "kafka_topic",
+    "string"
+   ],
+   [
+    "kafka_partition",
+    "int64"
+   ],
+   [
+    "kafka_offset",
+    "int64"
+   ],
+   [
+    "kafka_timestamp",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 38,
+  "schema_changed": false,
+  "meta_columns": [
+   "kafka_topic",
+   "kafka_partition",
+   "kafka_offset",
+   "kafka_timestamp",
+   "_ingested_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/30-silver",
+  "table": "medallion/pii",
+  "n_files": 0,
+  "size_gb": 0.0,
+  "suffixes": {},
+  "layout": null
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand",
+  "n_files": 50,
+  "size_gb": 0.001,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 1438,
+  "rows_per_day_median": 29,
+  "rows_per_day_min": 28,
+  "rows_per_day_max": 30,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "active_players_today",
+    "uint32"
+   ],
+   [
+    "new_players_today",
+    "uint32"
+   ],
+   [
+    "ggr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "actives_7d",
+    "uint32"
+   ],
+   [
+    "actives_30d",
+    "uint32"
+   ],
+   [
+    "arpu_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "arppu_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "hold_pct_30d",
+    "float"
+   ],
+   [
+    "bonus_cost_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawal_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "vertical_ggr_mix",
+    "map<string, decimal128(18, 4) ('vertical_ggr_mix')>"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 27,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_cohorts_daily",
+  "n_files": 562,
+  "size_gb": 0.007,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 152271,
+  "rows_per_day_median": 292,
+  "rows_per_day_min": 34,
+  "rows_per_day_max": 361,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "cohort",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "player_count",
+    "uint32"
+   ],
+   [
+    "pct_of_tenant_players",
+    "float"
+   ],
+   [
+    "ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "avg_tenure_days",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 12,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_daily",
+  "n_files": 562,
+  "size_gb": 0.007,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 22982,
+  "rows_per_day_median": 41,
+  "rows_per_day_min": 28,
+  "rows_per_day_max": 63,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "turnover_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "arpu_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "hold_pct",
+    "float"
+   ],
+   [
+    "deposits_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_granted_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_released_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_expired_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_wagered_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "players_wagered",
+    "uint32"
+   ],
+   [
+    "new_players",
+    "uint32"
+   ],
+   [
+    "depositors",
+    "uint32"
+   ],
+   [
+    "withdrawers",
+    "uint32"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 24,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_brand_daily",
+   "same_name": true,
+   "contract_columns_present": 0.129,
+   "table_columns_in_contract": 0.375,
+   "missing": [
+    "active_players_count",
+    "active_players_state",
+    "bets",
+    "bonus_expired",
+    "bonus_granted",
+    "bonus_released",
+    "bonus_wagered_toward_req",
+    "bonus_wagered_toward_req_eur",
+    "brand_id",
+    "cashout_playable_bonus",
+    "cashout_playable_bonus_eur",
+    "cashout_real",
+    "cashout_real_eur",
+    "cashout_released_bonus",
+    "cashout_released_bonus_eur",
+    "deposit_amount",
+    "deposit_amount_eur",
+    "deposit_count",
+    "depositors_count",
+    "depositors_state",
+    "ftd_amount",
+    "ftd_amount_eur",
+    "ftd_players_count",
+    "ftd_players_state",
+    "ftd_suspect_players_count",
+    "ftd_suspect_players_state",
+    "fx_rates_state",
+    "fx_weight_eur",
+    "fx_weight_local",
+    "games_played_state",
+    "metric_version",
+    "new_players_count",
+    "new_players_state",
+    "play_secs",
+    "rounds",
+    "sessions",
+    "tax_playable_bonus",
+    "tax_playable_bonus_eur",
+    "tax_real",
+    "tax_real_eur",
+    "tax_released_bonus",
+    "tax_released_bonus_eur",
+    "unique_players_count",
+    "unique_players_state",
+    "wagered_playable_bonus",
+    "wagered_playable_bonus_eur",
+    "wagered_real",
+    "wagered_real_eur",
+    "wagered_released_bonus",
+    "wagered_released_bonus_eur",
+    "withdraw_amount",
+    "withdraw_amount_eur",
+    "withdraw_count",
+    "withdrawers_count",
+    "withdrawers_state",
+    "won_playable_bonus",
+    "won_playable_bonus_eur",
+    "won_real",
+    "won_real_eur",
+    "won_released_bonus",
+    "won_released_bonus_eur"
+   ],
+   "extra": [
+    "arpu_eur",
+    "bonus_ggr_eur",
+    "bonus_wagered_eur",
+    "depositors",
+    "deposits_eur",
+    "ggr_eur",
+    "hold_pct",
+    "new_players",
+    "ngr_eur",
+    "payout_eur",
+    "players_wagered",
+    "real_ggr_eur",
+    "turnover_eur",
+    "withdrawals_eur",
+    "withdrawers"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_ltv_cohorts_daily",
+  "n_files": 50,
+  "size_gb": 0.008,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 354704,
+  "rows_per_day_median": 6934,
+  "rows_per_day_min": 6191,
+  "rows_per_day_max": 7722,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "acquisition_month",
+    "date32[day]"
+   ],
+   [
+    "tenure_months",
+    "uint16"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "cohort_size",
+    "uint32"
+   ],
+   [
+    "players_matured",
+    "uint32"
+   ],
+   [
+    "cumulative_ggr_eur_avg",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cumulative_ggr_eur_sum",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cumulative_deposits_eur_avg",
+    "decimal128(18, 4)"
+   ],
+   [
+    "retained_pct",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 13,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_registration_cohort_daily",
+  "n_files": 562,
+  "size_gb": 0.004,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 13038,
+  "rows_per_day_median": 23,
+  "rows_per_day_min": 16,
+  "rows_per_day_max": 33,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "cohort_date",
+    "date32[day]"
+   ],
+   [
+    "registrations",
+    "uint32"
+   ],
+   [
+    "converted_to_deposit",
+    "uint32"
+   ],
+   [
+    "converted_to_bet",
+    "uint32"
+   ],
+   [
+    "dep_within_1d",
+    "uint32"
+   ],
+   [
+    "dep_within_7d",
+    "uint32"
+   ],
+   [
+    "dep_within_30d",
+    "uint32"
+   ],
+   [
+    "dep_within_90d",
+    "uint32"
+   ],
+   [
+    "bet_within_1d",
+    "uint32"
+   ],
+   [
+    "bet_within_7d",
+    "uint32"
+   ],
+   [
+    "bet_within_30d",
+    "uint32"
+   ],
+   [
+    "bet_within_90d",
+    "uint32"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 16,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_segments_daily",
+  "n_files": 562,
+  "size_gb": 0.013,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 257624,
+  "rows_per_day_median": 491,
+  "rows_per_day_min": 78,
+  "rows_per_day_max": 523,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "segment_kind",
+    "string"
+   ],
+   [
+    "segment_band",
+    "string"
+   ],
+   [
+    "player_count",
+    "uint32"
+   ],
+   [
+    "pct_of_tenant_players",
+    "float"
+   ],
+   [
+    "ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "pct_of_tenant_ggr_l30d",
+    "float"
+   ],
+   [
+    "pct_of_tenant_wagered_l30d",
+    "float"
+   ],
+   [
+    "avg_ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 14,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_segment",
+   "same_name": false,
+   "contract_columns_present": 0.7,
+   "table_columns_in_contract": 0.5,
+   "missing": [
+    "brand_id",
+    "param_version",
+    "player_id"
+   ],
+   "extra": [
+    "avg_ggr_eur_l30d",
+    "ggr_eur_l30d",
+    "pct_of_tenant_ggr_l30d",
+    "pct_of_tenant_players",
+    "pct_of_tenant_wagered_l30d",
+    "player_count",
+    "wagered_eur_l30d"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_segments_movements",
+  "n_files": 551,
+  "size_gb": 0.005,
+  "suffixes": {
+   ".parquet": 551
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-02",
+  "last_day": "2026-10-14",
+  "n_days": 551,
+  "missing_days": 10,
+  "missing_examples": [
+   "2025-04-05",
+   "2025-04-06",
+   "2025-04-07",
+   "2025-04-08",
+   "2025-04-09",
+   "2025-04-10",
+   "2025-04-11",
+   "2025-04-12",
+   "2025-04-13",
+   "2025-04-14"
+  ],
+  "n_rows": 576389,
+  "rows_per_day_median": 963,
+  "rows_per_day_min": 1,
+  "rows_per_day_max": 2062,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "band_kind",
+    "string"
+   ],
+   [
+    "from_band",
+    "string"
+   ],
+   [
+    "to_band",
+    "string"
+   ],
+   [
+    "player_count",
+    "uint32"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 9,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_segment_movement",
+   "same_name": false,
+   "contract_columns_present": 0.636,
+   "table_columns_in_contract": 0.778,
+   "missing": [
+    "brand_id",
+    "changed_at",
+    "player_id",
+    "segment_kind"
+   ],
+   "extra": [
+    "band_kind",
+    "player_count"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_signals_daily",
+  "n_files": 107,
+  "size_gb": 0.003,
+  "suffixes": {
+   ".parquet": 107
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-06-30",
+  "last_day": "2026-10-14",
+  "n_days": 107,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 2830,
+  "rows_per_day_median": 27,
+  "rows_per_day_min": 25,
+  "rows_per_day_max": 27,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "snapshot_date",
+    "date32[day]"
+   ],
+   [
+    "turnover_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "active_players_today",
+    "uint32"
+   ],
+   [
+    "new_players_today",
+    "uint32"
+   ],
+   [
+    "ggr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "turnover_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "turnover_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "turnover_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_granted_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_wagered_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "actives_7d",
+    "uint32"
+   ],
+   [
+    "actives_30d",
+    "uint32"
+   ],
+   [
+    "arpu_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "arppu_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "hold_pct_30d",
+    "float"
+   ],
+   [
+    "vertical_ggr_mix",
+    "map<string, decimal128(18, 4) ('vertical_ggr_mix')>"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 42,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_signals_hourly",
+  "n_files": 101,
+  "size_gb": 0.004,
+  "suffixes": {
+   ".parquet": 101
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-07-06",
+  "last_day": "2026-10-14",
+  "n_days": 101,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 49406,
+  "rows_per_day_median": 483,
+  "rows_per_day_min": 256,
+  "rows_per_day_max": 524,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "event_hour",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "turnover_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "actives",
+    "uint32"
+   ],
+   [
+    "momentum",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 14,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_brand_top_movers_daily",
+  "n_files": 562,
+  "size_gb": 5.167,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 260862291,
+  "rows_per_day_median": 407051,
+  "rows_per_day_min": 73610,
+  "rows_per_day_max": 681462,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "entity_kind",
+    "string"
+   ],
+   [
+    "entity_id",
+    "string"
+   ],
+   [
+    "period",
+    "string"
+   ],
+   [
+    "direction",
+    "string"
+   ],
+   [
+    "current_value_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_value_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "delta_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "pct_change",
+    "float"
+   ],
+   [
+    "rank_within_tenant",
+    "uint32"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 14,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_game_affinity",
+  "n_files": 63,
+  "size_gb": 0.16,
+  "suffixes": {
+   ".parquet": 63
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-12",
+  "last_day": "2026-10-13",
+  "n_days": 63,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 12307487,
+  "rows_per_day_median": 195782,
+  "rows_per_day_min": 166397,
+  "rows_per_day_max": 223539,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "window_end_date",
+    "date32[day]"
+   ],
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "game_id_a",
+    "string"
+   ],
+   [
+    "game_id_b",
+    "string"
+   ],
+   [
+    "co_players",
+    "uint32"
+   ],
+   [
+    "players_a",
+    "uint32"
+   ],
+   [
+    "players_b",
+    "uint32"
+   ],
+   [
+    "confidence_a_to_b",
+    "float"
+   ],
+   [
+    "confidence_b_to_a",
+    "float"
+   ],
+   [
+    "jaccard",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 13,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_game_affinity",
+   "same_name": true,
+   "contract_columns_present": 0.769,
+   "table_columns_in_contract": 0.769,
+   "missing": [
+    "brand_id",
+    "union_players",
+    "window_days"
+   ],
+   "extra": [
+    "confidence_a_to_b",
+    "confidence_b_to_a",
+    "jaccard"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_game_lifetime",
+  "n_files": 50,
+  "size_gb": 0.396,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 11295951,
+  "rows_per_day_median": 225934,
+  "rows_per_day_min": 221691,
+  "rows_per_day_max": 230508,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "platform_id",
+    "int64"
+   ],
+   [
+    "lifetime_wagered_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_real_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_bonus_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_tax_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_cashout_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_rounds",
+    "uint64"
+   ],
+   [
+    "unique_players_lifetime",
+    "uint32"
+   ],
+   [
+    "first_seen",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_seen",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 16,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_game",
+   "same_name": false,
+   "contract_columns_present": 0.533,
+   "table_columns_in_contract": 1.0,
+   "missing": [
+    "best_win_eur",
+    "brand_id",
+    "game_type",
+    "is_active",
+    "lifetime_bets",
+    "metric_version",
+    "name",
+    "provider",
+    "provider_code",
+    "rtp_theoretical",
+    "status",
+    "theme",
+    "vertical",
+    "volatility_class"
+   ],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_game_profile",
+  "n_files": 50,
+  "size_gb": 0.127,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 11308212,
+  "rows_per_day_median": 226179,
+  "rows_per_day_min": 221979,
+  "rows_per_day_max": 230844,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "platform_id",
+    "int64"
+   ],
+   [
+    "name",
+    "string"
+   ],
+   [
+    "provider",
+    "string"
+   ],
+   [
+    "vertical",
+    "string"
+   ],
+   [
+    "game_type",
+    "string"
+   ],
+   [
+    "theme",
+    "string"
+   ],
+   [
+    "rtp_theoretical",
+    "float"
+   ],
+   [
+    "volatility_class",
+    "string"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "is_active",
+    "bool"
+   ],
+   [
+    "first_seen",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_seen",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 17,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_game",
+   "same_name": false,
+   "contract_columns_present": 0.567,
+   "table_columns_in_contract": 1.0,
+   "missing": [
+    "best_win_eur",
+    "brand_id",
+    "lifetime_bets",
+    "lifetime_bonus_ggr_eur",
+    "lifetime_cashout_eur",
+    "lifetime_ggr_eur",
+    "lifetime_real_ggr_eur",
+    "lifetime_rounds",
+    "lifetime_tax_eur",
+    "lifetime_wagered_eur",
+    "metric_version",
+    "provider_code",
+    "unique_players_lifetime"
+   ],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_game_signals_daily",
+  "n_files": 562,
+  "size_gb": 5.685,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 123458280,
+  "rows_per_day_median": 218866,
+  "rows_per_day_min": 218866,
+  "rows_per_day_max": 230758,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "platform_id",
+    "int64"
+   ],
+   [
+    "snapshot_date",
+    "date32[day]"
+   ],
+   [
+    "rtp_actual_30d",
+    "float"
+   ],
+   [
+    "hold_pct_30d",
+    "float"
+   ],
+   [
+    "volatility_30d",
+    "float"
+   ],
+   [
+    "popularity_score",
+    "float"
+   ],
+   [
+    "popularity_rank",
+    "uint32"
+   ],
+   [
+    "risk_score",
+    "float"
+   ],
+   [
+    "margin_band",
+    "string"
+   ],
+   [
+    "ggr_eur_1d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_1d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_1d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_1d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_1d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_1d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "unique_players_1d",
+    "uint32"
+   ],
+   [
+    "unique_players_7d",
+    "uint32"
+   ],
+   [
+    "unique_players_30d",
+    "uint32"
+   ],
+   [
+    "rounds_1d",
+    "uint32"
+   ],
+   [
+    "rounds_7d",
+    "uint32"
+   ],
+   [
+    "rounds_30d",
+    "uint32"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 44,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_game_signals_hourly",
+  "n_files": 101,
+  "size_gb": 0.156,
+  "suffixes": {
+   ".parquet": 101
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-07-06",
+  "last_day": "2026-10-14",
+  "n_days": 101,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 6430179,
+  "rows_per_day_median": 63840,
+  "rows_per_day_min": 23156,
+  "rows_per_day_max": 71583,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "platform_id",
+    "int64"
+   ],
+   [
+    "event_hour",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "momentum",
+    "float"
+   ],
+   [
+    "volatility",
+    "float"
+   ],
+   [
+    "popularity",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 10,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_game_hourly",
+   "same_name": false,
+   "contract_columns_present": 0.375,
+   "table_columns_in_contract": 0.6,
+   "missing": [
+    "bets",
+    "bonus_ggr_eur",
+    "brand_id",
+    "cashout_eur",
+    "players_state",
+    "real_ggr_eur",
+    "rounds",
+    "tax_eur",
+    "wagered_eur",
+    "won_eur"
+   ],
+   "extra": [
+    "_ingested_at",
+    "momentum",
+    "popularity",
+    "volatility"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_game_unique_players",
+  "n_files": 50,
+  "size_gb": 0.038,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 11296446,
+  "rows_per_day_median": 225951,
+  "rows_per_day_min": 221686,
+  "rows_per_day_max": 230510,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "platform_id",
+    "int64"
+   ],
+   [
+    "unique_players_lifetime",
+    "uint32"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 6,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_bonus_daily",
+  "n_files": 562,
+  "size_gb": 2.604,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 180933375,
+  "rows_per_day_median": 300461,
+  "rows_per_day_min": 300352,
+  "rows_per_day_max": 552970,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "award_type",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "source_system",
+    "string"
+   ],
+   [
+    "bonuses_granted",
+    "uint32"
+   ],
+   [
+    "bonuses_released",
+    "uint32"
+   ],
+   [
+    "bonuses_expired",
+    "uint32"
+   ],
+   [
+    "bonuses_forfeited",
+    "uint32"
+   ],
+   [
+    "granted",
+    "decimal128(18, 4)"
+   ],
+   [
+    "released",
+    "decimal128(18, 4)"
+   ],
+   [
+    "expired",
+    "decimal128(18, 4)"
+   ],
+   [
+    "forfeited",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_toward_req",
+    "decimal128(18, 4)"
+   ],
+   [
+    "active_bonus_balance",
+    "decimal128(18, 4)"
+   ],
+   [
+    "fx_rate_to_eur",
+    "decimal128(18, 8)"
+   ],
+   [
+    "fx_rate_date_used",
+    "date32[day]"
+   ],
+   [
+    "fx_is_provisional",
+    "bool"
+   ],
+   [
+    "granted_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "released_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "expired_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "forfeited_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_toward_req_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "active_bonus_balance_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_cost",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_cost_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "dq_status",
+    "string"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 32,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_bonus_daily",
+   "same_name": true,
+   "contract_columns_present": 0.567,
+   "table_columns_in_contract": 0.531,
+   "missing": [
+    "bonus_expired",
+    "bonus_expired_eur",
+    "bonus_forfeited",
+    "bonus_forfeited_eur",
+    "bonus_granted",
+    "bonus_granted_eur",
+    "bonus_released",
+    "bonus_released_eur",
+    "bonus_wagered_toward_req",
+    "bonus_wagered_toward_req_eur",
+    "fx_rate_is_historic",
+    "wager_requirement",
+    "wager_requirement_eur"
+   ],
+   "extra": [
+    "active_bonus_balance",
+    "active_bonus_balance_eur",
+    "bonus_cost",
+    "bonus_cost_eur",
+    "expired",
+    "expired_eur",
+    "forfeited",
+    "forfeited_eur",
+    "granted",
+    "granted_eur",
+    "released",
+    "released_eur",
+    "source_system",
+    "wagered_toward_req",
+    "wagered_toward_req_eur"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_bonuses",
+  "n_files": 287,
+  "size_gb": 0.628,
+  "suffixes": {
+   ".parquet": 287
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-14",
+  "last_day": "2026-10-14",
+  "n_days": 287,
+  "missing_days": 262,
+  "missing_examples": [
+   "2025-04-15",
+   "2025-04-16",
+   "2025-04-17",
+   "2025-04-18",
+   "2025-04-19",
+   "2025-04-20",
+   "2025-04-22",
+   "2025-04-23",
+   "2025-04-24",
+   "2025-04-25"
+  ],
+  "n_rows": 14593369,
+  "rows_per_day_median": 77261,
+  "rows_per_day_min": 1,
+  "rows_per_day_max": 153964,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "bonus_id",
+    "int32"
+   ],
+   [
+    "change_id",
+    "int64"
+   ],
+   [
+    "bonus_plan_id",
+    "int32"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "source_system",
+    "string"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "award_type",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "triggered_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "released_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "expired_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "granted_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wager_requirement",
+    "decimal128(38, 4)"
+   ],
+   [
+    "amount_released_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_released_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "amount_playable_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_playable_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "fx_rate_to_eur",
+    "decimal128(18, 8)"
+   ],
+   [
+    "fx_rate_date_used",
+    "date32[day]"
+   ],
+   [
+    "fx_is_provisional",
+    "bool"
+   ],
+   [
+    "granted_amount_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "dq_status",
+    "string"
+   ],
+   [
+    "dq_reason",
+    "string"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 30,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_bonus",
+   "same_name": false,
+   "contract_columns_present": 0.558,
+   "table_columns_in_contract": 0.8,
+   "missing": [
+    "bonus_granted",
+    "bonus_granted_eur",
+    "bonus_released",
+    "bonus_released_eur",
+    "bonus_wagered_toward_req",
+    "change_count",
+    "days_to_release",
+    "forfeited_at",
+    "fx_rate_is_historic",
+    "plan_amount",
+    "plan_dq_status",
+    "plan_expiry_days",
+    "plan_is_cancel_on_withdrawal",
+    "plan_is_incremental",
+    "plan_is_playable",
+    "plan_name",
+    "plan_snapshot_at",
+    "plan_trigger_type",
+    "plan_wager_multiplier"
+   ],
+   "extra": [
+    "change_id",
+    "event_date",
+    "granted_amount",
+    "granted_amount_eur",
+    "source_system",
+    "wagered_amount"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_engagement_daily",
+  "n_files": 562,
+  "size_gb": 5.395,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 704861578,
+  "rows_per_day_median": 1378926,
+  "rows_per_day_min": 36974,
+  "rows_per_day_max": 2076149,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "snapshot_date",
+    "date32[day]"
+   ],
+   [
+    "sessions_today",
+    "uint16"
+   ],
+   [
+    "active_days_today",
+    "uint8"
+   ],
+   [
+    "bets_today",
+    "uint32"
+   ],
+   [
+    "play_secs_today",
+    "uint32"
+   ],
+   [
+    "engagement_score",
+    "float"
+   ],
+   [
+    "lifecycle_stage",
+    "string"
+   ],
+   [
+    "top_peak_hour",
+    "uint8"
+   ],
+   [
+    "top_peak_day",
+    "uint8"
+   ],
+   [
+    "tp_hourly_entropy",
+    "float"
+   ],
+   [
+    "tp_night_index",
+    "float"
+   ],
+   [
+    "tp_weekend_index",
+    "float"
+   ],
+   [
+    "tp_business_hours_ratio",
+    "float"
+   ],
+   [
+    "tp_avg_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "tp_median_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "tp_avg_sessions_per_active_day",
+    "float"
+   ],
+   [
+    "tp_avg_session_gap_hours",
+    "float"
+   ],
+   [
+    "tp_max_sessions_single_day",
+    "uint16"
+   ],
+   [
+    "tp_window_days",
+    "uint16"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 24,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_financial_daily",
+  "n_files": 562,
+  "size_gb": 6.204,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 704861144,
+  "rows_per_day_median": 1378926,
+  "rows_per_day_min": 36974,
+  "rows_per_day_max": 2076149,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "snapshot_date",
+    "date32[day]"
+   ],
+   [
+    "wagered_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_real_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_bonus_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "value_score_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "value_tier",
+    "string"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 18,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_gaming_daily",
+  "n_files": 562,
+  "size_gb": 5.822,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 60431240,
+  "rows_per_day_median": 103948,
+  "rows_per_day_min": 8511,
+  "rows_per_day_max": 151752,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "game_id",
+    "string"
+   ],
+   [
+    "provider_code",
+    "int32"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "source_system",
+    "string"
+   ],
+   [
+    "rounds",
+    "uint32"
+   ],
+   [
+    "bets",
+    "uint32"
+   ],
+   [
+    "wins",
+    "uint32"
+   ],
+   [
+    "winning_rounds",
+    "uint32"
+   ],
+   [
+    "bet_count_real",
+    "uint32"
+   ],
+   [
+    "bet_count_released_bonus",
+    "uint32"
+   ],
+   [
+    "bet_count_playable_bonus",
+    "uint32"
+   ],
+   [
+    "big_win_rounds",
+    "uint32"
+   ],
+   [
+    "wagered_real",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_released_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_playable_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_real",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_released_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_playable_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_real",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_released_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_playable_bonus",
+    "decimal128(18, 4)"
+   ],
+   [
+    "max_win",
+    "decimal128(18, 4)"
+   ],
+   [
+    "play_secs",
+    "decimal128(14, 3)"
+   ],
+   [
+    "event_count",
+    "uint64"
+   ],
+   [
+    "first_played_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_played_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "loyalty_points_delta",
+    "int64"
+   ],
+   [
+    "fx_rate_to_eur",
+    "decimal128(18, 8)"
+   ],
+   [
+    "fx_rate_date_used",
+    "date32[day]"
+   ],
+   [
+    "fx_is_provisional",
+    "bool"
+   ],
+   [
+    "wagered_real_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_released_bonus_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_playable_bonus_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_real_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_released_bonus_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_playable_bonus_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_real_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_released_bonus_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_playable_bonus_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "turnover_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "payout_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "max_win_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "rtp_actual",
+    "float"
+   ],
+   [
+    "hold_pct",
+    "float"
+   ],
+   [
+    "avg_bet_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "win_rate",
+    "float"
+   ],
+   [
+    "net_position_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "dq_status",
+    "string"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 59,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_gaming_daily",
+   "same_name": true,
+   "contract_columns_present": 0.758,
+   "table_columns_in_contract": 0.797,
+   "missing": [
+    "balance_playable_bonus_close",
+    "balance_real_close",
+    "balance_real_open",
+    "balance_released_bonus_close",
+    "cashout_playable_bonus",
+    "cashout_playable_bonus_eur",
+    "cashout_real",
+    "cashout_real_eur",
+    "cashout_released_bonus",
+    "cashout_released_bonus_eur",
+    "fx_rates_state",
+    "platform_id",
+    "win_count_playable_bonus",
+    "win_count_real",
+    "win_count_released_bonus"
+   ],
+   "extra": [
+    "avg_bet_eur",
+    "bonus_ggr_eur",
+    "ggr_eur",
+    "hold_pct",
+    "net_position_eur",
+    "payout_eur",
+    "real_ggr_eur",
+    "rtp_actual",
+    "source_system",
+    "tax_eur",
+    "turnover_eur",
+    "win_rate"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_lifetime",
+  "n_files": 50,
+  "size_gb": 5.782,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 100305844,
+  "rows_per_day_median": 2002835,
+  "rows_per_day_min": 1949242,
+  "rows_per_day_max": 2076237,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "country",
+    "string"
+   ],
+   [
+    "language",
+    "string"
+   ],
+   [
+    "registered_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "first_bet_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_bet_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "first_deposit_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_deposit_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "first_withdrawal_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_withdrawal_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "first_bonus_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_bonus_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "first_activity_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_activity_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "last_locked_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "kyc_verified_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "self_excluded_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "self_exclusion_ends_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lifecycle_stage",
+    "string"
+   ],
+   [
+    "lifecycle_changed_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "current_active_streak_days",
+    "uint16"
+   ],
+   [
+    "max_loss_streak",
+    "uint32"
+   ],
+   [
+    "best_win_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "best_net_day_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_wagered_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_ngr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_deposits_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_withdrawals_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_rounds",
+    "uint64"
+   ],
+   [
+    "lifetime_active_days",
+    "uint32"
+   ],
+   [
+    "lifetime_bonus_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_tax_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_cashout_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "total_sessions",
+    "uint32"
+   ],
+   [
+    "total_bets",
+    "uint64"
+   ],
+   [
+    "typical_gap_days",
+    "float"
+   ],
+   [
+    "lifetime_value_tier",
+    "string"
+   ],
+   [
+    "has_sufficient_data",
+    "bool"
+   ],
+   [
+    "confidence_score",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 46,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player",
+   "same_name": false,
+   "contract_columns_present": 0.449,
+   "table_columns_in_contract": 0.761,
+   "missing": [
+    "acquisition_btag",
+    "acquisition_campaign",
+    "acquisition_campaign_id",
+    "acquisition_channel_group",
+    "acquisition_first_touch_at",
+    "acquisition_medium",
+    "acquisition_referrer_host",
+    "acquisition_source",
+    "balance_as_of",
+    "balance_playable_bonus",
+    "balance_real",
+    "balance_released_bonus",
+    "is_active",
+    "kyc_status",
+    "lifetime_bets",
+    "lifetime_deposit_amount_eur",
+    "lifetime_deposit_amount_local",
+    "lifetime_deposit_count",
+    "lifetime_ggr_local",
+    "lifetime_max_engagement_score",
+    "lifetime_max_rg_risk_score",
+    "lifetime_max_value_score_eur",
+    "lifetime_max_value_tier",
+    "lifetime_sessions",
+    "lifetime_wagered_local",
+    "lifetime_winning_rounds",
+    "lifetime_wins",
+    "lifetime_withdraw_amount_eur",
+    "lifetime_withdraw_amount_local",
+    "lifetime_withdraw_count",
+    "lifetime_won_eur",
+    "lifetime_won_local",
+    "locked_status",
+    "loyalty_points_balance",
+    "metric_version",
+    "preferred_browser",
+    "preferred_device_category",
+    "preferred_os",
+    "registration_device_category",
+    "tracking_codes",
+    "vip_manager",
+    "vip_status",
+    "vip_status_updated_at"
+   ],
+   "extra": [
+    "confidence_score",
+    "current_active_streak_days",
+    "has_sufficient_data",
+    "lifecycle_changed_at",
+    "lifecycle_stage",
+    "lifetime_deposits_eur",
+    "lifetime_value_tier",
+    "lifetime_withdrawals_eur",
+    "total_bets",
+    "total_sessions",
+    "typical_gap_days"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_payments",
+  "n_files": 352,
+  "size_gb": 0.687,
+  "suffixes": {
+   ".parquet": 352
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-09-18",
+  "last_day": "2026-10-14",
+  "n_days": 352,
+  "missing_days": 40,
+  "missing_examples": [
+   "2025-09-20",
+   "2025-09-21",
+   "2025-09-22",
+   "2025-09-23",
+   "2025-09-24",
+   "2025-09-25",
+   "2025-09-26",
+   "2025-09-27",
+   "2025-09-28",
+   "2025-09-29"
+  ],
+  "n_rows": 17604068,
+  "rows_per_day_median": 56367,
+  "rows_per_day_min": 1,
+  "rows_per_day_max": 80490,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "payment_id",
+    "int32"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "source_system",
+    "string"
+   ],
+   [
+    "transaction_type",
+    "string"
+   ],
+   [
+    "transaction_method",
+    "string"
+   ],
+   [
+    "is_deposit",
+    "bool"
+   ],
+   [
+    "is_withdrawal",
+    "bool"
+   ],
+   [
+    "is_completed",
+    "bool"
+   ],
+   [
+    "status",
+    "string"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "requested_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "processed_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "fee",
+    "decimal128(18, 4)"
+   ],
+   [
+    "requested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "settled_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "settlement_secs",
+    "int64"
+   ],
+   [
+    "fx_rate_to_eur",
+    "decimal128(18, 8)"
+   ],
+   [
+    "fx_rate_date_used",
+    "date32[day]"
+   ],
+   [
+    "fx_is_provisional",
+    "bool"
+   ],
+   [
+    "processed_amount_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "dq_status",
+    "string"
+   ],
+   [
+    "dq_reason",
+    "string"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 28,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_payment",
+   "same_name": false,
+   "contract_columns_present": 0.963,
+   "table_columns_in_contract": 0.929,
+   "missing": [
+    "requested_amount_eur"
+   ],
+   "extra": [
+    "fee",
+    "source_system"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_payments_daily",
+  "n_files": 352,
+  "size_gb": 0.134,
+  "suffixes": {
+   ".parquet": 352
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-09-18",
+  "last_day": "2026-10-14",
+  "n_days": 352,
+  "missing_days": 40,
+  "missing_examples": [
+   "2025-09-20",
+   "2025-09-21",
+   "2025-09-22",
+   "2025-09-23",
+   "2025-09-24",
+   "2025-09-25",
+   "2025-09-26",
+   "2025-09-27",
+   "2025-09-28",
+   "2025-09-29"
+  ],
+  "n_rows": 5752716,
+  "rows_per_day_median": 18490,
+  "rows_per_day_min": 1,
+  "rows_per_day_max": 25706,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "event_date",
+    "date32[day]"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "source_system",
+    "string"
+   ],
+   [
+    "deposit_count",
+    "uint32"
+   ],
+   [
+    "withdraw_count",
+    "uint32"
+   ],
+   [
+    "deposit_attempts",
+    "uint32"
+   ],
+   [
+    "withdraw_attempts",
+    "uint32"
+   ],
+   [
+    "failed_deposit_count",
+    "uint32"
+   ],
+   [
+    "failed_withdraw_count",
+    "uint32"
+   ],
+   [
+    "deposit_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdraw_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposit_fee",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdraw_fee",
+    "decimal128(18, 4)"
+   ],
+   [
+    "requested_withdraw_amount",
+    "decimal128(18, 4)"
+   ],
+   [
+    "avg_withdraw_settlement_secs",
+    "float"
+   ],
+   [
+    "fx_rate_to_eur",
+    "decimal128(18, 8)"
+   ],
+   [
+    "fx_rate_date_used",
+    "date32[day]"
+   ],
+   [
+    "fx_is_provisional",
+    "bool"
+   ],
+   [
+    "deposit_amount_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdraw_amount_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposit_fee_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdraw_fee_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "requested_withdraw_amount_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_deposit_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "dq_status",
+    "string"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 31,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_payment_daily",
+   "same_name": false,
+   "contract_columns_present": 0.857,
+   "table_columns_in_contract": 0.774,
+   "missing": [
+    "fx_rates_state",
+    "transaction_method",
+    "withdraw_settled_count",
+    "withdraw_settlement_secs_total"
+   ],
+   "extra": [
+    "avg_withdraw_settlement_secs",
+    "deposit_fee",
+    "deposit_fee_eur",
+    "net_deposit_eur",
+    "source_system",
+    "withdraw_fee",
+    "withdraw_fee_eur"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_risk_daily",
+  "n_files": 562,
+  "size_gb": 9.648,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 704861890,
+  "rows_per_day_median": 1378926,
+  "rows_per_day_min": 36974,
+  "rows_per_day_max": 2076149,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "snapshot_date",
+    "date32[day]"
+   ],
+   [
+    "risk_score",
+    "float"
+   ],
+   [
+    "risk_band",
+    "string"
+   ],
+   [
+    "rg_loss_chasing_30d",
+    "float"
+   ],
+   [
+    "rg_deposit_velocity",
+    "float"
+   ],
+   [
+    "rg_night_play_ratio",
+    "float"
+   ],
+   [
+    "net_loss_velocity",
+    "float"
+   ],
+   [
+    "session_intensity_score",
+    "float"
+   ],
+   [
+    "bet_z_score",
+    "float"
+   ],
+   [
+    "session_len_z",
+    "float"
+   ],
+   [
+    "stake_escalation",
+    "float"
+   ],
+   [
+    "betting_aggression_score",
+    "float"
+   ],
+   [
+    "risk_appetite_score",
+    "float"
+   ],
+   [
+    "churn_score",
+    "float"
+   ],
+   [
+    "churn_propensity_raw",
+    "float"
+   ],
+   [
+    "churn_band",
+    "string"
+   ],
+   [
+    "recency_pressure",
+    "float"
+   ],
+   [
+    "frequency_decline",
+    "float"
+   ],
+   [
+    "value_decline",
+    "float"
+   ],
+   [
+    "deposit_frequency_score",
+    "float"
+   ],
+   [
+    "deposit_recency_score",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 26,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_signals_daily",
+  "n_files": 562,
+  "size_gb": 62.059,
+  "suffixes": {
+   ".parquet": 562
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2025-04-01",
+  "last_day": "2026-10-14",
+  "n_days": 562,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 705891165,
+  "rows_per_day_median": 1379325,
+  "rows_per_day_min": 36990,
+  "rows_per_day_max": 2076149,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "snapshot_date",
+    "date32[day]"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "country",
+    "string"
+   ],
+   [
+    "language",
+    "string"
+   ],
+   [
+    "has_sufficient_data",
+    "bool"
+   ],
+   [
+    "confidence_score",
+    "float"
+   ],
+   [
+    "gap_days",
+    "uint16"
+   ],
+   [
+    "param_version",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lifecycle_stage",
+    "string"
+   ],
+   [
+    "tenure_days",
+    "uint16"
+   ],
+   [
+    "days_since_bet",
+    "uint16"
+   ],
+   [
+    "current_active_streak_days",
+    "uint16"
+   ],
+   [
+    "lifetime_value_tier",
+    "string"
+   ],
+   [
+    "wagered_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ggr_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "ngr_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "won_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "deposits_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "withdrawals_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "net_cash_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_ggr_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "real_ggr_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "tax_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_l90d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "cashout_eur_l180d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_real_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_real_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_bonus_eur_today",
+    "decimal128(18, 4)"
+   ],
+   [
+    "wagered_bonus_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_granted_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bonus_wagered_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_ggr_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_ggr_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_wagered_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_wagered_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_active_days_l7d",
+    "uint16"
+   ],
+   [
+    "prior_active_days_l30d",
+    "uint16"
+   ],
+   [
+    "prior_bets_l7d",
+    "uint32"
+   ],
+   [
+    "prior_bets_l30d",
+    "uint32"
+   ],
+   [
+    "prior_deposits_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_deposits_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "value_score_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "value_tier",
+    "string"
+   ],
+   [
+    "value_rank_within_tenant",
+    "uint32"
+   ],
+   [
+    "active_days_today",
+    "uint8"
+   ],
+   [
+    "active_days_l7d",
+    "uint8"
+   ],
+   [
+    "active_days_l30d",
+    "uint8"
+   ],
+   [
+    "active_days_l90d",
+    "uint16"
+   ],
+   [
+    "active_days_l180d",
+    "uint16"
+   ],
+   [
+    "sessions_today",
+    "uint16"
+   ],
+   [
+    "sessions_l7d",
+    "uint16"
+   ],
+   [
+    "sessions_l30d",
+    "uint16"
+   ],
+   [
+    "sessions_l90d",
+    "uint32"
+   ],
+   [
+    "sessions_l180d",
+    "uint32"
+   ],
+   [
+    "bets_today",
+    "uint32"
+   ],
+   [
+    "bets_l7d",
+    "uint32"
+   ],
+   [
+    "bets_l30d",
+    "uint32"
+   ],
+   [
+    "bets_l90d",
+    "uint32"
+   ],
+   [
+    "bets_l180d",
+    "uint32"
+   ],
+   [
+    "play_secs_today",
+    "uint32"
+   ],
+   [
+    "play_secs_l7d",
+    "uint32"
+   ],
+   [
+    "play_secs_l30d",
+    "uint32"
+   ],
+   [
+    "play_secs_l90d",
+    "uint32"
+   ],
+   [
+    "play_secs_l180d",
+    "uint32"
+   ],
+   [
+    "games_breadth_l30d",
+    "uint16"
+   ],
+   [
+    "sessions_with_bonus_l30d",
+    "uint16"
+   ],
+   [
+    "engagement_score",
+    "float"
+   ],
+   [
+    "top_peak_hour",
+    "uint8"
+   ],
+   [
+    "top_peak_day",
+    "uint8"
+   ],
+   [
+    "tp_hourly_entropy",
+    "float"
+   ],
+   [
+    "tp_night_index",
+    "float"
+   ],
+   [
+    "tp_weekend_index",
+    "float"
+   ],
+   [
+    "tp_business_hours_ratio",
+    "float"
+   ],
+   [
+    "tp_avg_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "tp_median_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "tp_avg_sessions_per_active_day",
+    "float"
+   ],
+   [
+    "tp_avg_session_gap_hours",
+    "float"
+   ],
+   [
+    "tp_max_sessions_single_day",
+    "uint16"
+   ],
+   [
+    "tp_window_days",
+    "uint16"
+   ],
+   [
+    "avg_bet_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "avg_bet_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "prior_avg_bet_eur_l7d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "hold_pct_l30d",
+    "float"
+   ],
+   [
+    "theo_win_eur_l30d",
+    "decimal128(18, 4)"
+   ],
+   [
+    "bet_z_score",
+    "float"
+   ],
+   [
+    "session_len_z",
+    "float"
+   ],
+   [
+    "stake_escalation",
+    "float"
+   ],
+   [
+    "betting_aggression_score",
+    "float"
+   ],
+   [
+    "risk_appetite_score",
+    "float"
+   ],
+   [
+    "deposit_frequency_score",
+    "float"
+   ],
+   [
+    "deposit_recency_score",
+    "float"
+   ],
+   [
+    "rg_loss_chasing_30d",
+    "float"
+   ],
+   [
+    "rg_deposit_velocity",
+    "float"
+   ],
+   [
+    "rg_night_play_ratio",
+    "float"
+   ],
+   [
+    "net_loss_velocity",
+    "float"
+   ],
+   [
+    "session_intensity_score",
+    "float"
+   ],
+   [
+    "risk_score",
+    "float"
+   ],
+   [
+    "risk_band",
+    "string"
+   ],
+   [
+    "recency_pressure",
+    "float"
+   ],
+   [
+    "frequency_decline",
+    "float"
+   ],
+   [
+    "value_decline",
+    "float"
+   ],
+   [
+    "churn_score",
+    "float"
+   ],
+   [
+    "churn_propensity_raw",
+    "float"
+   ],
+   [
+    "churn_band",
+    "string"
+   ],
+   [
+    "prior_engagement_score",
+    "float"
+   ],
+   [
+    "prior_risk_score",
+    "float"
+   ],
+   [
+    "prior_churn_score",
+    "float"
+   ],
+   [
+    "prior_betting_aggression_score",
+    "float"
+   ],
+   [
+    "prev_value_tier",
+    "string"
+   ],
+   [
+    "value_tier_changed_at",
+    "date32[day]"
+   ],
+   [
+    "prev_churn_band",
+    "string"
+   ],
+   [
+    "churn_band_changed_at",
+    "date32[day]"
+   ],
+   [
+    "prev_risk_band",
+    "string"
+   ],
+   [
+    "risk_band_changed_at",
+    "date32[day]"
+   ],
+   [
+    "prev_lifecycle_stage",
+    "string"
+   ],
+   [
+    "lifecycle_stage_changed_at",
+    "date32[day]"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 165,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_signals_hourly",
+  "n_files": 188,
+  "size_gb": 0.506,
+  "suffixes": {
+   ".parquet": 188
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-04-10",
+  "last_day": "2026-10-14",
+  "n_days": 188,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 14273559,
+  "rows_per_day_median": 75897,
+  "rows_per_day_min": 25018,
+  "rows_per_day_max": 94245,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "event_hour",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "momentum",
+    "float"
+   ],
+   [
+    "acceleration",
+    "float"
+   ],
+   [
+    "intraday_volatility",
+    "float"
+   ],
+   [
+    "risk_score",
+    "float"
+   ],
+   [
+    "deposit_velocity_1h",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 11,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_segment",
+   "same_name": false,
+   "contract_columns_present": 0.5,
+   "table_columns_in_contract": 0.455,
+   "missing": [
+    "brand_id",
+    "event_date",
+    "param_version",
+    "segment_band",
+    "segment_kind"
+   ],
+   "extra": [
+    "acceleration",
+    "deposit_velocity_1h",
+    "event_hour",
+    "intraday_volatility",
+    "momentum",
+    "risk_score"
+   ]
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_player_time_of_play",
+  "n_files": 50,
+  "size_gb": 2.719,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 39880038,
+  "rows_per_day_median": 795294,
+  "rows_per_day_min": 744589,
+  "rows_per_day_max": 859396,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "computation_window_days",
+    "uint16"
+   ],
+   [
+    "total_sessions_in_window",
+    "uint32"
+   ],
+   [
+    "hourly_session_counts",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "daily_session_counts",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "monthly_session_counts",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "hourly_wagered_amounts",
+    "list<element: decimal128(18, 4) not null>"
+   ],
+   [
+    "daily_wagered_amounts",
+    "list<element: decimal128(18, 4) not null>"
+   ],
+   [
+    "monthly_wagered_amounts",
+    "list<element: decimal128(18, 4) not null>"
+   ],
+   [
+    "hourly_entropy",
+    "float"
+   ],
+   [
+    "daily_entropy",
+    "float"
+   ],
+   [
+    "hourly_concentration",
+    "float"
+   ],
+   [
+    "daily_concentration",
+    "float"
+   ],
+   [
+    "weekend_index",
+    "float"
+   ],
+   [
+    "night_index",
+    "float"
+   ],
+   [
+    "business_hours_ratio",
+    "float"
+   ],
+   [
+    "session_duration_dist",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "avg_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "median_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "avg_sessions_per_active_day",
+    "float"
+   ],
+   [
+    "max_sessions_single_day",
+    "uint16"
+   ],
+   [
+    "session_gap_dist",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "avg_session_gap_hours",
+    "float"
+   ],
+   [
+    "bet_size_relative_dist",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "bet_size_cv",
+    "float"
+   ],
+   [
+    "weekday_hour_session_counts",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "day_of_month_session_counts",
+    "list<element: uint32 not null>"
+   ],
+   [
+    "peak_hour",
+    "uint8"
+   ],
+   [
+    "peak_day",
+    "uint8"
+   ],
+   [
+    "peak_weekday_hour_day",
+    "uint8"
+   ],
+   [
+    "peak_weekday_hour_hour",
+    "uint8"
+   ],
+   [
+    "peak_day_of_month",
+    "uint8"
+   ],
+   [
+    "comparison_window_days",
+    "uint16"
+   ],
+   [
+    "prior_hourly_entropy",
+    "float"
+   ],
+   [
+    "prior_hourly_concentration",
+    "float"
+   ],
+   [
+    "prior_night_index",
+    "float"
+   ],
+   [
+    "prior_weekend_index",
+    "float"
+   ],
+   [
+    "prior_business_hours_ratio",
+    "float"
+   ],
+   [
+    "prior_avg_session_duration_secs",
+    "uint32"
+   ],
+   [
+    "prior_avg_sessions_per_active_day",
+    "float"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_ingested_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 44,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_ingested_at",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": "gld_player_time_of_play",
+   "same_name": true,
+   "contract_columns_present": 0.978,
+   "table_columns_in_contract": 1.0,
+   "missing": [
+    "brand_id"
+   ],
+   "extra": []
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "gld_players",
+  "n_files": 50,
+  "size_gb": 7.2,
+  "suffixes": {
+   ".parquet": 50
+  },
+  "layout": "YYYY/MM/DD",
+  "first_day": "2026-08-26",
+  "last_day": "2026-10-14",
+  "n_days": 50,
+  "missing_days": 0,
+  "missing_examples": [],
+  "n_rows": 186096622,
+  "rows_per_day_median": 3709927,
+  "rows_per_day_min": 3543636,
+  "rows_per_day_max": 3941692,
+  "n_schemas": 1,
+  "schema": [
+   [
+    "tenant_id",
+    "string"
+   ],
+   [
+    "player_id",
+    "int32"
+   ],
+   [
+    "brand_id",
+    "int32"
+   ],
+   [
+    "currency",
+    "string"
+   ],
+   [
+    "country",
+    "string"
+   ],
+   [
+    "language",
+    "string"
+   ],
+   [
+    "is_active",
+    "bool"
+   ],
+   [
+    "locked_status",
+    "string"
+   ],
+   [
+    "kyc_status",
+    "string"
+   ],
+   [
+    "has_pii",
+    "bool"
+   ],
+   [
+    "registered_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "first_bet_at",
+    "date32[day]"
+   ],
+   [
+    "last_bet_at",
+    "date32[day]"
+   ],
+   [
+    "first_deposit_at",
+    "date32[day]"
+   ],
+   [
+    "last_deposit_at",
+    "date32[day]"
+   ],
+   [
+    "first_withdrawal_at",
+    "date32[day]"
+   ],
+   [
+    "last_withdrawal_at",
+    "date32[day]"
+   ],
+   [
+    "first_bonus_at",
+    "date32[day]"
+   ],
+   [
+    "last_bonus_at",
+    "date32[day]"
+   ],
+   [
+    "first_activity_at",
+    "date32[day]"
+   ],
+   [
+    "last_activity_at",
+    "date32[day]"
+   ],
+   [
+    "last_locked_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "lifecycle_stage",
+    "string"
+   ],
+   [
+    "prev_lifecycle_stage",
+    "string"
+   ],
+   [
+    "lifecycle_changed_at",
+    "timestamp[ms, tz=UTC]"
+   ],
+   [
+    "tenure_days",
+    "uint16"
+   ],
+   [
+    "days_since_bet",
+    "uint16"
+   ],
+   [
+    "days_since_last_activity",
+    "uint16"
+   ],
+   [
+    "current_active_streak_days",
+    "uint16"
+   ],
+   [
+    "lifetime_wagered_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_ggr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_ngr_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_deposits_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_withdrawals_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "lifetime_rounds",
+    "uint64"
+   ],
+   [
+    "lifetime_active_days",
+    "uint32"
+   ],
+   [
+    "total_sessions",
+    "uint32"
+   ],
+   [
+    "total_bets",
+    "uint64"
+   ],
+   [
+    "best_win_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "max_loss_streak",
+    "uint32"
+   ],
+   [
+    "lifetime_value_tier",
+    "string"
+   ],
+   [
+    "signals_as_of",
+    "date32[day]"
+   ],
+   [
+    "value_score_eur",
+    "decimal128(18, 4)"
+   ],
+   [
+    "value_tier",
+    "string"
+   ],
+   [
+    "churn_score",
+    "float"
+   ],
+   [
+    "churn_band",
+    "string"
+   ],
+   [
+    "risk_score",
+    "float"
+   ],
+   [
+    "risk_band",
+    "string"
+   ],
+   [
+    "engagement_score",
+    "float"
+   ],
+   [
+    "prev_value_tier",
+    "string"
+   ],
+   [
+    "value_tier_changed_at",
+    "date32[day]"
+   ],
+   [
+    "prev_churn_band",
+    "string"
+   ],
+   [
+    "churn_band_changed_at",
+    "date32[day]"
+   ],
+   [
+    "prev_risk_band",
+    "string"
+   ],
+   [
+    "risk_band_changed_at",
+    "date32[day]"
+   ],
+   [
+    "has_sufficient_data",
+    "bool"
+   ],
+   [
+    "confidence_score",
+    "float"
+   ],
+   [
+    "gap_days",
+    "uint16"
+   ],
+   [
+    "_version",
+    "uint64"
+   ],
+   [
+    "_processed_at",
+    "timestamp[ms, tz=UTC]"
+   ]
+  ],
+  "n_columns": 60,
+  "schema_changed": false,
+  "meta_columns": [
+   "_version",
+   "_processed_at"
+  ],
+  "contract": {
+   "contract": null
+  }
+ },
+ {
+  "layer": "org/40-gold",
+  "table": "medallion",
+  "n_files": 0,
+  "size_gb": 0.0,
+  "suffixes": {},
+  "layout": null
+ }
+]

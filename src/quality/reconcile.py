@@ -11,7 +11,8 @@ Checks, set in the "reconcile" section of configs/quality.yaml:
                subset of a table, e.g. players with some activity)
     totals     an atomic table summed by key against its daily table: keys on one side only, the same
                keys still missing one day before and after (a day shift, not a loss), and measures
-               that differ ("informative" measures are shown without a status)
+               that differ ("informative" measures are shown without a status). "source_columns"
+               and "source_filter" shape the source first, e.g. a date from a timestamp in bronze
 Every number comes from DuckDB over all the rows of each day: no sampling, and no player rows leave
 DuckDB. Results are cached per check and day.
 Output: docs/dq_reports/reconciliation_<start>_<end>[_<checks>].md, one file per run, and MLflow.
@@ -23,6 +24,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -41,12 +43,17 @@ CONFIG_PATH = PROJECT_ROOT / "configs/quality.yaml"
 CACHE_DIR = PROJECT_ROOT / "data/02_intermediate/quality/reconcile"
 REPORT_DIR = PROJECT_ROOT / "docs/dq_reports"
 MLFLOW_EXPERIMENT = "whizdom-churn-quality"
-CACHE_VERSION = 4
-CHECKS = ("kafka", "same_keys", "totals")
+CACHE_VERSION = 5
+CHECKS = ("kafka", "duplicates", "same_keys", "totals", "period_totals")
 
 
 def q(column: str) -> str:
     return f'"{column}"'
+
+
+def gap(column: str) -> str:
+    """|a - b| as DOUBLE, with a missing value taken as 0."""
+    return (f"abs(coalesce(CAST(a.{q(column)} AS DOUBLE), 0) - coalesce(CAST(b.{q(column)} AS DOUBLE), 0))")
 
 
 def diff(column: str) -> str:
@@ -74,16 +81,25 @@ class Lake:
             self.files[table] = validate.day_files(pfs, base, table)
         return self.files[table]
 
-    def source(self, table: str, day: dt.date) -> str | None:
-        files = self.day_files(table).get(day)
-        if not files:
+    def source(self, tables, days) -> str | None:
+        """read_parquet of one table or a list of tables (read together, columns matched by name),
+        for one day or a list of days. None when there is no file."""
+        tables = [tables] if isinstance(tables, str) else tables
+        days = [days] if isinstance(days, dt.date) else days
+        parts = []
+        for table in tables:
+            files = [f for d in days for f in self.day_files(table).get(d, [])]
+            if files:
+                paths = ", ".join(f"'{uri(self.fs[table], p)}'" for p, _ in files)
+                parts.append(f"SELECT * FROM read_parquet([{paths}], union_by_name = true)")
+        if not parts:
             return None
-        paths = ", ".join(f"'{uri(self.fs[table], p)}'" for p, _ in files)
-        return f"read_parquet([{paths}], union_by_name = true)"
+        return f"({' UNION ALL BY NAME '.join(parts)})"
 
-    def signature(self, tables: list[str], days: list[dt.date]) -> list:
+    def signature(self, tables: list, days: list[dt.date]) -> list:
+        flat = [t for spec in tables for t in ([spec] if isinstance(spec, str) else spec)]
         return [[t, str(d), [[p.rsplit("/", 1)[-1], s] for p, s in self.day_files(t).get(d, [])]]
-                for t in tables for d in days]
+                for t in flat for d in days]
 
     def one(self, sql: str) -> dict:
         frame = self.con.sql(sql).df()
@@ -98,23 +114,30 @@ def row(check: str, name: str, day, item: str, n, problems, extra: str = "", inf
 
 # ---------------------------------------------------------------------------- kafka
 
+def repeated(lake: Lake, check: str, name: str, src: str, prev: str | None, keys: dict, day) -> list[dict]:
+    """Rows repeated under each business key in the day, rows with an empty key, and keys already
+    seen the day before (a message delivered again later)."""
+    out = []
+    for key_name, key in keys.items():
+        cols = ", ".join(q(k) for k in key)
+        r = lake.one(f"SELECT count(*) AS n, count(DISTINCT row({cols})) AS k, "
+                     f"count(*) FILTER (WHERE {' AND '.join(f'{q(k)} IS NULL' for k in key)}) AS nulls "
+                     f"FROM {src}")
+        out.append(row(check, name, day, f"rows repeated in the day ({key_name})", r["n"], r["n"] - r["k"]))
+        out.append(row(check, name, day, f"rows with an empty key ({key_name})", r["n"], r["nulls"]))
+        if prev:
+            r2 = lake.one(f"WITH a AS (SELECT DISTINCT {cols} FROM {src}), b AS (SELECT DISTINCT {cols} FROM {prev}) "
+                          f"SELECT (SELECT count(*) FROM a) AS k, count(*) AS again FROM a SEMI JOIN b ON {same(key)}")
+            out.append(row(check, name, day, f"keys already seen the day before ({key_name})", r2["k"], r2["again"]))
+    return out
+
+
 def kafka_day(lake: Lake, cfg: dict, day: dt.date) -> list[dict]:
     table = cfg["table"]
     src, prev = lake.source(table, day), lake.source(table, day - dt.timedelta(days=1))
     if src is None:
         return [row("kafka", table, day, "no files", None, None)]
-    out = []
-    for name, key in cfg["business_keys"].items():
-        cols = ", ".join(q(k) for k in key)
-        r = lake.one(f"SELECT count(*) AS n, count(DISTINCT row({cols})) AS k, "
-                     f"count(*) FILTER (WHERE {' AND '.join(f'{q(k)} IS NULL' for k in key)}) AS nulls "
-                     f"FROM {src}")
-        out.append(row("kafka", table, day, f"rows repeated in the day ({name})", r["n"], r["n"] - r["k"]))
-        out.append(row("kafka", table, day, f"rows with an empty key ({name})", r["n"], r["nulls"]))
-        if prev:
-            r2 = lake.one(f"WITH a AS (SELECT DISTINCT {cols} FROM {src}), b AS (SELECT DISTINCT {cols} FROM {prev}) "
-                          f"SELECT (SELECT count(*) FROM a) AS k, count(*) AS again FROM a SEMI JOIN b ON {same(key)}")
-            out.append(row("kafka", table, day, f"keys already seen the day before ({name})", r2["k"], r2["again"]))
+    out = repeated(lake, "kafka", table, src, prev, cfg["business_keys"], day)
     ev, kt, it = (q(cfg[k]) for k in ("event_time", "kafka_time", "ingest_time"))
     # Which time the day folders follow: rows whose event or Kafka day is not the folder day.
     r = lake.one(f"SELECT count(*) AS n, count(*) FILTER (WHERE CAST({ev} AS DATE) <> DATE '{day}') AS ev, "
@@ -198,35 +221,89 @@ def same_keys_day(lake: Lake, name: str, cfg: dict, tol: float, day: dt.date) ->
 
 # ---------------------------------------------------------------------------- totals
 
-def totals_day(lake: Lake, name: str, cfg: dict, tol: float, day: dt.date) -> list[dict]:
+def label(spec) -> str:
+    """Name of a source in the report: a table, or the first table of a list read together."""
+    return spec if isinstance(spec, str) else f"{spec[0]} (+{len(spec) - 1} more, read together)"
+
+
+def shape(src: str, cfg: dict) -> str:
+    """The source with its extra columns (source_columns) and filter (source_filter)."""
+    extra = ", ".join(f"{sql} AS {q(c)}" for c, sql in cfg.get("source_columns", {}).items())
+    if not extra and not cfg.get("source_filter"):
+        return src
+    where = f" WHERE {cfg['source_filter']}" if cfg.get("source_filter") else ""
+    return f"(SELECT *{', ' + extra if extra else ''} FROM {src}{where})"
+
+
+def compare_totals(lake: Lake, check: str, name: str, day, src: str, tgt: str, cfg: dict, tol: float,
+                   rel: float) -> tuple[list[dict], str]:
+    """Sum both sides by the key and compare them. The source uses the SQL of "measures"; the target
+    uses "target_measures" if given, otherwise the sum of the column of the same name (with a key
+    shorter than its grain, the target has several rows per key). A measure differs for a key when
+    |a - b| > tol and also > rel * max(|a|, |b|): with totals of millions, a fixed tolerance would
+    flag rounding noise."""
     key, measures = cfg["key"], cfg["measures"]
-    src, tgt = lake.source(cfg["source"], day), lake.source(cfg["target"], day)
-    missing = [t for t, s in ((cfg["source"], src), (cfg["target"], tgt)) if s is None]
-    if missing:
-        return [row("totals", name, day, f"no files in {t}", None, None) for t in missing]
     keys = ", ".join(q(k) for k in key)
     agg = ", ".join(f"{sql} AS {q(m)}" for m, sql in measures.items())
-    # the target is also summed by the key: with a key shorter than its grain it has several rows per key
-    picked = ", ".join(f"sum({q(m)}) AS {q(m)}" for m in measures)
+    target_sql = cfg.get("target_measures", {})
+    picked = ", ".join(f"{target_sql.get(m, f'sum({q(m)})')} AS {q(m)}" for m in measures)
     checks = ", ".join(
-        f"count(*) FILTER (WHERE a._in AND b._in AND abs(coalesce(CAST(a.{q(m)} AS DOUBLE), 0) - coalesce(CAST(b.{q(m)} AS DOUBLE), 0)) > {tol}) "
+        f"count(*) FILTER (WHERE a._in AND b._in AND {gap(m)} > {tol} AND {gap(m)} > {rel} * "
+        f"greatest(abs(coalesce(CAST(a.{q(m)} AS DOUBLE), 0)), abs(coalesce(CAST(b.{q(m)} AS DOUBLE), 0)))) "
         f"AS {q('diff_' + m)}, sum(a.{q(m)}) AS {q('sa_' + m)}, sum(b.{q(m)}) AS {q('sb_' + m)}" for m in measures)
-    r = lake.one(f"WITH a AS (SELECT {keys}, {agg}, true AS _in FROM {src} GROUP BY ALL), "
+    r = lake.one(f"WITH a AS (SELECT {keys}, {agg}, true AS _in FROM {shape(src, cfg)} GROUP BY ALL), "
                  f"b AS (SELECT {keys}, {picked}, true AS _in FROM {tgt} GROUP BY ALL) "
                  f"SELECT count(a._in) AS n_a, count(b._in) AS n_b, "
                  f"count(*) FILTER (WHERE b._in IS NULL) AS only_a, count(*) FILTER (WHERE a._in IS NULL) AS only_b, "
                  f"count(*) FILTER (WHERE a._in AND b._in) AS both, {checks} "
                  f"FROM a FULL OUTER JOIN b ON {same(key)}")
-    out = [row("totals", name, day, f"keys only in {cfg['source']} (not in {cfg['target']})", r["n_a"], r["only_a"]),
-           row("totals", name, day, f"keys only in {cfg['target']} (not in {cfg['source']})", r["n_b"], r["only_b"])]
-    if cfg.get("date_column"):
-        out += shifted_keys(lake, name, cfg, day, keys)
+    sl, tl = label(cfg["source"]), label(cfg["target"])
+    out = [row(check, name, day, f"keys only in {sl} (not in {tl})", r["n_a"], r["only_a"]),
+           row(check, name, day, f"keys only in {tl} (not in {sl})", r["n_b"], r["only_b"])]
     for m in measures:
         sa, sb = r[f"sa_{m}"] or 0, r[f"sb_{m}"] or 0
-        out.append(row("totals", name, day, f"{m} differs", r["both"], r[f"diff_{m}"],
-                       f"sum over all keys: {cfg['source']} {sa:,.2f}, {cfg['target']} {sb:,.2f}",
+        change = f" ({100 * (sb - sa) / abs(sa):+.3f}%)" if sa else ""
+        out.append(row(check, name, day, f"{m} differs", r["both"], r[f"diff_{m}"],
+                       f"sum over all keys: source {sa:,.2f}, target {sb:,.2f}{change}",
                        info=m in cfg.get("informative", [])))
+    return out, keys
+
+
+def totals_day(lake: Lake, name: str, cfg: dict, tol: float, day: dt.date, rel: float = 0.0) -> list[dict]:
+    src, tgt = lake.source(cfg["source"], day), lake.source(cfg["target"], day)
+    missing = [label(t) for t, s in ((cfg["source"], src), (cfg["target"], tgt)) if s is None]
+    if missing:
+        return [row("totals", name, day, f"no files in {t}", None, None) for t in missing]
+    out, keys = compare_totals(lake, "totals", name, day, src, tgt, cfg, tol, rel)
+    if cfg.get("date_column"):
+        out[2:2] = shifted_keys(lake, name, cfg, day, keys)
     return out
+
+
+def period_totals(lake: Lake, name: str, cfg: dict, days: list[dt.date], tol: float, rel: float) -> list[dict]:
+    """The same comparison over the whole period at once: robust when the two sides date a record
+    differently (e.g. a payment requested one day and completed the next)."""
+    period = f"{days[0]} to {days[-1]}"
+    src_days = days
+    if cfg.get("event_date"):
+        # Folders that follow the arrival day: read some more days and keep the events of the period.
+        late = [days[-1] + dt.timedelta(days=i) for i in range(1, cfg.get("late_days", 0) + 1)]
+        src_days = days + late
+        where = f"{cfg['event_date']} BETWEEN DATE '{days[0]}' AND DATE '{days[-1]}'"
+        cfg = cfg | {"source_filter": f"({cfg['source_filter']}) AND {where}" if cfg.get("source_filter") else where}
+    src, tgt = lake.source(cfg["source"], src_days), lake.source(cfg["target"], days)
+    missing = [label(t) for t, s in ((cfg["source"], src), (cfg["target"], tgt)) if s is None]
+    if missing:
+        return [row("period_totals", name, period, f"no files in {t}", None, None) for t in missing]
+    return compare_totals(lake, "period_totals", name, period, src, tgt, cfg, tol, rel)[0]
+
+
+def duplicates_day(lake: Lake, name: str, cfg: dict, day: dt.date) -> list[dict]:
+    src = lake.source(cfg["tables"], day)
+    if src is None:
+        return [row("duplicates", name, day, "no files", None, None)]
+    return repeated(lake, "duplicates", name, src, lake.source(cfg["tables"], day - dt.timedelta(days=1)),
+                    cfg["keys"], day)
 
 
 def shifted_keys(lake: Lake, name: str, cfg: dict, day: dt.date, keys: str) -> list[dict]:
@@ -245,7 +322,7 @@ def shifted_keys(lake: Lake, name: str, cfg: dict, day: dt.date, keys: str) -> l
                      f"only_a AS (SELECT * FROM a ANTI JOIN b ON {same(key)}) "
                      f"SELECT count(*) AS n, (SELECT count(*) FROM a) AS total "
                      f"FROM only_a ANTI JOIN near ON {same(rest, 'only_a', 'near')}")
-        out.append(row("totals", name, day, f"keys only in {this}, not in {other} one day before or after either",
+        out.append(row("totals", name, day, f"keys only in {label(this)}, not in {label(other)} one day before or after either",
                        r["total"], r["n"]))
     return out
 
@@ -290,6 +367,23 @@ def frame(rows: list[dict], cfg: dict) -> pd.DataFrame:
     return out
 
 
+SUMS = re.compile(r"sum over all keys: \S+ ([-\d,.]+), \S+ ([-\d,.]+)")
+
+
+def summed_detail(detail: pd.Series) -> str:
+    """Detail over every day: the sums of the two sides are added up day by day. Other details (delays,
+    offsets) keep the last day."""
+    if not len(detail):
+        return ""
+    pairs = [SUMS.search(d) for d in detail]
+    if not all(pairs):
+        return detail.iloc[-1] + (f" (last of {len(detail)} days)" if len(detail) > 1 else "")
+    a = sum(float(m.group(1).replace(",", "")) for m in pairs)
+    b = sum(float(m.group(2).replace(",", "")) for m in pairs)
+    change = f" ({100 * (b - a) / abs(a):+.3f}%)" if a else ""
+    return f"sum over all days and keys: source {a:,.2f}, target {b:,.2f}{change}"
+
+
 def report_path(start: dt.date, end: dt.date, checks: list[str]) -> Path:
     suffix = "" if set(checks) == set(CHECKS) else "_" + "-".join(checks)
     return REPORT_DIR / f"reconciliation_{start}_{end}{suffix}.md"
@@ -312,7 +406,7 @@ def write_report(results: pd.DataFrame, start: dt.date, end: dt.date, path: Path
         lines.append(f"| {check} | {name} | {item} | {g['day'].nunique()} | {int((problems > 0).sum())} | "
                      f"{int(problems.sum()) if problems.notna().any() else ''} | "
                      f"{'' if pd.isna(share) else f'{100 * share:.4f}%'} | {worst} | "
-                     f"{detail.iloc[-1] if len(detail) else ''} |")
+                     f"{summed_detail(detail)} |")
     bad = results[results["status"].isin(["critical", "warn"])]
     lines += ["", "## Days with a problem", ""]
     if bad.empty:
@@ -348,7 +442,7 @@ def run(start: dt.date, end: dt.date, checks: list[str] | None = None, mlflow_lo
     con = s3_duckdb()
     con.sql("SET TimeZone = 'UTC'")
     lake = Lake(con)
-    tol = cfg["tolerance"]
+    tol, rel = cfg["tolerance"], cfg.get("relative_tolerance", 0.0)
     rows = []
     for day in days:
         if "kafka" in checks:
@@ -356,17 +450,28 @@ def run(start: dt.date, end: dt.date, checks: list[str] | None = None, mlflow_lo
             prev = day - dt.timedelta(days=1)
             rows += cached(lake, "kafka", k["table"], k, [k["table"]], [day, prev], day,
                            lambda: kafka_day(lake, k, day))
+        if "duplicates" in checks:
+            for name, c in cfg.get("duplicates", {}).items():
+                prev = day - dt.timedelta(days=1)
+                rows += cached(lake, "duplicates", name, c, [c["tables"]], [day, prev], day,
+                               lambda: duplicates_day(lake, name, c, day))
         if "same_keys" in checks:
             for name, c in cfg["same_keys"].items():
                 rows += cached(lake, "same_keys", name, c | {"tolerance": tol}, c["tables"], [day], day,
                                lambda: same_keys_day(lake, name, c, tol, day))
         if "totals" in checks:
-            for name, c in cfg["totals"].items():
+            for name, c in cfg.get("totals", {}).items():
                 near = [day + dt.timedelta(days=d) for d in (-1, 0, 1)] if c.get("date_column") else [day]
-                rows += cached(lake, "totals", name, c | {"tolerance": tol}, [c["source"], c["target"]], near, day,
-                               lambda: totals_day(lake, name, c, tol, day))
+                rows += cached(lake, "totals", name, c | {"tolerance": tol, "relative_tolerance": rel},
+                               [c["source"], c["target"]], near, day, lambda: totals_day(lake, name, c, tol, day, rel))
     if "kafka" in checks:
         rows += kafka_offsets(lake, cfg["kafka"], days)
+    if "period_totals" in checks:
+        for name, c in cfg.get("period_totals", {}).items():
+            late = [end + dt.timedelta(days=i) for i in range(1, c.get("late_days", 0) + 1)]
+            rows += cached(lake, "period_totals", name, c | {"tolerance": tol, "relative_tolerance": rel},
+                           [c["source"], c["target"]], days + late, f"{start}_{end}",
+                           lambda: period_totals(lake, name, c, days, tol, rel))
     results = frame(rows, cfg)
     path = write_report(results, start, end, report_path(start, end, checks))
     print(f"saved {path}")

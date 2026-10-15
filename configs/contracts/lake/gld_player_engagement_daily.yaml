@@ -1,0 +1,34 @@
+# gld_player_engagement_daily: table in org/40-gold/gld_player_engagement_daily, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: none. See configs/contracts/README.md.
+table: gld_player_engagement_daily
+layer: org/40-gold
+grain: [tenant_id, player_id, snapshot_date]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: player_id, type: int32, key: true, nullable: false}
+  - {name: snapshot_date, type: 'date32[day]', key: true, nullable: false}
+  - {name: sessions_today, type: uint16, nullable: true}
+  - {name: active_days_today, type: uint8, nullable: true}
+  - {name: bets_today, type: uint32, group: cumulative to COD, nullable: true}
+  - {name: play_secs_today, type: uint32, range: [0.0, 86400.0], nullable: true}
+  - {name: engagement_score, type: float, group: engagement, unit: 0-1, range: [0.0, 100.0], additive: false, nullable: true}
+  - {name: lifecycle_stage, type: string, nullable: true}
+  - {name: top_peak_hour, type: uint8, nullable: true}
+  - {name: top_peak_day, type: uint8, nullable: true}
+  - {name: tp_hourly_entropy, type: float, nullable: true}
+  - {name: tp_night_index, type: float, nullable: true}
+  - {name: tp_weekend_index, type: float, nullable: true}
+  - {name: tp_business_hours_ratio, type: float, nullable: true}
+  - {name: tp_avg_session_duration_secs, type: uint32, nullable: true}
+  - {name: tp_median_session_duration_secs, type: uint32, nullable: true}
+  - {name: tp_avg_sessions_per_active_day, type: float, nullable: true}
+  - {name: tp_avg_session_gap_hours, type: float, nullable: true}
+  - {name: tp_max_sessions_single_day, type: uint16, nullable: true}
+  - {name: tp_window_days, type: uint16, nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}

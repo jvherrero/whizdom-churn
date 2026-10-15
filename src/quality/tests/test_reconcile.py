@@ -30,14 +30,28 @@ CONFIG = {"reconcile": {
         "key": ["tenant_id", "player_id", "event_date"], "date_column": "event_date", "informative": ["deposit_count"],
         "measures": {"deposit_count": "count(*) FILTER (WHERE is_deposit AND is_completed)",
                      "deposit_amount": "sum(processed_amount) FILTER (WHERE is_deposit AND is_completed)"}}},
-    "tolerance": 0.01, "status": {"warn_above": 0.0, "critical_above": 0.001}}}
+    "tolerance": 0.01, "relative_tolerance": 0.001, "status": {"warn_above": 0.0, "critical_above": 0.001}}}
+PAY = ["kafka-sink/primus/pay", "kafka-sink/secundus/pay"]
+CONFIG["reconcile"]["duplicates"] = {"landing_payments": {"tables": PAY, "keys": {"payment_status": ["paymentId", "status"]}}}
+CONFIG["reconcile"]["period_totals"] = {"landing_to_gold": {
+    "source": PAY, "target": "gld_brand_payments", "key": ["brand_id"], "source_columns": {"brand_id": "brandId"},
+    "source_filter": "status = 'COMPLETED'", "measures": {"deposits": "count(DISTINCT paymentId)"},
+    "target_measures": {"deposits": "sum(completed_deposits)"}}}
+CONFIG["reconcile"]["period_totals"]["late_events"] = {
+    "source": "transactions", "target": "gld_player_gaming_daily", "key": ["platform_id"],
+    "source_columns": {"platform_id": "platform_id"}, "event_date": "CAST(date_time AS DATE)", "late_days": 1,
+    "measures": {"bets": "count(*)"}}
+CONFIG["reconcile"]["totals"]["bronze_to_gold"] = {
+    "source": "transactions", "target": "gld_player_gaming_daily", "key": ["platform_id", "event_date"],
+    "source_columns": {"event_date": "CAST(date_time AS DATE)"}, "source_filter": "transaction_id <> 11",
+    "measures": {"bets": "count(*)", "small_gap": "count(*) * 1000000.0", "large_gap": "count(*) * 1000000.0"}}
 
 
 def write(root: Path, layer: str, table: str, day: str, frame: pd.DataFrame):
     path = root / f"org/{layer}/{table}/2026/01/{day}/data.parquet"
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(path, index=False)
-    contract = root / "contracts/lake" / f"{table}.yaml"
+    contract = root / "contracts/lake" / f"{table.replace('/', '__')}.yaml"
     contract.parent.mkdir(parents=True, exist_ok=True)
     contract.write_text(yaml.safe_dump({"table": table, "layer": f"org/{layer}", "grain": [], "columns": []}))
 
@@ -55,6 +69,21 @@ def lake(tmp_path, monkeypatch):
     write(tmp_path, "20-bronze", "transactions", "01", tx(1, [0, 1, 2], [10, 11, 12]))
     # day 02: offset 4 never arrived, 12 came the day before, 13 comes twice
     write(tmp_path, "20-bronze", "transactions", "02", tx(2, [3, 5, 6], [12, 13, 13]))
+
+    # gold has 2 bets on day 01; bronze has 3 rows, one filtered out by source_filter: they match
+    write(tmp_path, "40-gold", "gld_player_gaming_daily", "01", pd.DataFrame({
+        "platform_id": [1], "event_date": [pd.Timestamp("2026-01-01").date()], "bets": [2],
+        "small_gap": [2_001_000.0], "large_gap": [2_004_000.0]}))    # 0.05% and 0.2% over 2,000,000
+
+    # landing: one folder per operator, read together. Payment 1 comes as PENDING and then COMPLETED
+    # (not a duplicate); on day 02 payment 3 comes COMPLETED twice (a duplicate).
+    def pay(ids, statuses, brand):
+        return pd.DataFrame({"paymentId": ids, "status": statuses, "brandId": brand})
+    write(tmp_path, "10-landing", PAY[0], "01", pay([1, 1, 2], ["PENDING", "COMPLETED", "COMPLETED"], 14))
+    write(tmp_path, "10-landing", PAY[1], "02", pay([3, 3], ["COMPLETED", "COMPLETED"], 23))
+    # gold has both deposits of brand 14 but none of brand 23
+    for day, brand, n in (("01", 14, 2), ("02", 23, 0)):
+        write(tmp_path, "40-gold", "gld_brand_payments", day, pd.DataFrame({"brand_id": [brand], "completed_deposits": [n]}))
 
     def players(ids, **extra):
         return pd.DataFrame({"tenant_id": "t", "player_id": ids,
@@ -89,8 +118,9 @@ def lake(tmp_path, monkeypatch):
     return tmp_path
 
 
-def problems(rows, item_start: str, day: str | None = None) -> int:
-    match = [r for r in rows if r["item"].startswith(item_start) and (day is None or r["day"] == day)]
+def problems(rows, item_start: str, day: str | None = None, check: str | None = None) -> int:
+    match = [r for r in rows if r["item"].startswith(item_start) and (day is None or r["day"] == day)
+             and (check is None or r["check"] == check)]
     assert match, item_start
     return sum(r["problems"] or 0 for r in match)
 
@@ -101,9 +131,9 @@ def test_planted_errors_are_found(lake, monkeypatch):
     monkeypatch.setattr(reconcile, "frame", lambda rows, cfg: captured.extend(rows) or original(rows, cfg))
     reconcile.run(dt.date(2026, 1, 1), dt.date(2026, 1, 2), mlflow_log=False)
 
-    assert problems(captured, "rows repeated in the day", "2026-01-02") == 1
-    assert problems(captured, "rows repeated in the day", "2026-01-01") == 0
-    assert problems(captured, "keys already seen the day before", "2026-01-02") == 1
+    assert problems(captured, "rows repeated in the day", "2026-01-02", "kafka") == 1
+    assert problems(captured, "rows repeated in the day", "2026-01-01", "kafka") == 0
+    assert problems(captured, "keys already seen the day before", "2026-01-02", "kafka") == 1
     assert problems(captured, "offsets missing in holes of 2 to 1,000") == 0
     assert problems(captured, "holes of 1 offset") == 1                     # offset 4
     assert problems(captured, "rows whose event day is not the folder day") == 0
@@ -117,6 +147,17 @@ def test_planted_errors_are_found(lake, monkeypatch):
     assert problems(captured, "keys only in gld_player_payments_daily, not in", "2026-01-01") == 1  # only 4
     assert problems(captured, "deposit_amount differs", "2026-01-01") == 1
     assert problems(captured, "deposit_count differs", "2026-01-01") == 0
+    gaming = [r for r in captured if r["name"] == "bronze_to_gold" and r["day"] == "2026-01-01"]
+    found = {r["item"]: r["problems"] for r in gaming}
+    assert found["bets differs"] == 0
+    assert found["small_gap differs"] == 0 and found["large_gap differs"] == 1   # relative tolerance 0.1%
+    dup = {(r["day"], r["item"]): r["problems"] for r in captured if r["check"] == "duplicates"}
+    assert dup[("2026-01-01", "rows repeated in the day (payment_status)")] == 0
+    assert dup[("2026-01-02", "rows repeated in the day (payment_status)")] == 1
+    period = {r["item"]: r["problems"] for r in captured if r["check"] == "period_totals"}
+    assert period["deposits differs"] == 1                       # brand 23: 1 in landing, 0 in gold
+    late = {r["item"]: r["extra"] for r in captured if r["name"] == "late_events"}
+    assert "source 6.00" in late["bets differs"]   # both days are in the period; day 03 (late) has no folder
     busy = [r for r in captured if r["name"] == "player_snapshot_busy" and r["item"].startswith("keys only in gld_player_l")]
     assert busy[0]["problems"] == 1                                    # player 1 (5 bets) is filtered out
 
@@ -130,3 +171,10 @@ def test_rerun_uses_the_cache(lake, monkeypatch):
     for name in ("kafka_day", "same_keys_day", "totals_day"):
         monkeypatch.setattr(reconcile, name, lambda *a: pytest.fail("computed again"))
     reconcile.run(dt.date(2026, 1, 1), dt.date(2026, 1, 2), mlflow_log=False)
+
+
+def test_summed_detail_adds_up_every_day():
+    detail = pd.Series(["sum over all keys: source 10.00, target 11.00 (+10.000%)",
+                        "sum over all keys: gld_a 30.00, gld_b 29.00"])        # the old wording is read too
+    assert reconcile.summed_detail(detail) == "sum over all days and keys: source 40.00, target 40.00 (+0.000%)"
+    assert reconcile.summed_detail(pd.Series(["p50 1 s", "p50 2 s"])) == "p50 2 s (last of 2 days)"

@@ -1,0 +1,268 @@
+# Data quality of the lake layers (src/quality/).
+
+layers:
+  - org/20-bronze
+  - org/30-silver
+  - org/40-gold
+
+# Columns that carry Kafka or load metadata (topic, partition, offset, ingest and process times).
+meta_columns: "^(_.*|kafka.*|topic|partition|offset|.*_offset|ingested_at|processed_at)$"
+
+# Columns with personal data. The checks count them but never print their values.
+# Landing (camelCase) adds documents, bank account, phone and full address.
+pii_columns: "^(firstname|lastname|address|email|nickname|ip|ua|phone|iban|accountNumber|userId|documentNumber|nationalRegNumber|birthdate|birthCity|postalCode|city|province|building|unit|trackingCodes)$"  # mobile is a bool flag, not a phone
+
+# Grains I set by hand after reading the columns of each table (layer_inventory.json). They are used
+# by inventory_to_contracts.py before the design grain or the proposal. A table with no date column
+# has one file per day, so its grain holds within each day.
+grains:
+  transactions: [kafka_topic, kafka_partition, kafka_offset]       # one row per Kafka message
+  gld_player_payments: [tenant_id, brand_id, payment_id]             # design gld_payment
+  gld_player_signals_daily: [tenant_id, player_id, snapshot_date]     # brand_id is always null
+  gld_player_payments_daily: [tenant_id, brand_id, player_id, event_date, currency, source_system]
+  gld_player_bonuses: [tenant_id, brand_id, bonus_id, change_id]     # one row per bonus change
+  # provider_code: 1,518 rows were still repeated without it after keeping the latest _version
+  # (2026-10-10 to 2026-10-12). The design also marks it as a key.
+  gld_player_gaming_daily: [tenant_id, brand_id, player_id, provider_code, game_id, event_date, currency]
+  gld_game_affinity: [tenant_id, window_end_date, game_id_a, game_id_b]
+  gld_brand_cohorts_daily: [tenant_id, event_date, cohort, currency]
+  gld_brand_ltv_cohorts_daily: [tenant_id, acquisition_month, tenure_months, currency]
+  gld_brand_segments_movements: [tenant_id, event_date, band_kind, from_band, to_band]
+  gld_brand_top_movers_daily: [tenant_id, event_date, entity_kind, entity_id, period, direction]
+  # Landing (Kafka sink, one folder per operator). A payment comes once per status (PENDING, then
+  # the final one), so its key includes the status. To check on the data.
+  kafka-sink/primus/whizdomai-payments: &landing_payments [paymentId, status]
+  kafka-sink/secundus/whizdomai-payments: *landing_payments
+  kafka-sink/primus/whizdomai-transactions: &landing_tx [uuid]
+  kafka-sink/secundus/whizdomai-transactions: *landing_tx
+  kafka-sink/primus/whizdomai-bonuses: &landing_bonuses [changeId]
+  kafka-sink/secundus/whizdomai-bonuses: *landing_bonuses
+  kafka-sink/primus/whizdomai-players: &landing_players [uuid]
+  kafka-sink/secundus/whizdomai-players: *landing_players
+  kafka-sink/primus/whizdomai-bonus-plan: &landing_plans [bonusPlanId, operation]
+  kafka-sink/secundus/whizdomai-bonus-plan: *landing_plans
+
+# Tables whose grain was shown to be unique on real data (phase 1). Only these get grain_checked: true.
+# Unique on every day of 2026-05-29 to 2026-05-31 (transactions, gld_player_payments,
+# gld_player_signals_daily) and 2026-10-10 to 2026-10-12 (all gold tables; gaming daily with provider_code).
+grains_checked:
+  - gld_brand
+  - gld_brand_cohorts_daily
+  - gld_brand_daily
+  - gld_brand_ltv_cohorts_daily
+  - gld_brand_registration_cohort_daily
+  - gld_brand_segments_daily
+  - gld_brand_segments_movements
+  - gld_brand_signals_daily
+  - gld_brand_signals_hourly
+  - gld_brand_top_movers_daily
+  - gld_game_affinity
+  - gld_game_lifetime
+  - gld_game_profile
+  - gld_game_signals_daily
+  - gld_game_signals_hourly
+  - gld_game_unique_players
+  - gld_player_bonus_daily
+  - gld_player_bonuses
+  - gld_player_gaming_daily
+  - gld_player_engagement_daily
+  - gld_player_financial_daily
+  - gld_player_lifetime
+  - gld_player_payments
+  - gld_player_payments_daily
+  - gld_player_risk_daily
+  - gld_player_signals_daily
+  - gld_player_signals_hourly
+  - gld_player_time_of_play
+  - gld_players
+  - transactions
+
+# Ranges I set by hand, over the design range of the same column, from the observed min and max of
+# 2026-05-29 to 2026-05-31 and 2026-10-10 to 2026-10-12 (docs/dq_reports/gx_summary.md).
+# Scores are 0 to 100, not 0 to 1. The time of play entropies are in bits: at most log2(24) for 24
+# hours and log2(7) for 7 days. The night and weekend indices are a share over the expected share:
+# at most 1 / (6/24) = 4 for night and 1 / (2/7) = 3.5 for weekend.
+scores_0_100: &scores_0_100
+  deposit_recency_score: [0.0, 100.0]
+  risk_score: [0.0, 100.0]
+  session_intensity_score: [0.0, 100.0]
+time_of_play: &time_of_play
+  hourly_entropy: [0.0, 4.585]
+  prior_hourly_entropy: [0.0, 4.585]
+  daily_entropy: [0.0, 2.808]
+  night_index: [0.0, 4.0]
+  prior_night_index: [0.0, 4.0]
+  weekend_index: [0.0, 3.5]
+  prior_weekend_index: [0.0, 3.5]
+# Physical and business limits, from the extreme values of phase 3 (2026-09, distributions report):
+# play_secs_today reached 26.4 million seconds (305 days in one day), value_decline 57 million on a
+# 0 to 100 scale, and wager_requirement 3e18 (a filler value). A day has 86,400 seconds.
+ranges:
+  gld_player_signals_daily:
+    <<: *scores_0_100
+    value_decline: [0.0, 100.0]
+    play_secs_today: [0.0, 86400.0]
+    play_secs_l7d: [0.0, 604800.0]
+    play_secs_l30d: [0.0, 2592000.0]
+    play_secs_l90d: [0.0, 7776000.0]
+    play_secs_l180d: [0.0, 15552000.0]
+  gld_player_risk_daily:
+    <<: *scores_0_100
+    value_decline: [0.0, 100.0]
+  gld_player_engagement_daily: {play_secs_today: [0.0, 86400.0]}
+  gld_player_gaming_daily: {play_secs: [0.0, 86400.0]}           # one player, one game, one day
+  gld_player_bonuses: {wager_requirement: [0.0, 1.0e+9]}          # a wide cap, to catch filler values
+  gld_player_signals_hourly: {risk_score: [0.0, 100.0]}
+  gld_players: {risk_score: [0.0, 100.0]}
+  gld_game_signals_daily: {popularity_score: [0.0, 100.0], risk_score: [0.0, 100.0]}
+  gld_player_time_of_play: *time_of_play
+
+# Phase 2: reconciliation (src/quality/reconcile.py). Counts only, from SQL over every row.
+reconcile:
+  # Bronze Kafka messages: repeated events, offset gaps and delay.
+  kafka:
+    table: transactions
+    business_keys:                    # an event should arrive once under each of these keys
+      platform_transaction: [platform_id, transaction_id]
+      uuid: [uuid]
+    event_time: date_time
+    kafka_time: kafka_timestamp
+    ingest_time: _ingested_at
+  # Tables that should hold the same keys every day. The first table is the reference.
+  same_keys:
+    player_daily:
+      key: [tenant_id, player_id, snapshot_date]
+      tables: [gld_player_signals_daily, gld_player_risk_daily, gld_player_engagement_daily,
+               gld_player_financial_daily]
+    player_snapshot:
+      key: [tenant_id, player_id]     # not brand_id: it is null for part of the players
+      tables: [gld_players, gld_player_lifetime]
+      compare: [lifetime_wagered_eur, lifetime_deposits_eur, lifetime_withdrawals_eur, total_bets]
+    player_snapshot_active:           # the same, only players with some activity
+      key: [tenant_id, player_id]
+      tables: [gld_players, gld_player_lifetime]
+      filters: {gld_players: "first_activity_at IS NOT NULL"}
+      compare: [lifetime_wagered_eur, lifetime_deposits_eur, lifetime_withdrawals_eur, total_bets]
+  # An atomic table summed by key must equal its daily table.
+  totals:
+    payments:
+      source: gld_player_payments
+      target: gld_player_payments_daily
+      key: [tenant_id, brand_id, player_id, event_date, currency, source_system]
+      date_column: event_date         # keys on one side only are also looked for one day before and after
+      informative: [deposit_attempts, withdraw_attempts]   # definition not documented: shown, no status
+      measures:                       # target column: SQL on the source table
+        deposit_count: "count(*) FILTER (WHERE is_deposit AND is_completed)"
+        deposit_attempts: "count(*) FILTER (WHERE is_deposit)"
+        withdraw_count: "count(*) FILTER (WHERE is_withdrawal AND is_completed)"
+        withdraw_attempts: "count(*) FILTER (WHERE is_withdrawal)"
+        deposit_amount: "sum(processed_amount) FILTER (WHERE is_deposit AND is_completed)"
+        withdraw_amount: "sum(processed_amount) FILTER (WHERE is_withdrawal AND is_completed)"
+    payments_short_key:               # the same without currency and source_system: a key on one side
+      source: gld_player_payments     # only because of a different currency or source is not a loss
+      target: gld_player_payments_daily
+      key: [tenant_id, brand_id, player_id, event_date]
+      date_column: event_date
+      measures:
+        deposit_count: "count(*) FILTER (WHERE is_deposit AND is_completed)"
+        withdraw_count: "count(*) FILTER (WHERE is_withdrawal AND is_completed)"
+    bronze_to_gaming:                 # bronze transactions against gold, per brand, currency and day
+      source: transactions
+      target: gld_player_gaming_daily
+      key: [brand_id, currency, event_date]
+      source_columns: {event_date: "CAST(date_time AS DATE)"}   # bronze folders follow the event day
+      source_filter: "tran_type IN ('GAME_BET', 'GAME_WIN', 'GAME_TAX')"   # casino play only
+      # Bets and taxes are negative in bronze. Gold sums bets in absolute value: with abs() the
+      # amounts match to 0.0005% (2026-05-29 to 2026-05-31), with -sum() they are 0.5% lower,
+      # because some GAME_BET rows are positive. Wins match neither with nor without CASH_OUT (0.1%).
+      measures:
+        bets: "count(*) FILTER (WHERE tran_type = 'GAME_BET')"
+        wins: "count(*) FILTER (WHERE tran_type = 'GAME_WIN')"
+        wagered_real: "sum(abs(amount_real)) FILTER (WHERE tran_type = 'GAME_BET')"
+        wagered_released_bonus: "sum(abs(amount_released_bonus)) FILTER (WHERE tran_type = 'GAME_BET')"
+        wagered_playable_bonus: "sum(abs(amount_playable_bonus)) FILTER (WHERE tran_type = 'GAME_BET')"
+        won_real: "sum(amount_real) FILTER (WHERE tran_type = 'GAME_WIN')"
+        won_released_bonus: "sum(amount_released_bonus) FILTER (WHERE tran_type = 'GAME_WIN')"
+        won_playable_bonus: "sum(amount_playable_bonus) FILTER (WHERE tran_type = 'GAME_WIN')"
+        tax_real: "-sum(amount_real) FILTER (WHERE tran_type = 'GAME_TAX')"
+    landing_to_gaming_by_day:         # landing folder of each day, grouped by event day, against gold:
+      source:                         # events of other days in the folder show as keys only in landing
+        [kafka-sink/primus/whizdomai-transactions, kafka-sink/secundus/whizdomai-transactions]
+      target: gld_player_gaming_daily
+      key: [brand_id, event_date]
+      source_columns: {brand_id: brandId, event_date: "CAST(dateTime AS DATE)"}
+      source_filter: "tranType IN ('GAME_BET', 'GAME_WIN')"
+      measures:
+        bets: "count(*) FILTER (WHERE tranType = 'GAME_BET')"
+        wins: "count(*) FILTER (WHERE tranType = 'GAME_WIN')"
+  # Landing: the raw Kafka sink, one folder per operator (primus, secundus). Every brand belongs to one
+  # operator and tenant_id is one per brand, so landing joins gold on brand_id. Both operators are
+  # read together. A payment comes once per status (PENDING, then the final one).
+  duplicates:
+    landing_transactions:
+      tables: &landing_tx_tables [kafka-sink/primus/whizdomai-transactions, kafka-sink/secundus/whizdomai-transactions]
+      keys: {uuid: [uuid], platform_transaction: [platformId, transactionId]}
+    landing_payments:
+      tables: &landing_pay_tables [kafka-sink/primus/whizdomai-payments, kafka-sink/secundus/whizdomai-payments]
+      keys: {payment_status: [paymentId, status]}
+  # Over the whole period at once, per brand: the two sides may date a payment differently.
+  period_totals:
+    landing_payments_to_gold:
+      source: *landing_pay_tables
+      target: gld_player_payments
+      key: [brand_id]
+      source_columns: {brand_id: brandId}
+      source_filter: "status = 'COMPLETED'"
+      measures:
+        deposits: "count(DISTINCT paymentId) FILTER (WHERE transactionType = 'DEPOSIT')"
+        withdrawals: "count(DISTINCT paymentId) FILTER (WHERE transactionType = 'WITHDRAWAL')"
+        deposit_amount: "sum(processedAmount) FILTER (WHERE transactionType = 'DEPOSIT')"
+        withdrawal_amount: "sum(processedAmount) FILTER (WHERE transactionType = 'WITHDRAWAL')"
+      target_measures:
+        deposits: "count(*) FILTER (WHERE is_deposit AND is_completed)"
+        withdrawals: "count(*) FILTER (WHERE is_withdrawal AND is_completed)"
+        deposit_amount: "sum(processed_amount) FILTER (WHERE is_deposit AND is_completed)"
+        withdrawal_amount: "sum(processed_amount) FILTER (WHERE is_withdrawal AND is_completed)"
+    landing_payments_to_daily:
+      source: *landing_pay_tables
+      target: gld_player_payments_daily
+      key: [brand_id]
+      source_columns: {brand_id: brandId}
+      source_filter: "status = 'COMPLETED'"
+      measures:
+        deposit_count: "count(DISTINCT paymentId) FILTER (WHERE transactionType = 'DEPOSIT')"
+        withdraw_count: "count(DISTINCT paymentId) FILTER (WHERE transactionType = 'WITHDRAWAL')"
+        deposit_amount: "sum(processedAmount) FILTER (WHERE transactionType = 'DEPOSIT')"
+        withdraw_amount: "sum(processedAmount) FILTER (WHERE transactionType = 'WITHDRAWAL')"
+    landing_transactions_to_gaming:
+      source: *landing_tx_tables
+      target: gld_player_gaming_daily
+      key: [brand_id]
+      event_date: "CAST(dateTime AS DATE)"   # landing folders follow the arrival day: keep the events
+      late_days: 3                           # of the period, also from the 3 folders after its end
+      source_columns: {brand_id: brandId}
+      source_filter: "tranType IN ('GAME_BET', 'GAME_WIN')"
+      measures:
+        bets: "count(*) FILTER (WHERE tranType = 'GAME_BET')"
+        wins: "count(*) FILTER (WHERE tranType = 'GAME_WIN')"
+        wagered_real: "sum(abs(amountReal)) FILTER (WHERE tranType = 'GAME_BET')"
+        won_real: "sum(amountReal) FILTER (WHERE tranType = 'GAME_WIN')"
+  tolerance: 0.01                     # money difference counted as equal (currency units)
+  relative_tolerance: 0.001           # totals only: a measure differs if it is also off by over 0.1%
+  status:                             # share of rows or keys with a problem
+    warn_above: 0.0
+    critical_above: 0.001
+
+# Phase 3: distribution of the metrics and bins (src/quality/distributions.py).
+distributions:
+  layer: org/40-gold                  # every numeric metric of the lake contracts of this layer
+  exclude_columns: "(_id|_rank)$"     # ids and ranks are not metrics
+  columns_per_query: 40               # wide tables are read in blocks of columns
+  max_bins: 50                        # cap for equal-width bins (millions of rows give thousands)
+  thresholds:                         # provisional, to tune with the results
+    few_values: 10                    # at most this many distinct values: one bin per value
+    zero_share: 0.5                   # more zeros than this: a bin for 0, quantiles for the rest
+    negative_share: 0.01              # more negatives than this: bins around 0
+    kurtosis: 10.0                    # heavier tails than this (excess kurtosis): log scale
+    skewness: 1.0                     # more skewed than this: quantile bins
+    extreme_ratio: 100.0              # max over p99 above this: flagged as extreme values

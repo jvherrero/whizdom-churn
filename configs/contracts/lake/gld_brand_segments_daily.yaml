@@ -1,0 +1,24 @@
+# gld_brand_segments_daily: table in org/40-gold/gld_brand_segments_daily, from the layer inventory of 2026-10-15.
+# Grain: proposed from the id and date columns.
+# Design contract: gld_player_segment. See configs/contracts/README.md.
+table: gld_brand_segments_daily
+layer: org/40-gold
+grain: [tenant_id, segment_kind, segment_band, event_date]
+grain_checked: true
+partition_by: YYYY/MM/DD folders
+engine: null
+columns:
+  - {name: tenant_id, type: string, key: true, group: key, nullable: false}
+  - {name: event_date, type: 'date32[day]', key: true, group: key, nullable: false}
+  - {name: segment_kind, type: string, key: true, group: key, nullable: false}
+  - {name: segment_band, type: string, key: true, group: segment, nullable: false}
+  - {name: player_count, type: uint32, nullable: true}
+  - {name: pct_of_tenant_players, type: float, nullable: true}
+  - {name: ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: wagered_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: pct_of_tenant_ggr_l30d, type: float, nullable: true}
+  - {name: pct_of_tenant_wagered_l30d, type: float, nullable: true}
+  - {name: avg_ggr_eur_l30d, type: 'decimal128(18, 4)', nullable: true}
+  - {name: _version, type: uint64, group: meta, nullable: true}
+  - {name: _ingested_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
+  - {name: _processed_at, type: 'timestamp[ms, tz=UTC]', group: meta, nullable: true}
