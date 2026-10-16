@@ -24,6 +24,7 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
+import churn_labels  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import FEATURES, parse_brand_id  # noqa: E402
 from score import resolve_models  # noqa: E402
@@ -89,6 +90,7 @@ def latest_backtest(brand: str) -> dict | None:
     except Exception:
         return None
     runs = runs[runs.get("metrics.passed", pd.Series(dtype=float)).notna()] if not runs.empty else runs
+    runs = churn_labels.same_threshold(runs)
     if runs.empty:
         return None
     r = runs.iloc[0]
@@ -283,7 +285,7 @@ def run(brand_id: int | str = 64, lgbm_run_id: str | None = None, cox_run_id: st
     except Exception:
         importance = None
     page = render(lgbm, cox, version, brand, params, importance, latest_backtest(brand))
-    doc = Path(str(DOC_PATH).format(brand=brand))
+    doc = Path(str(DOC_PATH).format(brand=f"{brand}{churn_labels.VARIANT}"))
     doc.write_text(page, encoding="utf-8")
 
     # Attach the card to the run and to its model version.

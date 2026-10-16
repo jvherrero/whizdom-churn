@@ -19,13 +19,14 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
+import churn_labels  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_features import brand_label  # noqa: E402
 from evaluation.evaluate import cox_results, lightgbm_results, log_results, run_data  # noqa: E402
 from evaluation.metrics import N_BOOTSTRAP  # noqa: E402
 from train import BRAND, PROCESSED_DIR, SEED, run_info, train  # noqa: E402
 
-DOC_PATH = PROJECT_ROOT / "docs/results_v0_brand{brand}.md"
+DOC_PATH = PROJECT_ROOT / ("docs/results_v0_brand{brand}" + churn_labels.VARIANT + ".md")
 
 
 def _fmt(value, digits=3) -> str:

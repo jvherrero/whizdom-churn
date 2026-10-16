@@ -32,6 +32,7 @@ from sklearn.metrics import brier_score_loss, roc_auc_score
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
+import churn_labels  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evaluation.metrics import ECE_BINS, c_index, expected_calibration_error  # noqa: E402
 from build_features import FEATURE_COLUMNS, _unscale, brand_label
@@ -42,8 +43,8 @@ from train import (
 )
 
 # One report per brand.
-DOC_PATH = PROJECT_ROOT / "docs/feature_importance_brand{brand}.md"
-FIGURE_DIR = PROJECT_ROOT / "data/03_output/feature_importance/brand{brand}"
+DOC_PATH = PROJECT_ROOT / ("docs/feature_importance_brand{brand}" + churn_labels.VARIANT + ".md")
+FIGURE_DIR = PROJECT_ROOT / ("data/03_output/feature_importance/brand{brand}" + churn_labels.VARIANT)
 N_REPEATS = 10
 TOP_N_DEPENDENCE = 10
 SEED = 42

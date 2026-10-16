@@ -37,6 +37,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import churn_labels
 import daily_cache
 from build_features import (
     LABEL_HORIZON_DAYS, MIN_CUTOFF, PLATFORM_SCORE, data_available_through, finalise,
@@ -86,9 +87,13 @@ def build_training_data(
                  "threshold", "message"],
     )
     report(snapshot_alerts, "training_features", str(brand_id), str(data_end or cutoff_dates[-1]))
-    print("[3b] feature store: offline snapshot + Feast registry")
-    import feature_store
-    feature_store.publish(features)
+    if churn_labels.VARIANT:
+        # The feature store serves the official model: a sensitivity run must not replace its rows.
+        print(f"[3b] skipped: feature store is for the official {churn_labels.DEFAULT_HORIZON_DAYS}-day run")
+    else:
+        print("[3b] feature store: offline snapshot + Feast registry")
+        import feature_store
+        feature_store.publish(features)
     # Keep the platform's churn score as a reference column (same row order as raw).
     features[PLATFORM_SCORE] = raw["churn_score"].astype("float64").to_numpy()
 
@@ -122,7 +127,7 @@ def run_pipeline(
     cutoffs = cutoff_dates or training_cutoffs(as_of_date)
     late = [c for c in cutoffs if dt.date.fromisoformat(c) + dt.timedelta(days=LABEL_HORIZON_DAYS) > as_of_date]
     if late:
-        raise ValueError(f"the 60-day label of {late} does not fit before AS_OF {as_of}")
+        raise ValueError(f"the {LABEL_HORIZON_DAYS}-day label of {late} does not fit before AS_OF {as_of}")
     print(f"as of {as_of}: training cutoffs {cutoffs}")
     if not skip_alerts:
         print(f"[0] source alerts: caches on {as_of} vs the training days")

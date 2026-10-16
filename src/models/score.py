@@ -40,8 +40,8 @@ from train import (  # noqa: E402
     load_horizon_calibrators, model_input, run_info,
 )
 
-OUTPUT_DIR = PROJECT_ROOT / "data/03_output/player_scores"
-REGISTERED_MODEL = "churn_lightgbm_classifier_brand{brand}"
+OUTPUT_DIR = PROJECT_ROOT / f"data/03_output/player_scores{churn_labels.VARIANT}"
+REGISTERED_MODEL = "churn_lightgbm_classifier_brand{brand}" + churn_labels.VARIANT
 N_DRIVERS = 3
 COLUMNS = [
     "run_date", "model_version", "tenant_id", "brand_id", "player_id",

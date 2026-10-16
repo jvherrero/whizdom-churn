@@ -5,7 +5,7 @@ The features T6 builds from the S3 data lake (`build_features --as-of DATE`), on
 ## 0. How to Read It
 
 - **Cutoff**: the "today" of a row. A feature uses only data **up to and including the cutoff day** (UTC days, as in the source tables); nothing after it.
-- **Population**: players of the brand with a bet in the 30 days up to the cutoff.
+- **Population**: players of the brand with an active day (a stake from real money or released bonus) in the 30 days up to the cutoff.
 - **Window**: how many days before the cutoff the feature looks at. **Lag**: how far back the window ends (0 = it ends on the cutoff day; 7 d = days 8 to 14 before it).
 - **T4**: the result in the signal explorer (promoted / rejected / not tested), with the single-signal AUC for 60-day churn.
 - **Sources.** `gld_player_signals_daily` is read on the cutoff day (its windows are already computed). The other sources are the local daily caches of `src/features/daily_cache.py`. Money is in EUR (converted in the source tables).
@@ -32,8 +32,8 @@ The features T6 builds from the S3 data lake (`build_features --as-of DATE`), on
 
 | Feature | Definition | Source | Window | Lag | T4 | Notes |
 |---|---|---|---|---|---|---|
-| `active_days_l7d` | Active days (stake from real money or released bonus) in the last 7 days | activity cache (`build_features.active_days`) | 7 d | 0 | not tested | Matches the recomputation for 98% to 100% of players. |
-| `active_days_l30d` | Active days (stake from real money or released bonus) in the last 30 days | activity cache (`build_features.active_days`) | 30 d | 0 | not tested | Validated (95% to 100%). |
+| `active_days_l7d` | Active days (stake from real money or released bonus) in the last 7 days | activity cache (`build_features.active_days`) | 7 d | 0 | not tested | Rebuilt from the activity cache. The signals table column also counts bonus-only days, so it matches for only 34% to 54% of players (higher, never lower). |
+| `active_days_l30d` | Active days (stake from real money or released bonus) in the last 30 days | activity cache (`build_features.active_days`) | 30 d | 0 | not tested | Rebuilt from the activity cache (same reason as `active_days_l7d`). |
 | `active_days_l90d` | Active days (stake from real money or released bonus) in the last 90 days | activity cache (`build_features.active_days`) | 90 d | 0 | not tested |  |
 | `bets_l7d` | Bets in the last 7 days | `gld_player_signals_daily` `bets_l7d` | 7 d | 0 | not tested | Validated (100%). |
 | `bets_l30d` | Bets in the last 30 days | `gld_player_signals_daily` `bets_l30d` | 30 d | 0 | not tested | Validated (100%). |

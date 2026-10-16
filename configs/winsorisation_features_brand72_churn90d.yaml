@@ -1,0 +1,84 @@
+version: 1
+brand_id: 72
+source: features
+grain: player_cutoff
+applies_to: feature values before sign-log scaling
+upper_quantile: 0.995
+lower_quantile_signed_only: 0.005
+computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
+history_start: '2025-08-01'
+history_end: '2026-07-01'
+generated_at_unix: 1792152786
+columns:
+  wagered_eur_l7d:
+    lower: null
+    upper: 40463.1504
+    n_values: 61414
+    n_above_upper: 308
+    n_below_lower: 0
+    max_observed: 6129165.4
+    min_observed: 0.0009
+  wagered_eur_l30d:
+    lower: null
+    upper: 85054.2126
+    n_values: 142155
+    n_above_upper: 711
+    n_below_lower: 0
+    max_observed: 11702943.12
+    min_observed: 0.0009
+  wagered_eur_l90d:
+    lower: null
+    upper: 204897.6803
+    n_values: 142155
+    n_above_upper: 711
+    n_below_lower: 0
+    max_observed: 20244926.32
+    min_observed: 0.0037
+  net_loss_7d:
+    lower: -1742.3745
+    upper: 2494.4521
+    n_values: 61399
+    n_above_upper: 307
+    n_below_lower: 307
+    max_observed: 194254.2
+    min_observed: -60238.41
+  ggr_eur_l30d:
+    lower: -1855.1346
+    upper: 4378.7287
+    n_values: 142040
+    n_above_upper: 711
+    n_below_lower: 711
+    max_observed: 185248.88
+    min_observed: -186921.4
+  deposits_eur_l30d:
+    lower: null
+    upper: 14406.8237
+    n_values: 31460
+    n_above_upper: 158
+    n_below_lower: 0
+    max_observed: 409757.7998
+    min_observed: 0.0001
+  prior_wagered_eur_l7d:
+    lower: null
+    upper: 39615.9042
+    n_values: 61471
+    n_above_upper: 308
+    n_below_lower: 0
+    max_observed: 3485510.2
+    min_observed: 0.001
+  prior_ggr_eur_l30d:
+    lower: -2870.4207
+    upper: 6672.9137
+    n_values: 60772
+    n_above_upper: 304
+    n_below_lower: 304
+    max_observed: 185248.88
+    min_observed: -160647.81
+  avg_bet_eur_l30d:
+    lower: null
+    upper: 102.1195
+    n_values: 142155
+    n_above_upper: 711
+    n_below_lower: 0
+    max_observed: 4530.6384
+    min_observed: 0.0007

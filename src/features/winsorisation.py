@@ -18,8 +18,11 @@ import numpy as np
 import pandas as pd
 import yaml
 
+import churn_labels
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-WINSOR_CONFIG_PATH = PROJECT_ROOT / "configs/winsorisation_features_brand{brand_id}.yaml"
+# The caps are learned on the training cutoffs, which depend on the churn threshold (CHURN_DAYS).
+WINSOR_CONFIG_PATH = PROJECT_ROOT / ("configs/winsorisation_features_brand{brand_id}" + churn_labels.VARIANT + ".yaml")
 WINSOR_UPPER_Q = 0.995
 WINSOR_LOWER_Q = 0.005
 

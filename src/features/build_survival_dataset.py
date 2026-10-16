@@ -31,7 +31,7 @@ import churn_labels
 from winsorisation import WINSOR_CONFIG_PATH 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PROCESSED_DIR = PROJECT_ROOT / "data/processed"
+PROCESSED_DIR = PROJECT_ROOT / "data/processed" / churn_labels.VARIANT.lstrip("_")  # a subfolder for CHURN_DAYS != 60
 # 12 monthly cutoffs, all with a complete 60-day label.
 DEFAULT_CUTOFF_DATES = [str(d.date()) for d in pd.date_range("2025-09-01", "2026-08-01", freq="MS")]
 MLFLOW_EXPERIMENT = "whizdom-churn-training-features"
@@ -108,6 +108,7 @@ def _log_run(dataset, features, output_path, run_name, cutoff_dates, data_end, n
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
     with mlflow.start_run(run_name=run_name):
         mlflow.set_tags({
+            "churn_days": churn_labels.HORIZON_DAYS,
             "timestamp_unix": timestamp_unix,
             "timestamp_iso": datetime.fromtimestamp(timestamp_unix, tz=timezone.utc).isoformat(),
             "git_commit": git_commit(), "user": getpass.getuser(), "host": socket.gethostname(),

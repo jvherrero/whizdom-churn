@@ -24,6 +24,7 @@ from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
+import churn_labels  # noqa: E402
 from build_features import _unscale, brand_label
 
 # 30-day profile. Deposit features are left out because they are empty before March 2026.
@@ -42,8 +43,8 @@ SILHOUETTE_SAMPLE = 10_000  # silhouette is slow on many rows
 SEED = 42
 ARTIFACT = "segments/kmeans.joblib"
 # One report per brand.
-DOC_PATH = PROJECT_ROOT / "docs/player_segments_brand{brand}.md"
-FIGURE_DIR = PROJECT_ROOT / "data/03_output/segments/brand{brand}"
+DOC_PATH = PROJECT_ROOT / ("docs/player_segments_brand{brand}" + churn_labels.VARIANT + ".md")
+FIGURE_DIR = PROJECT_ROOT / ("data/03_output/segments/brand{brand}" + churn_labels.VARIANT)
 
 
 @dataclass

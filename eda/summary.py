@@ -26,12 +26,13 @@ import pandas as pd  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
+import churn_labels  # noqa: E402
 from alerts import load_config, psi  # noqa: E402
 from build_features import FEATURES, _unscale, brand_label  # noqa: E402
 from build_survival_dataset import MLFLOW_EXPERIMENT, PROCESSED_DIR, WITHIN_COLUMNS  # noqa: E402
 
 DOC_PATH = PROJECT_ROOT / "docs/eda_summary_brand{brand}.md"
-OUTPUT_DIR = PROJECT_ROOT / "data/03_output/eda_summary/brand{brand}"
+OUTPUT_DIR = PROJECT_ROOT / ("data/03_output/eda_summary/brand{brand}" + churn_labels.VARIANT)
 RATE_WARN_PTS = 5.0  # warning if a label rate moves more than this many points
 DURATION_QUANTILES = (0.5, 0.75, 0.9)
 
@@ -153,7 +154,7 @@ def run(dataset_path: str | Path | None = None, benchmark_path: str | Path | Non
     cut = by_cutoff(current)
 
     out_dir = Path(str(OUTPUT_DIR).format(brand=label))
-    doc = Path(str(DOC_PATH).format(brand=label))
+    doc = Path(str(DOC_PATH).format(brand=f"{label}{churn_labels.VARIANT}"))
     figs = _figures(current, cut, out_dir)
     table.to_csv(out_dir / "summary.csv", index=False)
     cut.to_csv(out_dir / "by_cutoff.csv", index=False)

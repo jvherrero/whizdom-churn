@@ -44,6 +44,7 @@ from evaluation.metrics import ECE_BINS, c_index, classification_metrics, expect
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from build_features import PLATFORM_SCORE, brand_label
 from build_survival_dataset import LABEL_COLUMNS, git_commit
+import churn_labels  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import segments as segmentation
@@ -787,6 +788,7 @@ def latest_run(model_id: str, brand: str | None = None) -> pd.Series:
         runs = runs[runs.get("tags.role", pd.Series("optimised", index=runs.index)).fillna("optimised") != "reference"]
         if "tags.backtest_id" in runs:
             runs = runs[runs["tags.backtest_id"].isna()]
+        runs = churn_labels.same_threshold(runs)
     if runs.empty:
         raise LookupError(f"no {model_id} run in {MLFLOW_EXPERIMENT}: run `make train-baseline` first")
     return runs.iloc[0]
@@ -999,6 +1001,7 @@ def train(
         mlflow.set_tag("host", socket.gethostname())
         mlflow.set_tag("source_script", "src/models/train.py")
         mlflow.set_tag("brand_id", brand)
+        mlflow.set_tag("churn_days", churn_labels.HORIZON_DAYS)
         mlflow.set_tag("role", "reference" if reference else "optimised")
         if tags:
             mlflow.set_tags(tags)  # e.g. backtest id
@@ -1093,7 +1096,7 @@ def train(
                 # Reference, backtest and robustness runs are not registered.
                 register = not reference and not (tags or {}).get("backtest_id")
                 flavor.log_model(model, name="model", signature=signature,
-                                 registered_model_name=f"churn_{model_id}_brand{brand}" if register else None)
+                                 registered_model_name=f"churn_{model_id}_brand{brand}{churn_labels.VARIANT}" if register else None)
             else:
                 joblib.dump(model, Path(tmp) / "model.joblib")
                 mlflow.log_artifact(str(Path(tmp) / "model.joblib"), artifact_path="model")

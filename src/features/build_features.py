@@ -38,7 +38,7 @@ from winsorisation import winsorise  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 HISTORY_START = dt.date(2025, 4, 1)      # first day of the source tables
-LABEL_HORIZON_DAYS = 60
+LABEL_HORIZON_DAYS = churn_labels.HORIZON_DAYS  # 60, or CHURN_DAYS
 LOOKBACK_DAYS = 30                       # population: a bet in the last 30 days
 MIN_HISTORY_DAYS = 90                    # longest feature window
 MIN_CUTOFF = HISTORY_START + dt.timedelta(days=MIN_HISTORY_DAYS)

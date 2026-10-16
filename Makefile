@@ -16,13 +16,19 @@ MODEL ?=
 DATASET ?=
 PARAMS ?=
 MLFLOW_PORT ?= 5000
+# Churn threshold in days (default 60). Another value is a sensitivity run: its models, datasets,
+# scores and reports get a _churn{N}d suffix and never replace the official ones.
+CHURN_DAYS ?=
+ifneq ($(CHURN_DAYS),)
+export CHURN_DAYS
+endif
 
 cutoffs_arg := $(if $(CUTOFFS),--cutoff-dates $(CUTOFFS))
 train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params '$(PARAMS)') $(if $(NO_SELECTION),--no-selection) $(if $(NO_SEGMENTS),--no-segments) $(if $(NO_TUNING),--no-tuning) $(if $(N_TRIALS),--n-trials $(N_TRIALS))
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results survival-card ph-check ablation backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile distributions clean-tmp docker-build docker-run
+        segments train train-baseline evaluate results survival-card ph-check ablation scoring-days threshold-comparison backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile distributions clean-tmp docker-build docker-run
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -37,7 +43,7 @@ help:
 	@echo "validate-signals    signals-table columns against the daily caches -> docs/signal_validation.md [BRANDS=\"14 64 73\"] [BUILD=1: missing snapshots from S3]"
 	@echo "dataset             survival dataset: features + churn labels of the training cutoffs [CUTOFFS=...] [DATA_END=YYYY-MM-DD]"
 	@echo "eda-summary         EDA stage 4: training snapshot vs benchmark -> docs/eda_summary_brand{id}.md [DATASET=path] [BENCHMARK=path]"
-	@echo "pipeline            EVERYTHING as of a date: AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1] [SKIP_ALERTS=1] [BACKTEST=1]"
+	@echo "pipeline            EVERYTHING as of a date: AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1] [SKIP_ALERTS=1] [BACKTEST=1] [CHURN_DAYS=60]"
 	@echo "                    daily caches -> features -> dataset -> LightGBM + Cox -> evaluate -> reports [-> backtest] -> player scores"
 	@echo "data-pipeline       only the training data steps [CUTOFFS=...] [SKIP_ANOMALIES=1]"
 	@echo "segments            k-means player segments (k by silhouette) -> docs/player_segments_brand{id}.md"
@@ -48,6 +54,8 @@ help:
 	@echo "survival-card       censoring, durations and left truncation of the Cox data -> docs/survival_data_card.md"
 	@echo "ph-check            proportional hazards check of the registered Cox models -> docs/cox_ph_check.md"
 	@echo "ablation            retrain without each feature family, on all the features -> docs/feature_ablation.md"
+	@echo "scoring-days        registered models scored on days 1, 8, 15, 22, 29 of the test months (S3) -> docs/scoring_day_sensitivity.md"
+	@echo "threshold-comparison  official 60-day model against the CHURN_DAYS=90 run, same players [BRANDS=\"14 23\"] -> docs/churn_threshold_comparison.md"
 	@echo "backtest            T10 rolling-origin backtest over the last 12 monthly cutoffs -> docs/backtest_v0_brand{id}.md: AS_OF=YYYY-MM-DD [CONFIG=configs/backtest.yaml] [TOP_UP=1]"
 	@echo "backtest-report     rewrite a finished backtest's report with the current pass conditions, no training: ID=backtest_brand{id}_..."
 	@echo "robustness          training spec point 8: earlier monthly windows of a dataset -> docs/temporal_robustness_brand{id}.md [DATASET=path] [N_WINDOWS=2] [N_TRIALS=n] [SEED_MODE=per_window|grid] [SEEDS=\"42 7 2026\"]"
@@ -141,6 +149,12 @@ ph-check:
 
 ablation:
 	$(PY) src/models/ablation_full.py
+
+scoring-days:
+	$(PY) src/models/scoring_day_sensitivity.py
+
+threshold-comparison:
+	$(PY) src/models/threshold_comparison.py $(BRANDS)
 
 backtest:
 	@test -n "$(AS_OF)" || (echo "usage: make backtest AS_OF=YYYY-MM-DD [CONFIG=configs/backtest.yaml] [BRAND=64] [TOP_UP=1]"; exit 1)

@@ -12,11 +12,15 @@ Labels for each player of a cutoff (day 0 is the cutoff):
     churn_within_{h}d  1 if the churn starts within h days (h = 7, 14, 30)
 
 A label is empty when its window goes past data_end.
+
+The threshold is 60 days. CHURN_DAYS=N in the environment (`make pipeline CHURN_DAYS=90`) changes it for a
+sensitivity run; the column names keep "60d", and every output of that run carries VARIANT (see below).
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import os
 import sys
 from pathlib import Path
 
@@ -25,8 +29,29 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import daily_cache  # noqa: E402
 
-HORIZON_DAYS = 60
+DEFAULT_HORIZON_DAYS = 60
 WITHIN_DAYS = (7, 14, 30)
+
+
+def _horizon_days() -> int:
+    value = int(os.environ.get("CHURN_DAYS") or DEFAULT_HORIZON_DAYS)
+    if value <= max(WITHIN_DAYS):
+        raise ValueError(f"CHURN_DAYS must be more than {max(WITHIN_DAYS)} days, got {value}")
+    return value
+
+
+HORIZON_DAYS = _horizon_days()
+# Outputs of another threshold carry this suffix (models, datasets, scores, reports), so a sensitivity
+# run never replaces the official 60-day ones.
+VARIANT = "" if HORIZON_DAYS == DEFAULT_HORIZON_DAYS else f"_churn{HORIZON_DAYS}d"
+
+
+def same_threshold(runs: pd.DataFrame) -> pd.DataFrame:
+    """MLflow runs trained on the current threshold (runs without the tag are 60-day runs)."""
+    if runs.empty:
+        return runs
+    days = pd.to_numeric(runs.get("tags.churn_days", pd.Series(index=runs.index, dtype=float)), errors="coerce")
+    return runs[days.fillna(DEFAULT_HORIZON_DAYS) == HORIZON_DAYS]
 KEY = ["tenant_id", "player_id"]
 # Label columns. They must never be used as model inputs.
 LABEL_COLUMNS = ["event_60d", "duration_days", "event_observed", *[f"churn_within_{h}d" for h in WITHIN_DAYS]]
