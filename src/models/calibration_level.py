@@ -72,7 +72,7 @@ def early_rate(early: pd.DataFrame, matured: pd.DataFrame, as_of: dt.date, brand
     c_early, c_matured = early["cutoff_date"].iloc[0], matured["cutoff_date"].iloc[0]
     k = (as_of - c_early).days
     act = daily_cache.read("activity", brand_id, start=c_matured + dt.timedelta(days=1), end=as_of,
-                           columns="tenant_id, player_id, day")
+                           columns="tenant_id, player_id, day", active_only=True)
     act["day"] = pd.to_datetime(act["day"])
 
     def first_bet(rows: pd.DataFrame, cutoff: dt.date) -> pd.Series:

@@ -22,7 +22,7 @@ train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params
 
 .PHONY: help setup lint format test \
         profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
-        segments train train-baseline evaluate results backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile distributions clean-tmp docker-build docker-run
+        segments train train-baseline evaluate results survival-card ph-check ablation backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile distributions clean-tmp docker-build docker-run
 
 help:
 	@echo "setup               install the environment and the pre-commit hooks"
@@ -45,6 +45,9 @@ help:
 	@echo "train-baseline      LightGBM (event_60d) + Cox PH (churn day) + feature importance report [DATASET=path]"
 	@echo "evaluate            metrics of one MLflow training run with 95% bootstrap CIs, logged into it: RUN_ID=<id>"
 	@echo "results             reference LightGBM + Cox PH (optimisation step 1) -> docs/results_v0_brand{id}.md [DATASET=path]"
+	@echo "survival-card       censoring, durations and left truncation of the Cox data -> docs/survival_data_card.md"
+	@echo "ph-check            proportional hazards check of the registered Cox models -> docs/cox_ph_check.md"
+	@echo "ablation            retrain without each feature family, on all the features -> docs/feature_ablation.md"
 	@echo "backtest            T10 rolling-origin backtest over the last 12 monthly cutoffs -> docs/backtest_v0_brand{id}.md: AS_OF=YYYY-MM-DD [CONFIG=configs/backtest.yaml] [TOP_UP=1]"
 	@echo "backtest-report     rewrite a finished backtest's report with the current pass conditions, no training: ID=backtest_brand{id}_..."
 	@echo "robustness          training spec point 8: earlier monthly windows of a dataset -> docs/temporal_robustness_brand{id}.md [DATASET=path] [N_WINDOWS=2] [N_TRIALS=n] [SEED_MODE=per_window|grid] [SEEDS=\"42 7 2026\"]"
@@ -129,6 +132,15 @@ evaluate:
 
 results:
 	$(PY) src/models/results.py $(if $(DATASET),--dataset-path $(DATASET))
+
+survival-card:
+	$(PY) src/models/survival_card.py
+
+ph-check:
+	$(PY) src/models/ph_check.py
+
+ablation:
+	$(PY) src/models/ablation_full.py
 
 backtest:
 	@test -n "$(AS_OF)" || (echo "usage: make backtest AS_OF=YYYY-MM-DD [CONFIG=configs/backtest.yaml] [BRAND=64] [TOP_UP=1]"; exit 1)

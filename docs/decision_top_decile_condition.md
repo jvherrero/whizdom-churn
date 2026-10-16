@@ -2,7 +2,9 @@
 
 Date: 2026-10-09. Applies to the backtest pass conditions of the delivery plan (T10), in `configs/backtest.yaml`. Evidence: `eda/09_top_decile_condition.ipynb`, on the backtests of brands 14, 64 and 73 (11 monthly cutoffs each).
 
-**Decision.** The KPI stays the same (the mean top-decile precision of the model divided by the recency rule's, over the backtest cutoffs), and its threshold goes from 1.5x to **1.10x**.
+**Decision.** The KPI stays the same (the mean top-decile precision of the model divided by the recency rule's, over the backtest cutoffs), and I propose that its threshold goes from 1.5x to **1.10x**.
+
+**Status: proposed, not frozen yet** (section 5).
 
 ## 1. Problem
 
@@ -42,3 +44,21 @@ Intervals from the notebook (2,000 resamples); the backtest report uses 200, so 
 - `configs/backtest.yaml`: `top_decile_precision_vs_recency: 1.10` (was 1.5).
 - The backtest report shows the ratio with its 95% interval; the model card shows both precisions, the ratio and why the plan's 1.5x was lowered.
 - `make backtest-report ID=...` rewrites the report of a finished backtest with the current conditions, without training again.
+
+## 5. Freezing the Threshold (review item P0 6)
+
+I chose 1.10x after seeing the backtests above, so these backtests show that it is reachable, but they cannot confirm it. To be a fair test, the threshold must be fixed before any result of a month the models have not seen is read.
+
+- **First unseen month.** The backtests run on 6 October 2026 cover the test months October 2025 to August 2026. The first month outside them is September 2026, whose 60-day label closes on 31 October 2026.
+- **Rule.** 1.10x is approved before 31 October 2026 and before any backtest with a run date on or after that day is read. From then on it does not change for that evaluation. If a later evaluation shows a reason to change it, the new value applies only to the evaluation after it.
+- **What does not count as unseen.** The backtests run again after the active days rebuild (review item P0 2) use the same test months as before. They check the rebuild; they do not test the threshold.
+- **Where it is fixed.** `configs/backtest.yaml`, `pass_conditions.top_decile_precision_vs_recency`. The git commit that freezes it is the record.
+
+| Field | Value |
+|---|---|
+| Proposed threshold | 1.10x |
+| Proposed on | 2026-10-09 |
+| Approved by | (pending) |
+| Approved on | (pending, before 2026-10-31) |
+| First evaluation it applies to | test month 2026-09-01 and later |
+

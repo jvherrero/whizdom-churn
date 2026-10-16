@@ -39,9 +39,12 @@ def make_source(root: Path, future_changed: bool) -> None:
         ids = np.arange(n, dtype="int32")
         ids = ids[alt.random(n) < 0.3]
         wager = alt.uniform(1, 200, len(ids))
+        playable_only = alt.random(len(ids)) < 0.1      # stakes only from playable bonus: not an active day
         _write(root, "gld_player_gaming_daily", day, pd.DataFrame({
             "tenant_id": "t1", "brand_id": np.int32(64), "player_id": ids, "bets": alt.integers(1, 50, len(ids)).astype("uint32"),
-            "rounds": np.uint32(10), "turnover_eur": wager, "ggr_eur": alt.normal(2, 20, len(ids))}))
+            "rounds": np.uint32(10), "turnover_eur": wager, "ggr_eur": alt.normal(2, 20, len(ids)),
+            "wagered_real": np.where(playable_only, 0.0, wager), "wagered_released_bonus": 0.0,
+            "wagered_playable_bonus": np.where(playable_only, wager, 0.0)}))
         _write(root, "gld_player_financial_daily", day, pd.DataFrame({
             "tenant_id": "t1", "player_id": ids, "snapshot_date": day, "wagered_eur_today": wager,
             "won_eur_today": wager * 0.9, "ggr_eur_today": alt.normal(2, 20, len(ids)), "deposits_eur_today": 0.0,

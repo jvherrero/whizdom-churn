@@ -27,8 +27,10 @@ targeting_replay:
 pass_conditions:
   # mean top-decile precision >= 1.10 x the recency rule. The plan's 1.5x cannot be met (recency is 71-74%
   # precise, so a perfect model reaches 1.35-1.40x): docs/decision_top_decile_condition.md
+  # Proposed 2026-10-09 after seeing the backtests; to be frozen before the first unseen month (2026-09-01) is read.
   top_decile_precision_vs_recency: 1.10
   min_auc: 0.70                          # AUC never below this at any cutoff
   max_ece: 0.08                          # calibration error never above this in any month
 
-bootstrap_resamples: 200   # CI of the mean across cutoffs
+bootstrap_resamples: 2000  # CI of the mean across cutoffs
+bootstrap_block_months: 3  # consecutive cutoffs move together: circular block bootstrap (review item P1 11)

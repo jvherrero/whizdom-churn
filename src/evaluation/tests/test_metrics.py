@@ -13,8 +13,17 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from evaluation.metrics import (  # noqa: E402
-    bootstrap_ci, brier_contributions, c_index, classification_metrics, expected_calibration_error,
-    integrated_brier_score, ipcw_weights, one_calibration, time_dependent_auc, top_decile_precision,
+    block_bootstrap_ci,
+    bootstrap_ci,
+    brier_contributions,
+    c_index,
+    classification_metrics,
+    expected_calibration_error,
+    integrated_brier_score,
+    ipcw_weights,
+    one_calibration,
+    time_dependent_auc,
+    top_decile_precision,
 )
 
 RNG = np.random.default_rng(0)
@@ -122,3 +131,21 @@ def test_bootstrap_ci_contains_the_estimate_and_is_reproducible():
     assert low < x.mean() < high
     assert high - low == pytest.approx(2 * 1.96 * 2 / np.sqrt(x.size), rel=0.25)
     assert (low, high) == bootstrap_ci(x.size, lambda i: x[i].mean(), n_resamples=300)
+
+
+def test_block_bootstrap_keeps_consecutive_rows_together():
+    seen = []
+    block_bootstrap_ci(11, lambda i: seen.append(i) or 0.0, block=3, n_resamples=50)
+    for idx in seen:
+        assert len(idx) == 11
+        for start in range(0, 9, 3):                          # each block of 3 is consecutive, wrapping round
+            assert list(idx[start:start + 3]) == [(idx[start] + k) % 11 for k in range(3)]
+
+
+def test_block_bootstrap_is_wider_for_a_trending_series():
+    trend = np.linspace(0.80, 0.90, 11)                       # neighbouring months move together
+    iid = bootstrap_ci(11, lambda i: trend[i].mean(), n_resamples=2000)
+    blk = block_bootstrap_ci(11, lambda i: trend[i].mean(), block=3, n_resamples=2000)
+    assert blk[1] - blk[0] > iid[1] - iid[0]
+    assert blk == block_bootstrap_ci(11, lambda i: trend[i].mean(), block=3, n_resamples=2000)
+

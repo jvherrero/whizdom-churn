@@ -48,7 +48,7 @@ class PlayerScore(BaseModel):
     p_churn_7d: float = Field(ge=0, le=1)
     p_churn_14d: float = Field(ge=0, le=1)
     p_churn_30d: float = Field(ge=0, le=1)
-    value_at_risk_30d: float    # EUR
+    value_at_risk: float        # EUR: expected_ggr_30d x p_churn_60d
     risk_band: int = Field(ge=1, le=10)        # 10 = riskiest 10%
     top_drivers: str            # e.g. "days_since_last_bet (+1.20); ..."
     drift_flag: int             # 1 = review before acting

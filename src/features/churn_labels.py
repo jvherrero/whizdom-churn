@@ -1,5 +1,7 @@
 """Churn labels from the daily activity cache (docs/churn_definition_v0.md).
 
+A "bet" below is an active day: a stake from real money or released bonus funds (daily_cache).
+
     labels = churn_targets(population, cutoff=dt.date(2026, 5, 1), brand_id=64, data_end=dt.date(2026, 10, 6))
 
 Labels for each player of a cutoff (day 0 is the cutoff):
@@ -54,7 +56,7 @@ def _targets(active: pd.DataFrame, players: pd.DataFrame, horizon_days: int) -> 
 def churn_targets(population: pd.DataFrame, cutoff: dt.date, brand_id: int, data_end: dt.date) -> pd.DataFrame:
     players = population[KEY].drop_duplicates()
     active = daily_cache.read("activity", brand_id, start=cutoff + dt.timedelta(days=1), end=data_end,
-                             columns="tenant_id, player_id, day")
+                             columns="tenant_id, player_id, day", active_only=True)
     active["day"] = (pd.to_datetime(active["day"]) - pd.Timestamp(cutoff)).dt.days
     out = _targets(active[KEY + ["day"]], players, (data_end - cutoff).days)
     # If the window is not complete yet, the label is unknown, not 0.
@@ -66,7 +68,7 @@ def churn_targets(population: pd.DataFrame, cutoff: dt.date, brand_id: int, data
 
 
 def population(cutoff: dt.date, brand_id: int | str, lookback_days: int = 30) -> pd.DataFrame:
-    """Players with a bet in (cutoff - lookback_days, cutoff]. "basel" means all brands."""
+    """Players with an active day in (cutoff - lookback_days, cutoff]. "basel" means all brands."""
     rows = daily_cache.read("activity", brand_id, start=cutoff - dt.timedelta(days=lookback_days - 1), end=cutoff,
-                           columns="DISTINCT tenant_id, brand_id, player_id")
+                           columns="DISTINCT tenant_id, brand_id, player_id", active_only=True)
     return rows.assign(cutoff_date=cutoff)

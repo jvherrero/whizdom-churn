@@ -95,8 +95,8 @@ EDGE_RULE = "its window ends on its date (no later data)"
 WINDOW_RULE = "follows its own 30 days more than the 30 days ending 7 later (no later data)"
 WHOLE_SNAPSHOT = ("filled", EDGE_RULE, WINDOW_RULE)  # pass or fail for the whole snapshot
 # Reason for each failure, from notebook 08.
-ACTIVE_DAYS_WHY = ("Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). "
-                   "Definition to confirm.")
+ACTIVE_DAYS_WHY = ("Higher than the active days, never lower: it counts the days with stakes only from playable bonus "
+                   "(not active, measure M053) and some days with no bet.")
 WHY = {
     **{(f"{prior}active_days_l{w}d", "recomputed"): ACTIVE_DAYS_WHY for prior in ("", "prior_") for w in (7, 30, 90)},
     ("days_since_bet", "recomputed"): "0 for almost every player in the backfilled months (never filled); from August 2026 it is the "
@@ -122,15 +122,25 @@ def load(brand_id: int) -> dict[str, pd.DataFrame]:
     out = {}
     for cache in ("activity", "financial", "payments"):
         frame = daily_cache.read(cache, brand_id)
+        if cache == "activity" and "active" not in frame:
+            raise FileNotFoundError("activity cache without the `active` column: run `make cache` first")
         frame["day"] = pd.to_datetime(frame["day"])
         out[cache] = frame
     return out
+
+
+def _population(act: pd.DataFrame, ts: pd.Timestamp) -> pd.DataFrame:
+    """Players with an active day in (ts - 30, ts], as in churn_labels.population."""
+    part = act[act["active"] & (act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)]
+    return part[KEY].drop_duplicates()
 
 
 def _recompute(data: dict, column: str, day: pd.Timestamp, shift: int = 0) -> pd.Series:
     """Recomputed value of `column` per player on `day` + `shift`."""
     cache, source, how, window = RECOMPUTABLE[column]
     frame, end = data[cache], day + pd.Timedelta(shift, unit="D")
+    if how == "recency" or how.startswith("days"):   # active days only (daily_cache, measure M053)
+        frame = frame[frame["active"]]
     if how == "recency":
         return (end - frame[frame["day"] <= end].groupby(KEY)["day"].max()).dt.days
     lo, hi = (2 * window, window) if how.endswith("_prior") else (window, 0)
@@ -163,7 +173,7 @@ def recomputation_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.D
     for day in days:
         ts = pd.Timestamp(day)
         act = data["activity"]
-        population = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
+        population = _population(act, ts)
         snap = snaps[snaps["snapshot_date"] == day].merge(population, on=KEY).set_index(KEY)
         future_known = ts + pd.Timedelta(SHIFT_DAYS, unit="D") <= last_day
         for column in RECOMPUTABLE:
@@ -184,7 +194,7 @@ def plausibility_checks(brand_id: int, days: list[dt.date], data: dict) -> pd.Da
     rows = []
     for day in days:
         ts = pd.Timestamp(day)
-        population = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
+        population = _population(act, ts)
         s = snaps[snaps["snapshot_date"] == day].merge(population, on=KEY)
         w = ENGAGEMENT_WEIGHTS
         formula = np.clip(w[0] * s["active_days_l30d"] / 30 * 100 + w[1] * np.minimum(1, s["sessions_l30d"] / 60) * 100
@@ -233,7 +243,7 @@ def day_profiles(brand_id: int, days: list[dt.date], data: dict) -> pd.DataFrame
         ts = pd.Timestamp(day)
         if ts + pd.Timedelta(PROFILE_AHEAD, unit="D") > act["day"].max():
             continue
-        population = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
+        population = _population(act, ts)
         s = snaps[snaps["snapshot_date"] == day].merge(population, on=KEY)
         idx = pd.MultiIndex.from_frame(s[KEY])
         for column, (cache, window) in NOT_RECOMPUTABLE.items():
@@ -284,7 +294,7 @@ def recency_detail(brand_id: int, data: dict, day: dt.date) -> pd.DataFrame:
     """Compare days_since_bet with the recency on the day and 7 days later."""
     ts = pd.Timestamp(day)
     act = data["activity"]
-    population = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
+    population = _population(act, ts)
     s = signal_snapshots.snapshots([day], brand_id, build_missing=False).merge(population, on=KEY).set_index(KEY)
     out = pd.DataFrame({"table": s["days_since_bet"].astype(float)})
     out["recomputed"] = _recompute(data, "days_since_bet", ts).reindex(out.index)
@@ -526,7 +536,7 @@ def examples(results: dict[int, dict], failed: pd.DataFrame) -> list[dict]:
         if brand not in data:
             data[brand] = load(brand)
         act, ts = data[brand]["activity"], pd.Timestamp(day)
-        population = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
+        population = _population(act, ts)
         return signal_snapshots.snapshots([day], brand, build_missing=False).merge(population, on=KEY).set_index(KEY), ts
 
     def add(column, brand, day, table, mine, later=None):
@@ -560,7 +570,7 @@ def examples(results: dict[int, dict], failed: pd.DataFrame) -> list[dict]:
         brand, day = int(pick["brand"].iloc[0]), pick["day"].iloc[0]
         snap, ts = snapshot(brand, day)
         act = data[brand]["activity"]
-        first = (ts - act[act["day"] <= ts].groupby(KEY)["day"].min()).dt.days.reindex(snap.index)
+        first = (ts - act[act["active"] & (act["day"] <= ts)].groupby(KEY)["day"].min()).dt.days.reindex(snap.index)
         table = snap["tenure_days"].astype(float)
         off = table[table < first - 1].sort_index().head(1)
         if not off.empty:
@@ -636,7 +646,7 @@ def report(results: dict[int, dict], features: dict[int, set[str]]) -> Path:
     text = f"""# Signal Validation: gld_player_signals_daily
 
 - **What**: every column of the signals table that the features read, checked against the daily tables, for brands {", ".join(map(str, brands))}.
-- **Data**: month-start snapshots ({span}); on each, the players with a bet in the 30 days before. Local files only.
+- **Data**: month-start snapshots ({span}); on each, the players with an active day in the 30 days before (a stake from real money or released bonus, measure M053). Local files only.
 
 
 ## 1. Result

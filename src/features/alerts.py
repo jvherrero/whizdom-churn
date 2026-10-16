@@ -302,8 +302,32 @@ def _alerts_markdown(alerts: pd.DataFrame, stage: str, brand: str, as_of: str) -
     return "\n".join(lines)
 
 
+def acknowledge(alerts: pd.DataFrame, stage: str, as_of: str | dt.date, config: dict | None = None) -> pd.DataFrame:
+    """Turn into warnings the critical alerts that a person reviewed (`acknowledged` in the config).
+
+    An entry covers one stage, check, brand and table, from `from` to `until` (both included), and only
+    while the alert value stays at or below `max_value`: a bigger jump, or the same one after `until`,
+    stops the pipeline again. The alert stays in the report, with the reason in its message."""
+    entries = (load_config() if config is None else config).get("acknowledged") or []
+    if alerts.empty or not entries:
+        return alerts
+    day = dt.date.fromisoformat(str(as_of))
+    alerts = alerts.copy()
+    for e in entries:
+        if e["stage"] != stage or not (dt.date.fromisoformat(str(e["from"])) <= day <= dt.date.fromisoformat(str(e["until"]))):
+            continue
+        hit = ((alerts["severity"] == "critical") & (alerts["check"] == e["check"]) & (alerts["table"] == e["table"])
+               & (alerts["brandId"].astype(str) == str(e["brandId"]))
+               & (pd.to_numeric(alerts["value"], errors="coerce") <= e["max_value"]))
+        alerts.loc[hit, "severity"] = "warn"
+        alerts.loc[hit, "message"] = alerts.loc[hit, "message"] + f" [acknowledged until {e['until']}: {e['reason']}]"
+    return alerts
+
+
 def report(alerts: pd.DataFrame, stage: str, brand: str, as_of: str, stop_on_critical: bool = True) -> Path:
-    """Save the alerts to CSV and MLflow, print them and raise CriticalAlert if needed."""
+    """Save the alerts to CSV and MLflow, print them and raise CriticalAlert if needed. Reviewed alerts
+    (`acknowledged` in the config) are reported as warnings."""
+    alerts = acknowledge(alerts, stage, as_of)
     timestamp_unix = int(time.time())
     name = f"alerts_{stage}_brand{brand}_{as_of}_{timestamp_unix}"
     ALERTS_DIR.mkdir(parents=True, exist_ok=True)

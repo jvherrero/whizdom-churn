@@ -8,7 +8,7 @@ Notebook: `eda/02_churn_definition.ipynb`. Tables and figures: `data/03_output/c
 
 ## 1. Summary and Core Definition
 
-A player has **churned** when **60 days pass without a bet**. The activity event is a day with at least one bet, from any wallet (real money or bonus).
+A player has **churned** when **60 days pass without an active day**. An active day is a day on which the player staked a non-zero amount from real money or released bonus funds; stakes only from playable bonus funds do not count, because playable funds become released only when the bonus conditions are met (measure M053 of `gld-schemas`). Until 2026-10-15 the pipeline counted a bet from any wallet; the figures below are from that definition and will be updated after the caches are rebuilt.
 
 - After 60 days of silence, **13.0%** of players bet again within the next 60 days (9.6% for all brands). After 30 days of silence it would be 23.6%: one "churned" player in four would come back.
 - Going further than 60 days gains little: 8.7% come back after 90 days of silence, and from 60 days on each extra month of waiting removes less than 5 points of false churn.
@@ -16,7 +16,7 @@ A player has **churned** when **60 days pass without a bet**. The activity event
 
 ## 2. Activity Data
 
-I build player activity from `gld_player_gaming_daily`: one row per player, game, provider, day and currency with play that day. `src/features/daily_cache.py` (`activity` cache) sums it to one row per player and day with at least one bet, filtered to `brandId = 64` (126,581 players, 1,640,224 player-days). I use this table rather than `gld_player_signals_daily` because it carries `brand_id` on every row; `signals_daily` has no `brand_id` before July 2026 (see `docs/dq_reports/`). Days are UTC days, as in every source table.
+I build player activity from `gld_player_gaming_daily`: one row per player, game, provider, day and currency with play that day. `src/features/daily_cache.py` (`activity` cache) sums it to one row per player and day with at least one bet, with a column `active` for the active days, filtered to `brandId = 64` (126,581 players, 1,640,224 player-days). I use this table rather than `gld_player_signals_daily` because it carries `brand_id` on every row; `signals_daily` has no `brand_id` before July 2026 (see `docs/dq_reports/`). Days are UTC days, as in every source table.
 
 The cache is local and incremental, and it re-reads the last 7 days on every run, because the source reprocesses its last 7 days daily.
 

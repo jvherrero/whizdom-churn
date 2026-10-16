@@ -34,7 +34,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from build_features import PLATFORM_SCORE  # noqa: E402
 from train import (  # noqa: E402
     DURATION, EVENT, TARGET, churn_probability, cox_input, cross_fitted_calibration, load_calibrator, model_input,
-    run_info, split_rows,
+    run_info, split_rows, survival_function,
 )
 
 HORIZONS = (7, 14, 30, 60)  # days
@@ -77,7 +77,7 @@ def cox_results(info: dict, data: pd.DataFrame, split: pd.Series) -> dict:
         part = data[split == name].reset_index(drop=True)
         d, e = part[DURATION].to_numpy(), part[EVENT].to_numpy()
         risk = np.asarray(model.predict_partial_hazard(cox_input(model, part)))
-        surv = model.predict_survival_function(cox_input(model, part), times=grid).T.to_numpy()
+        surv = survival_function(model, part, grid).T.to_numpy()
         contrib = brier_contributions(surv, grid, d, e, censoring)
         out[name] = {
             "c_index": (c_index(d, risk, e), bootstrap_ci(len(d), lambda i: c_index(d[i], risk[i], e[i]))),

@@ -46,8 +46,14 @@ N_DRIVERS = 3
 COLUMNS = [
     "run_date", "model_version", "tenant_id", "brand_id", "player_id",
     *[f"p_churn_{h}d" for h in HORIZONS], "p_churn_60d", "median_survival_days", "median_beyond_horizon",
-    "expected_ggr_30d", "value_at_risk_30d", "risk_band", "top_drivers", "segment", "drift_flag", "lower", "upper",
+    "expected_ggr_30d", "value_at_risk", "risk_band", "top_drivers", "segment", "drift_flag", "lower", "upper",
 ]
+
+
+def value_at_risk(expected_ggr_30d: pd.Series, p_churn_60d: pd.Series) -> pd.Series:
+    """The ranking for a retention campaign: expected 30-day GGR (0 when negative) x the LightGBM 60-day
+    probability. In the backtest it reaches more GGR at risk than the Cox 30-day probability (docs/informe)."""
+    return expected_ggr_30d.clip(lower=0) * p_churn_60d
 
 
 def resolve_models(brand: str, model_version: str | None, lgbm_run_id: str | None,
@@ -138,7 +144,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     scores["median_beyond_horizon"] = np.isinf(median)
     # Expected GGR in the next 30 days at the pace of the last 90 days.
     scores["expected_ggr_30d"] = (raw["ggr_eur_l90d"].fillna(0) / 90 * 30).to_numpy()
-    scores["value_at_risk_30d"] = scores["expected_ggr_30d"].clip(lower=0) * scores["p_churn_30d"]
+    scores["value_at_risk"] = value_at_risk(scores["expected_ggr_30d"], scores["p_churn_60d"])
     # Equal-size deciles per brand. Ties are broken by p_churn_30d and then by player.
     ordered = scores.sort_values(["brand_id", "p_churn_60d", "p_churn_30d", "tenant_id", "player_id"])
     position = ordered.groupby("brand_id").cumcount() + 1
@@ -163,7 +169,7 @@ def score(as_of: str, brand_id: int | str = 64, lgbm_run_id: str | None = None, 
     print(f"saved {os.path.relpath(partition, PROJECT_ROOT)}/ ({len(scores):,} players = active players, "
           f"model {version}, {time.time() - start:.1f}s)")
     print(f"inference: {scoring_seconds * 100_000 / max(len(scores), 1):.2f}s per 100k players")
-    print(scores[[f"p_churn_{h}d" for h in HORIZONS] + ["p_churn_60d", "expected_ggr_30d", "value_at_risk_30d"]]
+    print(scores[[f"p_churn_{h}d" for h in HORIZONS] + ["p_churn_60d", "expected_ggr_30d", "value_at_risk"]]
           .describe().loc[["mean", "50%", "max"]].round(3).to_string())
     print(f"drift_flag: {int(scores['drift_flag'].max())} | example drivers: {scores['top_drivers'].iloc[0]}")
     return partition

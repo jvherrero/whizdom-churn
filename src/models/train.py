@@ -525,9 +525,18 @@ def horizon_label(rows: pd.DataFrame, h: int) -> pd.Series:
     return churned.astype(float).where(known)
 
 
+def survival_function(model, rows: pd.DataFrame, times) -> pd.DataFrame:
+    """S(t) of a Cox model, one column per row of `rows`, in the same order as `rows`. With several
+    strata, lifelines returns the columns grouped by stratum, so they are put back in order here."""
+    X = cox_input(model, rows)
+    if not X.index.is_unique:
+        X = X.reset_index(drop=True)
+    return model.predict_survival_function(X, times=times)[X.index]
+
+
 def raw_horizon_probability(model, rows: pd.DataFrame) -> pd.DataFrame:
     """1 - S(h) of the Cox model for each horizon."""
-    surv = model.predict_survival_function(cox_input(model, rows), times=list(HORIZONS))
+    surv = survival_function(model, rows, list(HORIZONS))
     return pd.DataFrame((1 - surv.to_numpy()).T, columns=list(HORIZONS), index=rows.index)
 
 

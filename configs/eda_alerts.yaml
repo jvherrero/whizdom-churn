@@ -51,3 +51,18 @@ feature_drift:
   warn_psi: 0.10
   critical_psi: 0.25
   critical_n_features: 5
+
+# Critical alerts reviewed by a person: reported as warnings, so they do not stop the pipeline.
+# Each entry covers one stage, check, brand and table, from `from` to `until` (included), and only
+# while the alert value stays at or below `max_value`. Anything outside it is critical again.
+acknowledged:
+  - stage: source
+    check: row_count
+    brandId: 72
+    table: payments
+    from: 2026-10-06
+    until: 2026-11-15
+    max_value: 3500           # rows per day; September 2026 had 2,039 to 3,006
+    reason: "brand growth since August 2026 (active players per day +30%), not a data error; the benchmark is March to August"
+    reviewed_by: Javier
+    reviewed_on: 2026-10-16

@@ -2,7 +2,8 @@
 
 Classification: expected_calibration_error, top_decile_precision, classification_metrics.
 Survival: c_index, ipcw_weights, time_dependent_auc, one_calibration, integrated_brier_score.
-Uncertainty: bootstrap_ci (95% interval over resampled rows).
+Uncertainty: bootstrap_ci (95% interval over resampled rows) and block_bootstrap_ci (resampled blocks of
+consecutive rows, for a time series such as the backtest cutoffs).
 """
 
 from __future__ import annotations
@@ -123,4 +124,20 @@ def bootstrap_ci(n_rows: int, statistic, n_resamples: int = N_BOOTSTRAP, seed: i
     """95% percentile interval of `statistic` over resampled rows."""
     rng = np.random.default_rng(seed)
     values = [statistic(rng.integers(0, n_rows, n_rows)) for _ in range(n_resamples)]
+    return float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5))
+
+
+def block_bootstrap_ci(n_rows: int, statistic, block: int = 3, n_resamples: int = N_BOOTSTRAP,
+                       seed: int = SEED) -> tuple[float, float]:
+    """95% percentile interval of `statistic` over a circular block bootstrap (Politis and Romano, 1992):
+    the rows are a time series, and each resample joins blocks of `block` consecutive rows (wrapping
+    round the end), so neighbouring rows that move together stay together."""
+    rng = np.random.default_rng(seed)
+    block = max(1, min(block, n_rows))
+    n_blocks = -(-n_rows // block)
+    values = []
+    for _ in range(n_resamples):
+        starts = rng.integers(0, n_rows, n_blocks)
+        idx = ((starts[:, None] + np.arange(block)) % n_rows).ravel()[:n_rows]
+        values.append(statistic(idx))
     return float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5))

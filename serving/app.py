@@ -76,7 +76,7 @@ def score_player(brand_id: int, player_id: int) -> PlayerScore:
         run_date=r["run_date"], model_version=r["model_version"], feature_version=f"cutoff {r['run_date']}",
         brand_id=brand_id, player_id=player_id,
         p_churn_60d=r["p_churn_60d"], p_churn_7d=r["p_churn_7d"], p_churn_14d=r["p_churn_14d"],
-        p_churn_30d=r["p_churn_30d"], value_at_risk_30d=r["value_at_risk_30d"], risk_band=r["risk_band"],
+        p_churn_30d=r["p_churn_30d"], value_at_risk=r["value_at_risk"], risk_band=r["risk_band"],
         top_drivers=r["top_drivers"], drift_flag=r["drift_flag"],
     )
 

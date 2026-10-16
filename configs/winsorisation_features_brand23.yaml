@@ -8,77 +8,77 @@ lower_quantile_signed_only: 0.005
 computed_on: 'non-zero values (non-negative columns: > 0, signed columns: != 0)'
 history_start: '2025-09-01'
 history_end: '2026-08-01'
-generated_at_unix: 1791545090
+generated_at_unix: 1792127719
 columns:
   wagered_eur_l7d:
     lower: null
-    upper: 60254.6329
-    n_values: 212793
-    n_above_upper: 1064
+    upper: 67494.7946
+    n_values: 180799
+    n_above_upper: 904
     n_below_lower: 0
     max_observed: 27184543.7959
     min_observed: 0.0008
   wagered_eur_l30d:
     lower: null
-    upper: 154588.2199
-    n_values: 389268
-    n_above_upper: 1947
+    upper: 183483.1225
+    n_values: 296202
+    n_above_upper: 1482
     n_below_lower: 0
     max_observed: 91345835.7342
     min_observed: 0.0008
   wagered_eur_l90d:
     lower: null
-    upper: 403187.6353
-    n_values: 391231
-    n_above_upper: 1957
+    upper: 478568.9896
+    n_values: 296202
+    n_above_upper: 1482
     n_below_lower: 0
     max_observed: 216723429.086
     min_observed: 0.0008
   net_loss_7d:
-    lower: -2199.0221
-    upper: 4155.7149
-    n_values: 212785
-    n_above_upper: 1064
-    n_below_lower: 1064
+    lower: -2494.8296
+    upper: 4554.5479
+    n_values: 180790
+    n_above_upper: 904
+    n_below_lower: 904
     max_observed: 3148125.2697
     min_observed: -240473.9074
   ggr_eur_l30d:
-    lower: -2822.3616
-    upper: 8522.7973
-    n_values: 389212
-    n_above_upper: 1947
-    n_below_lower: 1947
+    lower: -3484.4921
+    upper: 10141.8407
+    n_values: 296175
+    n_above_upper: 1481
+    n_below_lower: 1481
     max_observed: 9494023.8168
     min_observed: -289479.2818
   deposits_eur_l30d:
     lower: null
-    upper: 26153.5122
-    n_values: 94411
-    n_above_upper: 473
+    upper: 26154.1717
+    n_values: 94383
+    n_above_upper: 472
     n_below_lower: 0
     max_observed: 11858540.7223
     min_observed: 0.0194
   prior_wagered_eur_l7d:
     lower: null
-    upper: 62794.8127
-    n_values: 217404
-    n_above_upper: 1088
+    upper: 68228.2721
+    n_values: 189573
+    n_above_upper: 948
     n_below_lower: 0
     max_observed: 34490697.5648
     min_observed: 0.0009
   prior_ggr_eur_l30d:
-    lower: -3695.2875
-    upper: 10618.5043
-    n_values: 259429
-    n_above_upper: 1298
-    n_below_lower: 1298
+    lower: -4149.6813
+    upper: 11740.7879
+    n_values: 216398
+    n_above_upper: 1082
+    n_below_lower: 1082
     max_observed: 9077935.1846
     min_observed: -2078848.9329
   avg_bet_eur_l30d:
     lower: null
-    upper: 104.3249
-    n_values: 389268
-    n_above_upper: 1947
+    upper: 133.3756
+    n_values: 296202
+    n_above_upper: 1482
     n_below_lower: 0
     max_observed: 22587.5099
-    min_observed: 0.0005
+    min_observed: 0.0006

@@ -1,4 +1,5 @@
-"""Pandera suite for the activity cache: one row per player and day with bets > 0.
+"""Pandera suite for the activity cache: one row per player and day with bets > 0; `active` marks
+the active days (a stake from real money or released bonus funds).
 Keys are never empty. Values can be, and the null-rate alert checks them."""
 
 import sys
@@ -16,6 +17,7 @@ COLUMNS = [
     ColumnSpec("rounds", "int64", True),
     ColumnSpec("turnover_eur", "float64", True),
     ColumnSpec("ggr_eur", "float64", True),
+    ColumnSpec("active", "bool", False),
 ]
 
 SCHEMA = build_schema(COLUMNS)

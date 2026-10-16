@@ -5,12 +5,15 @@
 
     .venv/bin/python src/features/build_features.py --as-of 2026-08-01 [--brand-id 64|basel]
 
-The population is the players with a bet in the 30 days up to the cutoff. Features use data up to
+The population is the players with an active day in the 30 days up to the cutoff. Features use data up to
 the cutoff day (included): the signals table on that day and 7 and 30 days before, and the daily
 caches (activity, financial and payments). The feature list is in docs/feature_dictionary.md.
 
-Recency and tenure are computed from the activity, because days_since_bet and tenure_days in the
-signals table are wrong. Deposit features are empty before DEPOSITS_VALID_FROM.
+Recency, tenure and active days are computed from the activity, because days_since_bet, tenure_days
+and active_days_* in the signals table are wrong or not validated (docs/active_days.md). An active
+day is a day with a stake from real money or released bonus funds (measure M053 of gld-schemas;
+playable bonus alone does not count): the same event as the churn label. Deposit
+features are empty before DEPOSITS_VALID_FROM.
 Monetary features are capped per brand and then scaled with a signed log1p.
 """
 
@@ -102,6 +105,24 @@ def data_available_through() -> dt.date:
 def _ratio(a, b):
     return (a + 1) / (b + 1)
 
+# Active days from the activity cache: (start, end] windows that end on the cutoff day, included.
+ACTIVE_DAY_WINDOWS = {"active_days_l7d": (7, 0), "active_days_l30d": (30, 0), "active_days_l90d": (90, 0),
+                      "prior_active_days_l7d": (14, 7)}
+
+
+def active_days(act: pd.DataFrame, c: dt.date) -> pd.DataFrame:
+    """Active days in each window before cutoff c, per player. act has one row per player and active
+    day (daily_cache "activity" with active_only=True: a stake from real money or released bonus).
+    A player with no bet in a window gets 0."""
+    ts = pd.Timestamp(c)
+    days = act[act["day"] <= ts].drop_duplicates(KEY + ["day"])
+    out = {}
+    for name, (lo, hi) in ACTIVE_DAY_WINDOWS.items():
+        w = days[(days["day"] > ts - pd.Timedelta(lo, unit="D")) & (days["day"] <= ts - pd.Timedelta(hi, unit="D"))]
+        out[name] = w.groupby(KEY).size()
+    return pd.DataFrame(out)
+
+
 # Signals that are wrong in the signals table, or not in it, are computed here from the daily caches.
 def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.DataFrame | None,
                     players: pd.DataFrame) -> pd.DataFrame:
@@ -124,6 +145,7 @@ def history_signals(c: dt.date, fin: pd.DataFrame, act: pd.DataFrame, pay: pd.Da
     out["days_since_last_bet"] = (ts - bets.max()).dt.days
     # Tenure from the first bet seen (tenure_days in the signals table is wrong).
     out["days_since_first_bet"] = (ts - bets.min()).dt.days.clip(upper=TENURE_CAP_DAYS)
+    out = out.join(active_days(act, c)).fillna({name: 0 for name in ACTIVE_DAY_WINDOWS})
 
     out["n_deposit_days_7d"] = before(dep, 7, 0).groupby(KEY).size()
     out["n_deposit_days_30d"] = before(dep, 30, 0).groupby(KEY).size()
@@ -204,7 +226,7 @@ def _one_brand(c: dt.date, brand: int, players: pd.DataFrame) -> pd.DataFrame:
     """All signals of one brand at cutoff c."""
     snaps = signal_snapshots.snapshots([c, c - dt.timedelta(days=7), c - dt.timedelta(days=30)], brand)
     fin = daily_cache.read("financial", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
-    act = daily_cache.read("activity", brand, end=c, columns="tenant_id, player_id, day")
+    act = daily_cache.read("activity", brand, end=c, columns="tenant_id, player_id, day", active_only=True)
     try:
         pay = daily_cache.read("payments", brand, start=c - dt.timedelta(days=HISTORY_DAYS), end=c)
     except FileNotFoundError:
@@ -213,7 +235,8 @@ def _one_brand(c: dt.date, brand: int, players: pd.DataFrame) -> pd.DataFrame:
         if frame is not None:
             frame["day"] = pd.to_datetime(frame["day"])
     keep_prior = ["sessions_l7d", "play_secs_l7d", "games_breadth_l30d"]
-    snap = snaps[snaps["snapshot_date"] == c].drop(columns="snapshot_date")
+    # The signals table's own active days are dropped: they come from the activity (active_days).
+    snap = snaps[snaps["snapshot_date"] == c].drop(columns=["snapshot_date", *ACTIVE_DAY_WINDOWS], errors="ignore")
     p7 = snaps[snaps["snapshot_date"] == c - dt.timedelta(days=7)][KEY + keep_prior].add_suffix("_p7")
     p30 = snaps[snaps["snapshot_date"] == c - dt.timedelta(days=30)][KEY + keep_prior].add_suffix("_p30")
     return (players.merge(snap, on=KEY, how="left")

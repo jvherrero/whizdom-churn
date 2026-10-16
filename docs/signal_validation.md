@@ -1,34 +1,35 @@
 # Signal Validation: gld_player_signals_daily
 
 - **What**: every column of the signals table that the features read, checked against the daily tables, for brands 14, 23, 64, 72, 73.
-- **Data**: month-start snapshots (brand 14: 2025-07 to 2026-08; brand 23: 2025-09 to 2026-09; brand 64: 2025-07 to 2026-10; brand 72: 2025-09 to 2026-09; brand 73: 2025-07 to 2026-08); on each, the players with a bet in the 30 days before. Local files only.
+- **Data**: month-start snapshots (brand 14: 2025-07 to 2026-08; brand 23: 2025-07 to 2026-09; brand 64: 2025-07 to 2026-10; brand 72: 2025-07 to 2026-09; brand 73: 2025-07 to 2026-08); on each, the players with an active day in the 30 days before (a stake from real money or released bonus, measure M053). Local files only.
 
 
 ## 1. Result
 
-**19 of 28 columns pass every check in every brand. 9 fail; the models read `active_days_l30d`, `active_days_l90d`.**
+**18 of 28 columns pass every check in every brand. 10 fail; the models read `active_days_l30d`, `active_days_l90d`.**
 
 Cells: the months where the check fails and how (mismatch: the table differs from the recomputation; leak: it equals the value of 7 days later; empty: 0 for every player), and the median share of players that pass in those months.
 
 | Column | Check that fails | Brand 14 | Brand 23 | Brand 64 | Brand 72 | Brand 73 | Why | Impact on the models |
 |---|---|---|---|---|---|---|---|---|
-| `active_days_l30d` | recomputed from the daily tables | OK | OK | OK | mismatch 2026-07 to 2026-08 (89% pass) | mismatch 2026-06 (93% pass) | Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). Definition to confirm. | `active_days_l30d` is in the model of brands 23, 73 |
-| `active_days_l7d` | recomputed from the daily tables | OK | OK | OK | mismatch 2026-07 (92% pass) | OK | Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). Definition to confirm. | `active_days_l7d` is in no current model |
-| `active_days_l90d` | recomputed from the daily tables | OK | mismatch 2025-10 (95% pass) | mismatch 2026-06; mismatch 2026-08 (95% pass) | mismatch 2026-01; mismatch 2026-05; mismatch 2026-07 to 2026-09 (93% pass) | mismatch 2025-07 to 2025-10; mismatch 2026-06 (94% pass) | Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). Definition to confirm. | `active_days_l90d` is in the model of brands 14, 64, 72, 73 |
-| `days_since_bet` | recomputed from the daily tables | mismatch 2025-07 to 2026-07; leak 2026-08 (21% pass) | mismatch 2025-09 to 2026-07; leak 2026-08 to 2026-09 (21% pass) | mismatch 2025-07 to 2026-07; leak 2026-08 to 2026-10 (17% pass) | mismatch 2025-09 to 2026-07; leak 2026-08 to 2026-09 (12% pass) | mismatch 2025-07 to 2026-07; leak 2026-08 (18% pass) | 0 for almost every player in the backfilled months (never filled); from August 2026 it is the recency 7 days after its date (built with later data). | None: replaced by days_since_last_bet |
-| `deposit_frequency_score` | filled (not 0 for every player) | empty 2025-07 to 2025-12 | empty 2025-09 to 2025-12 | empty 2025-07 to 2025-12 | empty 2025-09 to 2025-12 | empty 2025-07 to 2025-12 | The payments table has almost no deposits before 2026. | `deposit_frequency_score` is in no current model |
-| `prior_active_days_l30d` | recomputed from the daily tables | OK | OK | OK | mismatch 2026-08 (92% pass) | OK | Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). Definition to confirm. | None: no feature reads it |
-| `prior_active_days_l7d` | recomputed from the daily tables | OK | OK | OK | mismatch 2026-07 (90% pass) | OK | Higher than the bet days, never lower: it counts some days with no bet (not the days with a payment). Definition to confirm. | `prior_active_days_l7d` is in no current model |
-| `tenure_days` | >= days since the first bet seen in the activity | fails 2025-07 to 2026-07 (25% pass) | fails 2025-09 to 2026-07 (32% pass) | fails 2025-07 to 2026-07 (26% pass) | fails 2025-09 to 2026-07 (19% pass) | fails 2025-07 to 2026-07 (31% pass) | Shorter than the activity history in the backfilled months. | None: replaced by days_since_first_bet |
-| `tenure_days` | grows by the days between two snapshots | fails 2025-08 to 2026-08 (25% pass) | fails 2025-10 to 2026-08 (24% pass) | fails 2025-08 to 2026-08 (19% pass) | fails 2025-10 to 2026-08 (16% pass) | fails 2025-08 to 2026-08 (23% pass) | Does not grow day by day in the backfilled months; jumps on 2026-08-01, correct after that. | None: replaced by days_since_first_bet |
-| `tp_night_index` | between 0 and 1 (a share of play) | fails 2026-08 (85% pass) | fails 2026-08 to 2026-09 (91% pass) | fails 2026-08 to 2026-10 (88% pass) | fails 2026-08 to 2026-09 (86% pass) | fails 2026-08 (89% pass) | Reaches values above 1 once filled: not a share of play. Definition to confirm. | `night_play_index` is in no current model |
-| `tp_night_index` | filled (not 0 for every player) | empty 2025-07 to 2026-07 | empty 2025-09 to 2026-07 | empty 2025-07 to 2026-07 | empty 2025-09 to 2026-07 | empty 2025-07 to 2026-07 | Not computed before August 2026 (not backfilled). | `night_play_index` is in no current model |
+| `active_days_l30d` | recomputed from the daily tables | mismatch 2025-07 to 2026-08 (86% pass) | mismatch 2025-07 to 2026-09 (67% pass) | mismatch 2025-07 to 2026-10 (85% pass) | mismatch 2025-07 to 2026-09 (82% pass) | mismatch 2025-07 to 2026-08 (77% pass) | Higher than the active days, never lower: it counts the days with stakes only from playable bonus (not active, measure M053) and some days with no bet. | `active_days_l30d` is in the model of brands 23, 73 |
+| `active_days_l7d` | recomputed from the daily tables | mismatch 2025-09; mismatch 2025-12 to 2026-01; mismatch 2026-04; mismatch 2026-06; mismatch 2026-08 (94% pass) | mismatch 2025-07 to 2026-09 (88% pass) | mismatch 2025-07 to 2025-08; mismatch 2025-10 to 2025-11; mismatch 2026-03 to 2026-09 (93% pass) | mismatch 2026-01 to 2026-09 (91% pass) | mismatch 2025-07 to 2026-08 (91% pass) | Higher than the active days, never lower: it counts the days with stakes only from playable bonus (not active, measure M053) and some days with no bet. | `active_days_l7d` is in no current model |
+| `active_days_l90d` | recomputed from the daily tables | mismatch 2025-07 to 2026-08 (77% pass) | mismatch 2025-07 to 2026-09 (53% pass) | mismatch 2025-07 to 2026-10 (76% pass) | mismatch 2025-07 to 2026-09 (75% pass) | mismatch 2025-07 to 2026-08 (67% pass) | Higher than the active days, never lower: it counts the days with stakes only from playable bonus (not active, measure M053) and some days with no bet. | `active_days_l90d` is in the model of brands 14, 64, 72, 73 |
+| `days_since_bet` | recomputed from the daily tables | mismatch 2025-07 to 2026-07; leak 2026-08 (34% pass) | mismatch 2025-07 to 2026-07; leak 2026-08 to 2026-09 (24% pass) | mismatch 2025-07 to 2026-07; leak 2026-08 to 2026-10 (20% pass) | mismatch 2025-07 to 2026-07; leak 2026-08 to 2026-09 (14% pass) | mismatch 2025-07 to 2026-07; leak 2026-08 (21% pass) | 0 for almost every player in the backfilled months (never filled); from August 2026 it is the recency 7 days after its date (built with later data). | None: replaced by days_since_last_bet |
+| `deposit_frequency_score` | filled (not 0 for every player) | empty 2025-07 to 2025-12 | empty 2025-07 to 2025-12 | empty 2025-07 to 2025-12 | empty 2025-07 to 2025-12 | empty 2025-07 to 2025-12 | The payments table has almost no deposits before 2026. | `deposit_frequency_score` is in no current model |
+| `ggr_eur_l30d` | recomputed from the daily tables | OK | mismatch 2026-09 (94% pass) | OK | OK | OK | See notebook 08. | `ggr_eur_l30d` is in no current model |
+| `prior_active_days_l30d` | recomputed from the daily tables | mismatch 2025-07 to 2026-08 (88% pass) | mismatch 2025-07 to 2026-09 (69% pass) | mismatch 2025-07 to 2026-10 (87% pass) | mismatch 2025-07 to 2026-09 (89% pass) | mismatch 2025-07 to 2026-08 (81% pass) | Higher than the active days, never lower: it counts the days with stakes only from playable bonus (not active, measure M053) and some days with no bet. | None: no feature reads it |
+| `prior_active_days_l7d` | recomputed from the daily tables | OK | mismatch 2025-07 to 2026-09 (86% pass) | mismatch 2025-07 to 2025-08; mismatch 2026-03; mismatch 2026-05 to 2026-08 (92% pass) | mismatch 2025-09 to 2025-10; mismatch 2026-01 to 2026-09 (93% pass) | mismatch 2025-07 to 2026-08 (92% pass) | Higher than the active days, never lower: it counts the days with stakes only from playable bonus (not active, measure M053) and some days with no bet. | `prior_active_days_l7d` is in no current model |
+| `tenure_days` | >= days since the first bet seen in the activity | fails 2025-07 to 2026-07 (41% pass) | fails 2025-07 to 2026-07 (37% pass) | fails 2025-07 to 2026-07 (29% pass) | fails 2025-07 to 2026-07 (23% pass) | fails 2025-07 to 2026-07 (33% pass) | Shorter than the activity history in the backfilled months. | None: replaced by days_since_first_bet |
+| `tenure_days` | grows by the days between two snapshots | fails 2025-08 to 2026-08 (25% pass) | fails 2025-08 to 2026-08 (24% pass) | fails 2025-08 to 2026-08 (19% pass) | fails 2025-08 to 2026-08 (16% pass) | fails 2025-08 to 2026-08 (23% pass) | Does not grow day by day in the backfilled months; jumps on 2026-08-01, correct after that. | None: replaced by days_since_first_bet |
+| `tp_night_index` | between 0 and 1 (a share of play) | fails 2026-08 (86% pass) | fails 2026-08 to 2026-09 (92% pass) | fails 2026-08 to 2026-10 (91% pass) | fails 2026-08 to 2026-09 (88% pass) | fails 2026-08 (89% pass) | Reaches values above 1 once filled: not a share of play. Definition to confirm. | `night_play_index` is in no current model |
+| `tp_night_index` | filled (not 0 for every player) | empty 2025-07 to 2026-07 | empty 2025-07 to 2026-07 | empty 2025-07 to 2026-07 | empty 2025-07 to 2026-07 | empty 2025-07 to 2026-07 | Not computed before August 2026 (not backfilled). | `night_play_index` is in no current model |
 
 ![Failed checks by brand and snapshot](../data/03_output/signal_validation/failed_checks.png)
 
 ![days_since_bet by brand](../data/03_output/signal_validation/days_since_bet_by_brand.png)
 
-Pass in every brand: `avg_bet_eur_l30d`, `bets_l30d`, `bets_l7d`, `deposits_eur_l30d`, `engagement_score`, `games_breadth_l30d`, `ggr_eur_l30d`, `ggr_eur_l7d`, `ggr_eur_l90d`, `prior_bets_l7d`, `prior_ggr_eur_l30d`, `prior_wagered_eur_l7d`, `sessions_l30d`, `sessions_l7d`, `wagered_bonus_eur_l30d`, `wagered_eur_l30d`, `wagered_eur_l7d`, `wagered_eur_l90d`, `withdrawals_eur_l30d`.
+Pass in every brand: `avg_bet_eur_l30d`, `bets_l30d`, `bets_l7d`, `deposits_eur_l30d`, `engagement_score`, `games_breadth_l30d`, `ggr_eur_l7d`, `ggr_eur_l90d`, `prior_bets_l7d`, `prior_ggr_eur_l30d`, `prior_wagered_eur_l7d`, `sessions_l30d`, `sessions_l7d`, `wagered_bonus_eur_l30d`, `wagered_eur_l30d`, `wagered_eur_l7d`, `wagered_eur_l90d`, `withdrawals_eur_l30d`.
 
 ## 2. Method
 
@@ -70,12 +71,13 @@ Pass in every brand: `avg_bet_eur_l30d`, `bets_l30d`, `bets_l7d`, `deposits_eur_
 
 | Column | Brand | Snapshot | tenant_id | player_id | Table | Recomputed | Recomputed 7 days later |
 |---|---|---|---|---|---|---|---|
-| `active_days_l7d` | 72 | 2026-07-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3267253 | 6 | 3 |  |
-| `active_days_l30d` | 72 | 2026-07-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3267253 | 17 | 7 |  |
-| `active_days_l90d` | 72 | 2026-07-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3267253 | 18 | 8 |  |
-| `prior_active_days_l7d` | 72 | 2026-07-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3267253 | 7 | 4 |  |
-| `prior_active_days_l30d` | 72 | 2026-08-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3267253 | 17 | 7 |  |
-| `days_since_bet` | 72 | 2025-12-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3220036 | 0 | 23 | 30 |
+| `active_days_l7d` | 23 | 2026-01-01 | 8132d267-493f-4d16-895d-7867c1563c10 | 243402 | 2 | 0 |  |
+| `active_days_l30d` | 23 | 2026-01-01 | 8132d267-493f-4d16-895d-7867c1563c10 | 243402 | 12 | 4 |  |
+| `active_days_l90d` | 23 | 2026-01-01 | 8132d267-493f-4d16-895d-7867c1563c10 | 243402 | 26 | 13 |  |
+| `prior_active_days_l7d` | 23 | 2026-01-01 | 8132d267-493f-4d16-895d-7867c1563c10 | 243402 | 3 | 0 |  |
+| `prior_active_days_l30d` | 23 | 2026-02-01 | 8132d267-493f-4d16-895d-7867c1563c10 | 244195 | 25 | 23 |  |
+| `ggr_eur_l30d` | 23 | 2026-09-01 | 8132d267-493f-4d16-895d-7867c1563c10 | 1291007 | 1586.13 | -9.63 |  |
+| `days_since_bet` | 72 | 2025-12-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3263431 | 0 | 2 | 3 |
 | `days_since_bet` | 72 | 2026-09-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3263431 | 16 | 9 | 16 |
-| `tenure_days (vs days since the first bet)` | 72 | 2025-12-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3220036 | 193 | 216 |  |
+| `tenure_days (vs days since the first bet)` | 72 | 2025-12-01 | 9a13a78d-ec27-4f7c-8f75-b89575438980 | 3308313 | 214 | 221 |  |
 | `tp_night_index (above 1)` | 14 | 2026-08-01 | 73c25416-d9de-46fb-8a73-2e64f63d6330 | 109490 | 1.29 |  |  |

@@ -32,9 +32,9 @@ The features T6 builds from the S3 data lake (`build_features --as-of DATE`), on
 
 | Feature | Definition | Source | Window | Lag | T4 | Notes |
 |---|---|---|---|---|---|---|
-| `active_days_l7d` | Days with play in the last 7 days | `gld_player_signals_daily` `active_days_l7d` | 7 d | 0 | not tested | Matches the recomputation for 98% to 100% of players. |
-| `active_days_l30d` | Days with play in the last 30 days | `gld_player_signals_daily` `active_days_l30d` | 30 d | 0 | not tested | Validated (95% to 100%). |
-| `active_days_l90d` | Days with play in the last 90 days | `gld_player_signals_daily` `active_days_l90d` | 90 d | 0 | not tested |  |
+| `active_days_l7d` | Active days (stake from real money or released bonus) in the last 7 days | activity cache (`build_features.active_days`) | 7 d | 0 | not tested | Matches the recomputation for 98% to 100% of players. |
+| `active_days_l30d` | Active days (stake from real money or released bonus) in the last 30 days | activity cache (`build_features.active_days`) | 30 d | 0 | not tested | Validated (95% to 100%). |
+| `active_days_l90d` | Active days (stake from real money or released bonus) in the last 90 days | activity cache (`build_features.active_days`) | 90 d | 0 | not tested |  |
 | `bets_l7d` | Bets in the last 7 days | `gld_player_signals_daily` `bets_l7d` | 7 d | 0 | not tested | Validated (100%). |
 | `bets_l30d` | Bets in the last 30 days | `gld_player_signals_daily` `bets_l30d` | 30 d | 0 | not tested | Validated (100%). |
 | `sessions_l7d` | Sessions in the last 7 days | `gld_player_signals_daily` `sessions_l7d` | 7 d | 0 | not tested | Not validated (no session table cached). |
@@ -59,7 +59,7 @@ The features T6 builds from the S3 data lake (`build_features --as-of DATE`), on
 | Feature | Definition | Source | Window | Lag | T4 | Notes |
 |---|---|---|---|---|---|---|
 | `prior_wagered_eur_l7d` | Stake, EUR, in days 8 to 14 before the cutoff | `gld_player_signals_daily` `prior_wagered_eur_l7d` | 7 d | 7 d | not tested |  |
-| `prior_active_days_l7d` | Days with play in days 8 to 14 before the cutoff | `gld_player_signals_daily` `prior_active_days_l7d` | 7 d | 7 d | not tested |  |
+| `prior_active_days_l7d` | Active days in days 8 to 14 before the cutoff | activity cache (`build_features.active_days`) | 7 d | 7 d | not tested |  |
 | `prior_ggr_eur_l30d` | GGR, EUR, in days 31 to 60 before the cutoff | `gld_player_signals_daily` `prior_ggr_eur_l30d` | 30 d | 30 d | not tested | Signed. |
 
 ### Trend (3)
