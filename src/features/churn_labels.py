@@ -52,7 +52,9 @@ def same_threshold(runs: pd.DataFrame) -> pd.DataFrame:
         return runs
     days = pd.to_numeric(runs.get("tags.churn_days", pd.Series(index=runs.index, dtype=float)), errors="coerce")
     return runs[days.fillna(DEFAULT_HORIZON_DAYS) == HORIZON_DAYS]
-KEY = ["tenant_id", "player_id"]
+
+
+KEY =["tenant_id", "player_id"]
 # Label columns. They must never be used as model inputs.
 LABEL_COLUMNS = ["event_60d", "duration_days", "event_observed", *[f"churn_within_{h}d" for h in WITHIN_DAYS]]
 
