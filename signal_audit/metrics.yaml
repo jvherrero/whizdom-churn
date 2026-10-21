@@ -1,0 +1,249 @@
+# Signal audit: which metrics to check and what each one should look like.
+
+period:
+  start: 2026-09-01        # first month with live data after the backfill, with brand_id on every row
+  end: 2026-09-30
+brands: [14, 23, 64, 72, 73]   # brand_id (tenant_id is the operator)
+
+thresholds:
+  ks_good: 0.03            # binned Kolmogorov-Smirnov distance: below this the fit is close
+  ks_fair: 0.08            # below this the fit is acceptable; above it the shape is different
+  peak_prominence: 0.05    # a peak must stand out by 5% of the highest density
+  smooth_bins: 2           # Gaussian smoothing (in bins) before counting peaks
+  max_segments: 8          # largest segments shown when a metric is split
+
+tables:
+  gld_player_signals_daily:
+    date: snapshot_date
+    key: [tenant_id, player_id, snapshot_date]
+  gld_player_engagement_daily:
+    date: snapshot_date
+    key: [tenant_id, player_id, snapshot_date]
+  gld_player_financial_daily:
+    date: snapshot_date
+    key: [tenant_id, player_id, snapshot_date]
+  gld_player_payments_daily:
+    date: event_date
+    key: [tenant_id, player_id, event_date, currency]
+  gld_player_gaming_daily:
+    date: event_date
+    key: [tenant_id, player_id, game_id, provider_code, event_date, currency]
+    # one row per player and day (the table has one row per player, game, provider and currency)
+    base: |
+      SELECT tenant_id, brand_id, player_id, event_date, currency,
+             SUM(turnover_eur) AS turnover_eur, SUM(bets) AS bets, SUM(play_secs) AS play_secs,
+             SUM(wagered_real_eur + wagered_released_bonus_eur) AS wagered_active_eur,
+             SUM(wagered_playable_bonus_eur) AS wagered_playable_eur
+      FROM {src} GROUP BY ALL
+
+metrics:
+  # ---------- money: log-normal ----------
+  turnover_player_day:
+    table: gld_player_gaming_daily
+    expr: turnover_eur
+    where: turnover_eur > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 1000000]
+    suspicious: "x > 1000000"   # over 1 M EUR in one day
+    segments: [brand_id, currency]
+    note: "Turnover of one player in one day with play. Expected log-normal."
+  wagered_eur_l30d:
+    table: gld_player_signals_daily
+    expr: wagered_eur_l30d
+    where: wagered_eur_l30d > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 10000000]
+    suspicious: "x > 10000000"   # over 10 M EUR in 30 days
+    segments: [brand_id, currency, lifecycle_stage, value_tier]
+    note: "30-day stake from the signals table, on the players who staked."
+  avg_bet_eur_l30d:
+    table: gld_player_signals_daily
+    expr: avg_bet_eur_l30d
+    where: avg_bet_eur_l30d > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 50000]
+    suspicious: "x > 10000"   # a mean bet over 10,000 EUR
+    segments: [brand_id, currency]
+    note: "Mean stake per bet. Very small or very large values point to unit or currency errors."
+  deposit_size_eur:
+    table: gld_player_payments_daily
+    expr: deposit_amount_eur / deposit_count
+    where: deposit_count > 0 AND deposit_amount_eur > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 100000]
+    suspicious: "x > 100000"   # a mean deposit over 100,000 EUR
+    segments: [brand_id, currency]
+    note: "Mean deposit of a player in a day. Round amounts (10, 20, 50) can make small peaks."
+
+  # ---------- counts: Poisson ----------
+  sessions_per_active_day:
+    table: gld_player_engagement_daily
+    expr: sessions_today
+    where: sessions_today > 0
+    expected: count
+    scale: int
+    cap: 50
+    range: [1, 100]
+    suspicious: "x > 20"   # over 20 sessions in one day
+    segments: [brand_id, lifecycle_stage]
+    note: "Visits (sessions) of a player in a day with a visit. Expected Poisson; zero is excluded, so the fit is zero-truncated."
+  active_days_l30d:
+    table: gld_player_signals_daily
+    expr: active_days_l30d
+    where: active_days_l30d > 0
+    expected: count
+    scale: int
+    cap: 31
+    range: [1, 30]
+    impossible: "x > 30"   # impossible in real life (range is the business range); counted per day and brand
+    segments: [brand_id, lifecycle_stage]
+    note: "Days with play in the last 30 days. Bounded by 30, so a Poisson can only be close for low values."
+  bets_per_active_day:
+    table: gld_player_gaming_daily
+    expr: bets
+    where: bets > 0
+    expected: count
+    scale: log
+    width: 0.05
+    integer: true
+    range: [1, 100000]
+    suspicious: "x > 20000"   # over 20,000 bets in one day (one every 4 seconds for 24 hours)
+    segments: [brand_id, currency]
+    note: "Bets in a day with play. Large counts, so it is shown on a log scale."
+  deposits_per_day:
+    table: gld_player_payments_daily
+    expr: deposit_count
+    where: deposit_count > 0
+    expected: count
+    scale: int
+    cap: 30
+    range: [1, 50]
+    suspicious: "x > 50"   # over 50 deposits in one day
+    segments: [brand_id, currency]
+    note: "Deposits in a day with a deposit."
+
+  # ---------- durations and delays ----------
+  session_duration_avg_secs:
+    table: gld_player_signals_daily
+    expr: tp_avg_session_duration_secs
+    where: tp_avg_session_duration_secs > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    integer: true            # whole seconds
+    range: [10, 14400]       # 10 seconds to 4 hours
+    suspicious: "x = 1 OR (x > 14400 AND x <= 86400)"   # exactly 1 second (one event) or 4 to 24 hours
+    impossible: "x > 86400"
+    segments: [brand_id, lifecycle_stage]
+    note: "Mean session length of the player. A normal session lasts 30 minutes to 2 hours; the Parquet metadata already shows a maximum of 21 days."
+  session_gap_avg_hours:
+    table: gld_player_signals_daily
+    expr: tp_avg_session_gap_hours
+    where: tp_avg_session_gap_hours <> 0   # negative gaps are kept: they are impossible
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 2160]      # up to 90 days
+    impossible: "x < 0"
+    suspicious: "x > 0 AND x < 0.5"   # impossible: negative (sessions overlap); suspicious: under 30 minutes, below the session timeout
+    segments: [brand_id, lifecycle_stage]
+    note: "Mean hours between two sessions."
+  withdraw_settlement_hours:
+    table: gld_player_payments_daily
+    expr: avg_withdraw_settlement_secs / 3600.0
+    where: avg_withdraw_settlement_secs > 0
+    expected: delay
+    scale: log
+    width: 0.05
+    range: [0.001, 720]      # up to 30 days
+    suspicious: "x > 168"   # over one week to pay a withdrawal
+    segments: [brand_id, currency]
+    note: "Time to pay a withdrawal. A delay: expected Gumbel or similar."
+  # processing_delay_hours was removed: each daily file of the lake holds one version of its rows,
+  # all with the same _processed_at (the whole day is rewritten at about 03:00 UTC, for 7 days), so the
+  # delay per row cannot be measured in the lake. It needs ClickHouse or the landing data.
+
+  # ---------- shares: between 0 and 1 ----------
+  night_index:
+    table: gld_player_signals_daily
+    expr: tp_night_index
+    where: tp_night_index IS NOT NULL AND tp_window_days > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    impossible: "x > 1"
+    plot_range: [0, 4.2]     # show the values above 1
+    log_y: true              # 80% of the rows are 0
+    segments: [brand_id]
+    note: "Share of play at night. The signal validation found values up to 4."
+  hold_pct_l30d:
+    table: gld_player_signals_daily
+    expr: hold_pct_l30d
+    where: wagered_eur_l30d > 0
+    expected: share
+    scale: linear
+    width: 1
+    range: [-100000, 100]    # a percentage: GGR / stake x 100, at most 100; very negative after a big win
+    suspicious: "x < -1000"   # won over 11 times the stake in 30 days
+    impossible: "x > 100"
+    plot_range: [-100, 100]
+    segments: [brand_id]
+    note: "GGR over stake in 30 days, in percent. Above 100 is impossible. 100 means the player lost every stake."
+  median_session_duration_secs:
+    table: gld_player_signals_daily
+    expr: tp_median_session_duration_secs
+    where: tp_median_session_duration_secs > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    integer: true
+    range: [10, 14400]
+    suspicious: "x = 1 OR (x > 14400 AND x <= 86400)"   # exactly 1 second (one event) or 4 to 24 hours
+    impossible: "x > 86400"
+    segments: [brand_id]
+    note: "Median session length of the player; the same checks as the mean."
+  weekend_index:
+    table: gld_player_signals_daily
+    expr: tp_weekend_index
+    where: tp_weekend_index IS NOT NULL AND tp_window_days > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    impossible: "x > 1"
+    plot_range: [0, 5]
+    log_y: true
+    segments: [brand_id]
+    note: "Share of play at the weekend. The formula check found 9.4% of the rows outside 0 to 1."
+  hourly_entropy:
+    table: gld_player_signals_daily
+    expr: tp_hourly_entropy
+    where: tp_hourly_entropy IS NOT NULL AND tp_window_days > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    impossible: "x > 1"
+    plot_range: [0, 5]
+    segments: [brand_id]
+    note: "Entropy of play by hour; unit 0-1 in the workbook. The formula check found 11% above 1."
+  rg_night_play_ratio:
+    table: gld_player_signals_daily
+    expr: rg_night_play_ratio
+    where: rg_night_play_ratio IS NOT NULL AND tp_window_days > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    log_y: true
+    segments: [brand_id]
+    note: "The responsible-gaming night share: the same concept as tp_night_index, always between 0 and 1."

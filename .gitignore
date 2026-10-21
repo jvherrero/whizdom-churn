@@ -59,3 +59,10 @@ _admin_logs
 
 # Local run logs
 logs/
+
+# Signal audit: cached aggregates, figures and LaTeX build files (all made again from the code)
+signal_audit/cache/
+signal_audit/figures/
+signal_audit/informe/*.aux
+signal_audit/informe/*.log
+signal_audit/informe/*.out

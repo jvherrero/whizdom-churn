@@ -1,0 +1,231 @@
+# Signal audit 2: the signals recomputed by us, with the same checks as metrics.yaml.
+#
+# Session and time-of-play signals come from every bet of the landing transactions (recompute.py builds
+# the local files cache/recomputed/*). Active days and hold come from gld_player_gaming_daily, as in the
+# churn model. Same fields as metrics.yaml; tables with `local` read the local files, `source_table`
+# reads a lake table with another grain. `compare_to` names the metric of metrics.yaml it replaces.
+
+period:
+  start: 2026-09-01
+  end: 2026-09-30
+brands: [14, 23, 64, 72, 73]
+
+thresholds:
+  ks_good: 0.03
+  ks_fair: 0.08
+  peak_prominence: 0.05
+  smooth_bins: 2
+  max_segments: 8
+
+recompute:
+  timeouts_min: [15, 30, 60]        # a new session starts after this many minutes with no bet; 30 is the main one
+  night_hours: [0, 6]               # night = 00:00 to 06:00 local time
+  timezones:                        # local time of the currency of the bet (UTC when not listed)
+    TRY: Europe/Istanbul
+    PLN: Europe/Warsaw
+    EUR: Europe/Berlin
+    INR: Asia/Kolkata
+    AUD: Australia/Sydney
+    NZD: Pacific/Auckland
+
+tables:
+  rc_sessions:                      # one row per session and timeout
+    local: recomputed/sessions_{day}.parquet
+  rc_session_gaps:                  # the gap from the end of a session to the start of the next one, over the month
+    local: recomputed/sessions_{day}.parquet
+    base: |
+      SELECT *, (epoch(start) - epoch(lag(stop) OVER (PARTITION BY timeout_min, brand_id, player_id ORDER BY start))) / 3600.0 AS gap_h
+      FROM {src}
+  rc_player_day:                    # one row per player and day with a bet
+    local: recomputed/player_day_{day}.parquet
+  rc_player_month:                  # one row per player: the month, like a 30-day window of the signals table
+    local: recomputed/player_day_{day}.parquet
+    base: |
+      SELECT brand_id, player_id, any_value(currency) AS currency, sum(stake) AS stake,
+             sum(COALESCE(night_stake, 0)) AS night_stake, sum(sessions_30) AS sessions,
+             sum(single_bet_sessions_30) AS single_bet_sessions, sum(duration_sum_30) AS duration_sum
+      FROM {src} GROUP BY brand_id, player_id
+  rc_player_month_median:           # one row per player: median length of its sessions of two bets or more
+    local: recomputed/sessions_{day}.parquet
+    base: |
+      SELECT brand_id, player_id, median(duration_s) AS median_session_s
+      FROM {src} WHERE timeout_min = 30 AND bets > 1 GROUP BY brand_id, player_id
+  rc_time_of_play_month:            # one row per player: stake by local time over the month
+    local: recomputed/time_of_play_{day}.parquet
+    base: |
+      WITH h AS (SELECT brand_id, player_id, local_hour, sum(stake) AS stake,
+                        sum(stake) FILTER (WHERE local_dow IN (6, 7)) AS weekend_stake
+                 FROM {src} GROUP BY brand_id, player_id, local_hour),
+           p AS (SELECT *, stake / sum(stake) OVER (PARTITION BY brand_id, player_id) AS share FROM h)
+      SELECT brand_id, player_id, sum(stake) AS stake, sum(COALESCE(weekend_stake, 0)) AS weekend_stake,
+             COALESCE(sum(stake) FILTER (WHERE local_hour < 6), 0) AS night_stake,
+             -sum(CASE WHEN share > 0 THEN share * ln(share) ELSE 0 END) / ln(24) AS hourly_entropy
+      FROM p GROUP BY brand_id, player_id
+  gaming_player_month:              # one row per player and month, from the gold daily gaming table
+    source_table: gld_player_gaming_daily
+    date: event_date
+    key: [tenant_id, player_id, game_id, provider_code, event_date, currency]
+    base: |
+      SELECT tenant_id, brand_id, player_id,
+             count(DISTINCT event_date) FILTER (WHERE wagered_real + wagered_released_bonus > 0) AS active_days,
+             count(DISTINCT event_date) AS bet_days,
+             sum(ggr_eur) AS ggr_eur, sum(turnover_eur) AS turnover_eur
+      FROM {src} GROUP BY tenant_id, brand_id, player_id
+
+metrics:
+  rc_session_duration_secs:
+    table: rc_sessions
+    expr: duration_s
+    where: timeout_min = 30 AND bets > 1
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 14400]
+    segments: [brand_id, currency]
+    compare_to: session_duration_avg_secs
+    note: "Duration of each session of two bets or more (last bet minus first bet), with a 30-minute timeout."
+  rc_session_duration_by_timeout:
+    table: rc_sessions
+    expr: duration_s
+    where: bets > 1
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 14400]
+    segments: [timeout_min]
+    note: "The same with timeouts of 15, 30 and 60 minutes: how much the definition moves the result."
+  rc_player_avg_session_secs:
+    table: rc_player_month
+    expr: duration_sum / (sessions - single_bet_sessions)
+    where: sessions - single_bet_sessions > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 14400]
+    segments: [brand_id]
+    compare_to: session_duration_avg_secs
+    note: "Mean session length of each player in the month, like tp_avg_session_duration_secs (one value per player)."
+  rc_bets_per_session:
+    table: rc_sessions
+    expr: bets
+    where: timeout_min = 30
+    expected: count
+    scale: log
+    width: 0.05
+    integer: true
+    range: [1, 100000]
+    segments: [brand_id]
+    note: "Bets in each session. One bet is a session of one bet, with no duration."
+  rc_sessions_per_active_day:
+    table: rc_player_day
+    expr: sessions_30
+    where: sessions_30 > 0
+    expected: count
+    scale: int
+    cap: 50
+    range: [1, 100]
+    segments: [brand_id]
+    compare_to: sessions_per_active_day
+    note: "Sessions of a player in a day with a bet (30-minute timeout)."
+  rc_single_bet_share:
+    table: rc_player_day
+    expr: single_bet_sessions_30 / sessions_30
+    where: sessions_30 > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    segments: [brand_id]
+    note: "Share of the sessions of a player-day that have only one bet."
+  rc_session_gap_hours:
+    table: rc_session_gaps
+    expr: gap_h
+    where: timeout_min = 30 AND gap_h IS NOT NULL
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.5, 720]        # at least the timeout; at most the month
+    segments: [brand_id]
+    compare_to: session_gap_avg_hours
+    note: "Hours from the end of one session to the start of the next one, within September."
+  rc_night_share:
+    table: rc_player_month
+    expr: night_stake / stake
+    where: stake > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    log_y: true
+    segments: [brand_id, currency]
+    compare_to: night_index
+    note: "Share of the stake of the month placed from 00:00 to 06:00 local time."
+  rc_hold_pct_month:
+    table: gaming_player_month
+    expr: 100 * ggr_eur / turnover_eur
+    where: turnover_eur > 0
+    expected: share
+    scale: linear
+    width: 1
+    range: [-100000, 100]
+    plot_range: [-100, 100]
+    segments: [brand_id]
+    compare_to: hold_pct_l30d
+    note: "GGR over stake in September, in percent, only when the stake is above 0."
+  rc_active_days_month:
+    table: gaming_player_month
+    expr: active_days
+    where: active_days > 0
+    expected: count
+    scale: int
+    cap: 31
+    range: [1, 30]
+    segments: [brand_id]
+    compare_to: active_days_l30d
+    note: "Days with a stake from real money or released bonus in September (official active day)."
+  rc_player_median_session_secs:
+    table: rc_player_month_median
+    expr: median_session_s
+    where: median_session_s > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 14400]
+    segments: [brand_id]
+    compare_to: median_session_duration_secs
+    note: "Median length of the sessions of each player in the month (sessions of two bets or more, 30-minute timeout)."
+  rc_weekend_share:
+    table: rc_time_of_play_month
+    expr: weekend_stake / stake
+    where: stake > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    log_y: true
+    segments: [brand_id]
+    compare_to: weekend_index
+    note: "Share of the stake of the month placed on Saturday and Sunday, local time. With no preference it is about 2/7 = 0.29."
+  rc_hourly_entropy:
+    table: rc_time_of_play_month
+    expr: hourly_entropy
+    where: stake > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    segments: [brand_id]
+    compare_to: hourly_entropy
+    note: "Entropy of the stake by local hour, divided by its maximum log(24): 0 = always the same hour, 1 = the same stake in every hour."
+  rc_night_share_tod:
+    table: rc_time_of_play_month
+    expr: night_stake / stake
+    where: stake > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    log_y: true
+    segments: [brand_id]
+    compare_to: rg_night_play_ratio
+    note: "The night share from the time-of-play files (00:00 to 06:00 local time); the same definition as rc_night_share."

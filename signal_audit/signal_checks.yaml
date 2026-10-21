@@ -1,0 +1,876 @@
+# Every column of gld_player_signals_daily and how it is checked (02_validation.ipynb, part A).
+# Written by the generator in the session; edit by hand from now on.
+#
+# kind:
+#   formula    the equation of the workbook (gld-schemas.xlsx), on the other columns of the same row
+#   identity   an accounting relation between columns (hypothesis when the workbook has no formula)
+#   window     the 7- or 30-day value is the sum of the daily value (base) of the table over those days
+#   lag        a prior_* column is the value of `source` lag_days before
+#   bound      `expr` must be true (impossible values and order between windows); rows where it is NULL are left out
+#   band       the band against its score (with `cutoffs` when the workbook gives them)
+#   validated  checked against the daily tables in notebook 08
+#   none       key, text, metadata or not checkable here
+# expr is DuckDB SQL on the columns of the table. Production names differ from the workbook:
+# recency_score = recency_pressure, frequency_score = frequency_decline, monetary_score = value_decline,
+# deposit_velocity = rg_deposit_velocity, rg_risk_score = risk_score, night_index = rg_night_play_ratio.
+
+table: gld_player_signals_daily
+snapshots:
+- '2026-09-15'
+- '2026-10-01'
+brands:
+- 14
+- 23
+- 64
+- 72
+- 73
+tolerance:
+  atol: 0.01
+  rtol: 0.001
+verdict:
+  good: 0.99
+  fair: 0.95
+notebook_08: The columns of kind `validated` and the window columns also checked against the daily tables in eda/08_signal_validation.ipynb
+
+columns:
+  tenant_id:
+  - kind: none
+    note: Key, text or metadata
+  player_id:
+  - kind: none
+    note: Key, text or metadata
+  snapshot_date:
+  - kind: none
+    note: Key, text or metadata
+  currency:
+  - kind: none
+    note: Key, text or metadata
+  country:
+  - kind: none
+    note: Key, text or metadata
+  language:
+  - kind: none
+    note: Key, text or metadata
+  param_version:
+  - kind: none
+    note: Key, text or metadata
+  _version:
+  - kind: none
+    note: Key, text or metadata
+  _ingested_at:
+  - kind: none
+    note: Key, text or metadata
+  _processed_at:
+  - kind: none
+    note: Key, text or metadata
+  brand_id:
+  - kind: none
+    note: Null in all rows until 2026-07-05 and in 31% after (audit 1); the brand comes from the activity
+  wagered_eur_l7d:
+  - kind: window
+    base: wagered_eur_today
+    days: 7
+    note: Sum of wagered_eur_today over the 7 days up to the date
+  - kind: bound
+    expr: wagered_eur_l7d >= wagered_eur_today
+    note: A longer window cannot be smaller (today to l7d)
+  wagered_eur_l30d:
+  - kind: window
+    base: wagered_eur_today
+    days: 30
+    note: Sum of wagered_eur_today over the 30 days up to the date
+  - kind: bound
+    expr: wagered_eur_l30d >= wagered_eur_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  - kind: identity
+    expr: wagered_real_eur_l30d + wagered_bonus_eur_l30d
+    note: Stake = real-money stake + bonus stake
+  wagered_eur_l90d:
+  - kind: bound
+    expr: wagered_eur_l90d >= wagered_eur_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  wagered_eur_l180d:
+  - kind: bound
+    expr: wagered_eur_l180d >= wagered_eur_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  wagered_eur_today:
+  - kind: bound
+    expr: wagered_eur_today >= 0
+    note: Cannot be negative
+  - kind: identity
+    expr: wagered_real_eur_today + wagered_bonus_eur_today
+    note: Stake = real-money stake + bonus stake
+  ggr_eur_l7d:
+  - kind: window
+    base: ggr_eur_today
+    days: 7
+    note: Sum of ggr_eur_today over the 7 days up to the date
+  - kind: identity
+    expr: wagered_eur_l7d - won_eur_l7d
+    measure: M031
+    note: GGR = staked minus won (M031)
+  ggr_eur_l30d:
+  - kind: window
+    base: ggr_eur_today
+    days: 30
+    note: Sum of ggr_eur_today over the 30 days up to the date
+  - kind: identity
+    expr: wagered_eur_l30d - won_eur_l30d
+    measure: M031
+    note: GGR = staked minus won (M031)
+  ngr_eur_l7d:
+  - kind: window
+    base: ngr_eur_today
+    days: 7
+    note: Sum of ngr_eur_today over the 7 days up to the date
+  - kind: identity
+    expr: ggr_eur_l7d - bonus_ggr_eur_l7d - tax_eur_l7d
+    measure: M035
+    note: NGR = GGR less bonus cost and game tax (M035); bonus cost taken as bonus GGR (hypothesis)
+  ngr_eur_l30d:
+  - kind: window
+    base: ngr_eur_today
+    days: 30
+    note: Sum of ngr_eur_today over the 30 days up to the date
+  - kind: identity
+    expr: ggr_eur_l30d - bonus_ggr_eur_l30d - tax_eur_l30d
+    measure: M035
+    note: NGR = GGR less bonus cost and game tax (M035); bonus cost taken as bonus GGR (hypothesis)
+  won_eur_l7d:
+  - kind: window
+    base: won_eur_today
+    days: 7
+    note: Sum of won_eur_today over the 7 days up to the date
+  - kind: bound
+    expr: won_eur_l7d >= won_eur_today
+    note: A longer window cannot be smaller (today to l7d)
+  won_eur_l30d:
+  - kind: window
+    base: won_eur_today
+    days: 30
+    note: Sum of won_eur_today over the 30 days up to the date
+  - kind: bound
+    expr: won_eur_l30d >= won_eur_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  won_eur_l90d:
+  - kind: bound
+    expr: won_eur_l90d >= won_eur_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  won_eur_l180d:
+  - kind: bound
+    expr: won_eur_l180d >= won_eur_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  won_eur_today:
+  - kind: bound
+    expr: won_eur_today >= 0
+    note: Cannot be negative
+  deposits_eur_l7d:
+  - kind: window
+    base: deposits_eur_today
+    days: 7
+    note: Sum of deposits_eur_today over the 7 days up to the date
+  - kind: bound
+    expr: deposits_eur_l7d >= deposits_eur_today
+    note: A longer window cannot be smaller (today to l7d)
+  deposits_eur_l30d:
+  - kind: window
+    base: deposits_eur_today
+    days: 30
+    note: Sum of deposits_eur_today over the 30 days up to the date
+  - kind: bound
+    expr: deposits_eur_l30d >= deposits_eur_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  deposits_eur_l90d:
+  - kind: bound
+    expr: deposits_eur_l90d >= deposits_eur_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  deposits_eur_l180d:
+  - kind: bound
+    expr: deposits_eur_l180d >= deposits_eur_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  deposits_eur_today:
+  - kind: bound
+    expr: deposits_eur_today >= 0
+    note: Cannot be negative
+  withdrawals_eur_l7d:
+  - kind: window
+    base: withdrawals_eur_today
+    days: 7
+    note: Sum of withdrawals_eur_today over the 7 days up to the date
+  - kind: bound
+    expr: withdrawals_eur_l7d >= withdrawals_eur_today
+    note: A longer window cannot be smaller (today to l7d)
+  withdrawals_eur_l30d:
+  - kind: window
+    base: withdrawals_eur_today
+    days: 30
+    note: Sum of withdrawals_eur_today over the 30 days up to the date
+  - kind: bound
+    expr: withdrawals_eur_l30d >= withdrawals_eur_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  withdrawals_eur_l90d:
+  - kind: bound
+    expr: withdrawals_eur_l90d >= withdrawals_eur_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  withdrawals_eur_l180d:
+  - kind: bound
+    expr: withdrawals_eur_l180d >= withdrawals_eur_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  withdrawals_eur_today:
+  - kind: bound
+    expr: withdrawals_eur_today >= 0
+    note: Cannot be negative
+  net_cash_eur_l7d:
+  - kind: window
+    base: net_cash_eur_today
+    days: 7
+    note: Sum of net_cash_eur_today over the 7 days up to the date
+  - kind: identity
+    expr: deposits_eur_l7d - withdrawals_eur_l7d
+    note: 'Net cash = deposits minus withdrawals (hypothesis: no formula in the workbook)'
+  net_cash_eur_l30d:
+  - kind: window
+    base: net_cash_eur_today
+    days: 30
+    note: Sum of net_cash_eur_today over the 30 days up to the date
+  - kind: identity
+    expr: deposits_eur_l30d - withdrawals_eur_l30d
+    note: 'Net cash = deposits minus withdrawals (hypothesis: no formula in the workbook)'
+  bonus_ggr_eur_l7d:
+  - kind: window
+    base: bonus_ggr_eur_today
+    days: 7
+    note: Sum of bonus_ggr_eur_today over the 7 days up to the date
+  bonus_ggr_eur_l30d:
+  - kind: window
+    base: bonus_ggr_eur_today
+    days: 30
+    note: Sum of bonus_ggr_eur_today over the 30 days up to the date
+  real_ggr_eur_l7d:
+  - kind: window
+    base: real_ggr_eur_today
+    days: 7
+    note: Sum of real_ggr_eur_today over the 7 days up to the date
+  - kind: identity
+    expr: ggr_eur_l7d - bonus_ggr_eur_l7d
+    measure: M031, M032, M033
+    note: GGR = real-money GGR + bonus GGR
+  real_ggr_eur_l30d:
+  - kind: window
+    base: real_ggr_eur_today
+    days: 30
+    note: Sum of real_ggr_eur_today over the 30 days up to the date
+  - kind: identity
+    expr: ggr_eur_l30d - bonus_ggr_eur_l30d
+    measure: M031, M032, M033
+    note: GGR = real-money GGR + bonus GGR
+  tax_eur_l7d:
+  - kind: window
+    base: tax_eur_today
+    days: 7
+    note: Sum of tax_eur_today over the 7 days up to the date
+  tax_eur_l30d:
+  - kind: window
+    base: tax_eur_today
+    days: 30
+    note: Sum of tax_eur_today over the 30 days up to the date
+  cashout_eur_l7d:
+  - kind: window
+    base: cashout_eur_today
+    days: 7
+    note: Sum of cashout_eur_today over the 7 days up to the date
+  - kind: bound
+    expr: cashout_eur_l7d >= cashout_eur_today
+    note: A longer window cannot be smaller (today to l7d)
+  cashout_eur_l30d:
+  - kind: window
+    base: cashout_eur_today
+    days: 30
+    note: Sum of cashout_eur_today over the 30 days up to the date
+  - kind: bound
+    expr: cashout_eur_l30d >= cashout_eur_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  cashout_eur_l90d:
+  - kind: bound
+    expr: cashout_eur_l90d >= cashout_eur_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  cashout_eur_l180d:
+  - kind: bound
+    expr: cashout_eur_l180d >= cashout_eur_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  cashout_eur_today:
+  - kind: bound
+    expr: cashout_eur_today >= 0
+    note: Cannot be negative
+  active_days_l7d:
+  - kind: window
+    base: active_days_today
+    days: 7
+    note: Sum of active_days_today over the 7 days up to the date
+  - kind: bound
+    expr: active_days_l7d >= active_days_today
+    note: A longer window cannot be smaller (today to l7d)
+  - kind: bound
+    expr: active_days_l7d <= 7
+    note: At most 7 active days in 7 days
+  active_days_l30d:
+  - kind: window
+    base: active_days_today
+    days: 30
+    note: Sum of active_days_today over the 30 days up to the date
+  - kind: bound
+    expr: active_days_l30d >= active_days_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  - kind: bound
+    expr: active_days_l30d <= 30
+    note: At most 30 active days in 30 days
+  active_days_l90d:
+  - kind: bound
+    expr: active_days_l90d >= active_days_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  - kind: bound
+    expr: active_days_l90d <= 90
+    note: At most 90 active days in 90 days
+  active_days_l180d:
+  - kind: bound
+    expr: active_days_l180d >= active_days_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  - kind: bound
+    expr: active_days_l180d <= 180
+    note: At most 180 active days in 180 days
+  active_days_today:
+  - kind: bound
+    expr: active_days_today >= 0
+    note: Cannot be negative
+  - kind: bound
+    expr: active_days_today <= 1
+    note: At most 1 active days in 1 days
+  sessions_l7d:
+  - kind: window
+    base: sessions_today
+    days: 7
+    note: Sum of sessions_today over the 7 days up to the date
+  - kind: bound
+    expr: sessions_l7d >= sessions_today
+    note: A longer window cannot be smaller (today to l7d)
+  sessions_l30d:
+  - kind: window
+    base: sessions_today
+    days: 30
+    note: Sum of sessions_today over the 30 days up to the date
+  - kind: bound
+    expr: sessions_l30d >= sessions_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  sessions_l90d:
+  - kind: bound
+    expr: sessions_l90d >= sessions_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  sessions_l180d:
+  - kind: bound
+    expr: sessions_l180d >= sessions_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  sessions_today:
+  - kind: bound
+    expr: sessions_today >= 0
+    note: Cannot be negative
+  bets_l7d:
+  - kind: window
+    base: bets_today
+    days: 7
+    note: Sum of bets_today over the 7 days up to the date
+  - kind: bound
+    expr: bets_l7d >= bets_today
+    note: A longer window cannot be smaller (today to l7d)
+  bets_l30d:
+  - kind: window
+    base: bets_today
+    days: 30
+    note: Sum of bets_today over the 30 days up to the date
+  - kind: bound
+    expr: bets_l30d >= bets_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  bets_l90d:
+  - kind: bound
+    expr: bets_l90d >= bets_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  bets_l180d:
+  - kind: bound
+    expr: bets_l180d >= bets_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  bets_today:
+  - kind: bound
+    expr: bets_today >= 0
+    note: Cannot be negative
+  play_secs_l7d:
+  - kind: window
+    base: play_secs_today
+    days: 7
+    note: Sum of play_secs_today over the 7 days up to the date
+  - kind: bound
+    expr: play_secs_l7d >= play_secs_today
+    note: A longer window cannot be smaller (today to l7d)
+  play_secs_l30d:
+  - kind: window
+    base: play_secs_today
+    days: 30
+    note: Sum of play_secs_today over the 30 days up to the date
+  - kind: bound
+    expr: play_secs_l30d >= play_secs_l7d
+    note: A longer window cannot be smaller (l7d to l30d)
+  play_secs_l90d:
+  - kind: bound
+    expr: play_secs_l90d >= play_secs_l30d
+    note: A longer window cannot be smaller (l30d to l90d)
+  play_secs_l180d:
+  - kind: bound
+    expr: play_secs_l180d >= play_secs_l90d
+    note: A longer window cannot be smaller (l90d to l180d)
+  play_secs_today:
+  - kind: bound
+    expr: play_secs_today >= 0
+    note: Cannot be negative
+  ggr_eur_today:
+  - kind: identity
+    expr: wagered_eur_today - won_eur_today
+    measure: M031
+    note: GGR = staked minus won (M031)
+  real_ggr_eur_today:
+  - kind: identity
+    expr: ggr_eur_today - bonus_ggr_eur_today
+    measure: M031, M032, M033
+    note: GGR = real-money GGR + bonus GGR
+  net_cash_eur_today:
+  - kind: identity
+    expr: deposits_eur_today - withdrawals_eur_today
+    note: 'Net cash = deposits minus withdrawals (hypothesis: no formula in the workbook)'
+  ngr_eur_today:
+  - kind: identity
+    expr: ggr_eur_today - bonus_ggr_eur_today - tax_eur_today
+    measure: M035
+    note: NGR = GGR less bonus cost and game tax (M035); bonus cost taken as bonus GGR (hypothesis)
+  ggr_eur_l90d:
+  - kind: identity
+    expr: wagered_eur_l90d - won_eur_l90d
+    measure: M031
+    note: GGR = staked minus won (M031)
+  real_ggr_eur_l90d:
+  - kind: identity
+    expr: ggr_eur_l90d - bonus_ggr_eur_l90d
+    measure: M031, M032, M033
+    note: GGR = real-money GGR + bonus GGR
+  net_cash_eur_l90d:
+  - kind: identity
+    expr: deposits_eur_l90d - withdrawals_eur_l90d
+    note: 'Net cash = deposits minus withdrawals (hypothesis: no formula in the workbook)'
+  ngr_eur_l90d:
+  - kind: identity
+    expr: ggr_eur_l90d - bonus_ggr_eur_l90d - tax_eur_l90d
+    measure: M035
+    note: NGR = GGR less bonus cost and game tax (M035); bonus cost taken as bonus GGR (hypothesis)
+  ggr_eur_l180d:
+  - kind: identity
+    expr: wagered_eur_l180d - won_eur_l180d
+    measure: M031
+    note: GGR = staked minus won (M031)
+  real_ggr_eur_l180d:
+  - kind: identity
+    expr: ggr_eur_l180d - bonus_ggr_eur_l180d
+    measure: M031, M032, M033
+    note: GGR = real-money GGR + bonus GGR
+  net_cash_eur_l180d:
+  - kind: identity
+    expr: deposits_eur_l180d - withdrawals_eur_l180d
+    note: 'Net cash = deposits minus withdrawals (hypothesis: no formula in the workbook)'
+  ngr_eur_l180d:
+  - kind: identity
+    expr: ggr_eur_l180d - bonus_ggr_eur_l180d - tax_eur_l180d
+    measure: M035
+    note: NGR = GGR less bonus cost and game tax (M035); bonus cost taken as bonus GGR (hypothesis)
+  bonus_ggr_eur_today:
+  - kind: none
+    note: 'No check of its own: it enters the identities of real_ggr_eur and ngr_eur of the same window'
+  bonus_ggr_eur_l90d:
+  - kind: none
+    note: 'No check of its own: it enters the identities of real_ggr_eur and ngr_eur of the same window'
+  bonus_ggr_eur_l180d:
+  - kind: none
+    note: 'No check of its own: it enters the identities of real_ggr_eur and ngr_eur of the same window'
+  tax_eur_today:
+  - kind: none
+    note: 'No check of its own: it enters the identities of real_ggr_eur and ngr_eur of the same window'
+  tax_eur_l90d:
+  - kind: none
+    note: 'No check of its own: it enters the identities of real_ggr_eur and ngr_eur of the same window'
+  tax_eur_l180d:
+  - kind: none
+    note: 'No check of its own: it enters the identities of real_ggr_eur and ngr_eur of the same window'
+  wagered_real_eur_today:
+  - kind: bound
+    expr: wagered_real_eur_today >= 0
+    note: Cannot be negative
+  wagered_bonus_eur_today:
+  - kind: bound
+    expr: wagered_bonus_eur_today >= 0
+    note: Cannot be negative
+  wagered_real_eur_l30d:
+  - kind: bound
+    expr: wagered_real_eur_l30d >= 0
+    note: Cannot be negative
+  - kind: window
+    base: wagered_real_eur_today
+    days: 30
+    note: Sum of the daily value
+  wagered_bonus_eur_l30d:
+  - kind: bound
+    expr: wagered_bonus_eur_l30d >= 0
+    note: Cannot be negative
+  - kind: window
+    base: wagered_bonus_eur_today
+    days: 30
+    note: Sum of the daily value
+  bonus_granted_eur_l30d:
+  - kind: bound
+    expr: bonus_granted_eur_l30d >= 0
+    note: Cannot be negative
+  bonus_wagered_eur_l30d:
+  - kind: bound
+    expr: bonus_wagered_eur_l30d >= 0
+    note: Cannot be negative
+  prior_ggr_eur_l7d:
+  - kind: lag
+    source: ggr_eur_l7d
+    lag_days: 7
+    note: The l7d value of 7 days before
+  prior_ggr_eur_l30d:
+  - kind: lag
+    source: ggr_eur_l30d
+    lag_days: 30
+    note: The l30d value of 30 days before
+  prior_wagered_eur_l7d:
+  - kind: lag
+    source: wagered_eur_l7d
+    lag_days: 7
+    note: The l7d value of 7 days before
+  prior_wagered_eur_l30d:
+  - kind: lag
+    source: wagered_eur_l30d
+    lag_days: 30
+    note: The l30d value of 30 days before
+  prior_active_days_l7d:
+  - kind: lag
+    source: active_days_l7d
+    lag_days: 7
+    note: The l7d value of 7 days before
+  - kind: bound
+    expr: prior_active_days_l7d <= 7
+    note: At most 7
+  prior_active_days_l30d:
+  - kind: lag
+    source: active_days_l30d
+    lag_days: 30
+    note: The l30d value of 30 days before
+  - kind: bound
+    expr: prior_active_days_l30d <= 30
+    note: At most 30
+  prior_bets_l7d:
+  - kind: lag
+    source: bets_l7d
+    lag_days: 7
+    note: The l7d value of 7 days before
+  prior_bets_l30d:
+  - kind: lag
+    source: bets_l30d
+    lag_days: 30
+    note: The l30d value of 30 days before
+  prior_deposits_eur_l7d:
+  - kind: lag
+    source: deposits_eur_l7d
+    lag_days: 7
+    note: The l7d value of 7 days before
+  prior_deposits_eur_l30d:
+  - kind: lag
+    source: deposits_eur_l30d
+    lag_days: 30
+    note: The l30d value of 30 days before
+  prior_avg_bet_eur_l7d:
+  - kind: identity
+    expr: CASE WHEN prior_bets_l7d > 0 THEN prior_wagered_eur_l7d / prior_bets_l7d END
+    note: Mean stake per bet of the prior 7 days
+  avg_bet_eur_l7d:
+  - kind: identity
+    expr: CASE WHEN bets_l7d > 0 THEN wagered_eur_l7d / bets_l7d END
+    note: Stake / bets
+  avg_bet_eur_l30d:
+  - kind: identity
+    expr: CASE WHEN bets_l30d > 0 THEN wagered_eur_l30d / bets_l30d END
+    note: Stake / bets
+  hold_pct_l30d:
+  - kind: identity
+    expr: CASE WHEN wagered_eur_l30d > 0 THEN 100 * ggr_eur_l30d / wagered_eur_l30d END
+    note: GGR / stake in percent
+  - kind: bound
+    expr: hold_pct_l30d <= 100
+    note: GGR cannot exceed the stake
+  theo_win_eur_l30d:
+  - kind: bound
+    expr: theo_win_eur_l30d >= 0 AND theo_win_eur_l30d <= wagered_eur_l30d
+    note: 'Expected GGR: between 0 and the stake'
+  value_score_eur:
+  - kind: formula
+    measure: M130
+    expr: greatest(0, ggr_eur_l7d + 0.70 * (ggr_eur_l30d - ggr_eur_l7d) + 0.40 * (ggr_eur_l90d - ggr_eur_l30d) + 0.20 * (ggr_eur_l180d - ggr_eur_l90d))
+    note: max(0, 1.00*ggr[0-7d] + 0.70*ggr[8-30d] + 0.40*ggr[31-90d] + 0.20*ggr[91-180d]), value.decay_weights = [1.0, 0.7, 0.4, 0.2]
+  value_tier:
+  - kind: band
+    score: value_score_eur
+    note: Tier against the value score (no cutoffs in the workbook)
+  lifetime_value_tier:
+  - kind: none
+    note: 'Lifetime tier: needs lifetime history'
+  value_rank_within_tenant:
+  - kind: bound
+    expr: value_rank_within_tenant >= 1
+    note: A rank starts at 1
+  prev_value_tier:
+  - kind: none
+    note: Previous tier (state change bookkeeping)
+  value_tier_changed_at:
+  - kind: bound
+    expr: value_tier_changed_at <= snapshot_date
+    note: A change cannot be after the date
+  churn_band_changed_at:
+  - kind: bound
+    expr: churn_band_changed_at <= snapshot_date
+    note: A change cannot be after the date
+  risk_band_changed_at:
+  - kind: bound
+    expr: risk_band_changed_at <= snapshot_date
+    note: A change cannot be after the date
+  lifecycle_stage_changed_at:
+  - kind: bound
+    expr: lifecycle_stage_changed_at <= snapshot_date
+    note: A change cannot be after the date
+  prev_churn_band:
+  - kind: none
+    note: Previous value (state change bookkeeping)
+  prev_risk_band:
+  - kind: none
+    note: Previous value (state change bookkeeping)
+  prev_lifecycle_stage:
+  - kind: none
+    note: Previous value (state change bookkeeping)
+  engagement_score:
+  - kind: formula
+    measure: M116
+    expr: least(100, greatest(0, 0.4 * (active_days_l30d / 30.0) * 100 + 0.3 * least(1, sessions_l30d / 60.0) * 100 + 0.3 * least(1, play_secs_l30d / 108000.0) * 100))
+    note: clamp(0,100, w1*(active_days[30d]/30)*100 + w2*min(1, sessions[30d]/60)*100 + w3*min(1, play_secs[30d]/108000)*100), engagement.weights = [0.4, 0.3, 0.3]
+  prior_engagement_score:
+  - kind: lag
+    source: engagement_score
+    lag_days: 7
+    note: The score of 7 days before (lag assumed)
+  games_breadth_l30d:
+  - kind: bound
+    expr: games_breadth_l30d >= 0
+    note: Cannot be negative
+  sessions_with_bonus_l30d:
+  - kind: bound
+    expr: sessions_with_bonus_l30d <= sessions_l30d
+    note: A part of the sessions
+  tp_night_index:
+  - kind: bound
+    expr: tp_night_index BETWEEN 0 AND 1
+    note: Unit 0-1 in the workbook
+  tp_weekend_index:
+  - kind: bound
+    expr: tp_weekend_index BETWEEN 0 AND 1
+    note: Unit 0-1 in the workbook
+  tp_business_hours_ratio:
+  - kind: bound
+    expr: tp_business_hours_ratio BETWEEN 0 AND 1
+    note: Unit 0-1 in the workbook
+  tp_hourly_entropy:
+  - kind: bound
+    expr: tp_hourly_entropy BETWEEN 0 AND 1
+    note: Unit 0-1 in the workbook
+  top_peak_hour:
+  - kind: bound
+    expr: top_peak_hour BETWEEN 0 AND 23
+    note: An hour of the day
+  top_peak_day:
+  - kind: bound
+    expr: top_peak_day BETWEEN 0 AND 7
+    note: A day of the week
+  tp_avg_session_duration_secs:
+  - kind: bound
+    expr: CASE WHEN tp_avg_session_duration_secs > 0 THEN tp_avg_session_duration_secs BETWEEN 10 AND 14400 END
+    note: 'Recomputed in audit 2: sessions of 10 s to 4 h (session timeout not in the workbook). 0 means no time-of-play data and is left out'
+  tp_median_session_duration_secs:
+  - kind: bound
+    expr: CASE WHEN tp_median_session_duration_secs > 0 THEN tp_median_session_duration_secs BETWEEN 10 AND 14400 END
+    note: 'Same range as the mean. 0 means no data and is left out'
+  tp_avg_sessions_per_active_day:
+  - kind: bound
+    expr: tp_avg_sessions_per_active_day >= 1 OR tp_avg_sessions_per_active_day = 0
+    note: At least one session on an active day
+  tp_avg_session_gap_hours:
+  - kind: bound
+    expr: tp_avg_session_gap_hours >= 0
+    note: Cannot be negative
+  tp_max_sessions_single_day:
+  - kind: bound
+    expr: tp_max_sessions_single_day >= 0
+    note: Cannot be negative
+  tp_window_days:
+  - kind: none
+    note: Window of the time-of-play signals
+  rg_night_play_ratio:
+  - kind: identity
+    expr: tp_night_index
+    note: Same concept as tp_night_index (Signal Audit sheet)
+  - kind: bound
+    expr: rg_night_play_ratio BETWEEN 0 AND 1
+    note: A share
+  stake_escalation:
+  - kind: formula
+    measure: M140
+    expr: CASE WHEN avg_bet_eur_l30d > 0 THEN (avg_bet_eur_l7d - avg_bet_eur_l30d) / avg_bet_eur_l30d ELSE 0 END
+    note: (avg_bet_eur[7d] - avg_bet_eur[30d]) / avg_bet_eur[30d], else 0
+  bet_z_score:
+  - kind: formula
+    measure: M139
+    tenant_z: avg_bet_eur_l30d
+    note: (avg_bet_eur[30d] - tenant_avg_bet) / tenant_stddev_bet, else 0. Tenant mean and deviation taken over the brand's players with a stake that day (approximation)
+  session_len_z:
+  - kind: formula
+    measure: M136
+    tenant_z: tp_avg_session_duration_secs
+    note: (avg_session_secs - tenant_avg_session) / tenant_stddev_session, else 0 (same approximation)
+  risk_appetite_score:
+  - kind: formula
+    measure: M134
+    expr: least(100, greatest(0, 50 + 50 * least(1, greatest(-1, bet_z_score))))
+    note: clamp(0,100, 50 + 50*clamp(bet_z_score,-1,1))
+  betting_aggression_score:
+  - kind: formula
+    measure: M143
+    expr: least(100, greatest(0, 50 + 25 * least(2, greatest(-2, bet_z_score)) + 25 * least(1, greatest(-1, stake_escalation))))
+    note: clamp(0,100, 50 + 25*clamp(bet_z_score,-2,2) + 25*clamp(stake_escalation,-1,1))
+  prior_betting_aggression_score:
+  - kind: lag
+    source: betting_aggression_score
+    lag_days: 7
+    note: The score of 7 days before (lag assumed)
+  deposit_frequency_score:
+  - kind: formula
+    measure: M112
+    expr: CASE WHEN deposits_eur_l30d > 0 THEN least(100, greatest(0, 50 + 50 * least(1, greatest(-1, (deposits_eur_l7d / 7) / (deposits_eur_l30d / 30) - 1)))) ELSE 0 END
+    note: 'if deposits_eur[30d] > 0: clamp(0,100, 50 + 50*clamp((deposits[7d]/7)/(deposits[30d]/30) - 1, -1, 1)) else 0'
+  deposit_recency_score:
+  - kind: formula
+    measure: M113
+    expr: CASE WHEN deposits_eur_today > 0 THEN 100 ELSE 100 * (1 - least(1, days_since_bet / 30.0)) END
+    note: if deposits_eur[today] > 0 then 100 else 100*(1 - min(1, days_since_bet/30)). Uses days since the last BET (likely an error of the definition)
+  rg_loss_chasing_30d:
+  - kind: formula
+    measure: M122
+    expr: CASE WHEN wagered_eur_l30d > 0 AND ggr_eur_l30d < 0 THEN least(1, -ggr_eur_l30d / wagered_eur_l30d) ELSE 0 END
+    note: 'if wagered_eur[30d] > 0 AND ggr_eur[30d] < 0: min(1, -ggr_eur[30d] / wagered_eur[30d]) else 0'
+  rg_deposit_velocity:
+  - kind: formula
+    measure: M115
+    expr: CASE WHEN deposits_eur_l30d > 0 THEN deposits_eur_l7d / (deposits_eur_l30d / 30 * 7) ELSE 0 END
+    note: deposits_eur[7d] / (deposits_eur[30d]/30 * 7); 0 when there is no deposit (assumed)
+  net_loss_velocity:
+  - kind: formula
+    measure: M126
+    expr: CASE WHEN deposits_eur_l30d > 0 THEN greatest(0, -ggr_eur_today) / (deposits_eur_l30d / 30 + 1) ELSE 0 END
+    note: 'if deposits_eur[30d] > 0: max(0, -ggr_eur[today]) / (deposits_eur[30d]/30 + 1) else 0'
+  session_intensity_score:
+  - kind: formula
+    measure: M135
+    expr: CASE WHEN active_days_l30d > 0 THEN least(100, 100 * play_secs_today / (play_secs_l30d / active_days_l30d + 1)) END
+    note: min(100, 100 * play_secs[today] / (play_secs[30d]/active_days[30d] + 1))
+  risk_score:
+  - kind: formula
+    measure: M133
+    expr: least(100, greatest(0, 20 * least(rg_loss_chasing_30d, 1) + 20 * least(rg_deposit_velocity, 1) + 15 * rg_night_play_ratio + 20 * least(1, greatest(0, stake_escalation)) + 25 * least(net_loss_velocity
+      / 100, 1)))
+    note: 'rg_risk_score: clamp(0,100, 20*min(loss_chasing,1) + 20*min(deposit_velocity,1) + 15*night_index + 20*clamp(stake_escalation,0,1) + 25*min(net_loss_velocity/100,1))'
+  risk_band:
+  - kind: band
+    score: risk_score
+    cutoffs:
+    - 25
+    - 50
+    - 75
+    note: risk.band_cutoffs = [25, 50, 75]
+  prior_risk_score:
+  - kind: lag
+    source: risk_score
+    lag_days: 7
+    note: The score of 7 days before (lag assumed)
+  frequency_decline:
+  - kind: formula
+    measure: M117
+    expr: CASE WHEN active_days_l30d > 0 THEN 100 * greatest(0, 1 - (active_days_l7d / 7.0) / (active_days_l30d / 30.0)) END
+    note: 'frequency_score: 100 * max(0, 1 - (active_days[7d]/7) / (active_days[30d]/30)), churn component F'
+  value_decline:
+  - kind: formula
+    measure: M125
+    expr: CASE WHEN ggr_eur_l90d <> 0 THEN 100 * greatest(0, 1 - (ggr_eur_l7d / 7) / (ggr_eur_l90d / 90)) END
+    note: 'monetary_score: 100 * max(0, 1 - (ggr_eur[7d]/7) / (ggr_eur[90d]/90)), churn component M'
+  recency_pressure:
+  - kind: bound
+    expr: recency_pressure <= least(100, 100 * days_since_bet / 3.0) + 0.01
+    note: 'recency_score: min(100, 100 * days_since_bet / max(typical_gap_days, 3)). The typical gap is not stored, so only its upper bound (gap floor 3 days) can be checked'
+  churn_score:
+  - kind: formula
+    measure: M107
+    expr: least(100, greatest(0, 0.50 * recency_pressure + 0.30 * frequency_decline + 0.20 * value_decline))
+    note: clamp(0,100, 0.50*recency + 0.30*frequency + 0.20*monetary), churn.weights = [0.5, 0.3, 0.2]
+  churn_propensity_raw:
+  - kind: formula
+    measure: M108
+    expr: least(1, days_since_bet / 90.0)
+    note: min(1, days_since_bet / 90)
+  churn_band:
+  - kind: band
+    score: churn_score
+    cutoffs:
+    - 25
+    - 50
+    - 75
+    note: churn.band_cutoffs = [25, 50, 75]
+  prior_churn_score:
+  - kind: lag
+    source: churn_score
+    lag_days: 7
+    note: The score of 7 days before (lag assumed)
+  has_sufficient_data:
+  - kind: none
+    note: sufficiency.min_bets = 3 and min_tenure_days = 14, but the window of the bets is not defined
+  confidence_score:
+  - kind: bound
+    expr: confidence_score BETWEEN 0 AND 1
+    note: Unit 0-1
+  gap_days:
+  - kind: bound
+    expr: gap_days >= 0
+    note: Days of missing data in the window
+  lifecycle_stage:
+  - kind: none
+    note: Stage rules not in the workbook
+  tenure_days:
+  - kind: validated
+    note: 'Notebook 08: wrong in the backfilled history (fails until 2026-07)'
+  days_since_bet:
+  - kind: validated
+    note: 'Notebook 08: 0 until 2026-07, then built with data of 7 days later'
+  - kind: bound
+    expr: days_since_bet <= tenure_days
+    note: Cannot exceed the tenure
+  current_active_streak_days:
+  - kind: bound
+    expr: current_active_streak_days <= tenure_days + 1
+    note: Cannot exceed the tenure
