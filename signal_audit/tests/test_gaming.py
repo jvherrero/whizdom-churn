@@ -4,18 +4,15 @@
 """
 
 import datetime as dt
-import sys
-from pathlib import Path
 
 import duckdb
 import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import gaming  # noqa: E402
-import stats  # noqa: E402
+from signal_audit.data import audit
+from signal_audit.checks import gaming
+from signal_audit.checks import stats
 
 DAYS = [dt.date(2026, 9, 1), dt.date(2026, 9, 2)]
 N = 200   # rows per brand and day

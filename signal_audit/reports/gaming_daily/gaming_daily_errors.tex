@@ -1,0 +1,292 @@
+% !TEX program = xelatex
+% Errors found in gld_player_gaming_daily (English). Build here with xelatex, twice for the links. Figures
+% (output/figures/) and tables (gaming_*_en.tex here): .venv/bin/python -m signal_audit.report.gaming_report (no S3).
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[english]{babel}
+\usepackage[a4paper,margin=2.1cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{titlesec}
+\usepackage[font=small,labelfont=bf,skip=4pt,justification=raggedright,singlelinecheck=false]{caption}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,urlcolor=MidnightBlue]{hyperref}
+\PassOptionsToPackage{obeyspaces}{url}
+\usepackage{xurl}
+\urlstyle{tt}
+
+\graphicspath{{../../output/figures/}}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\titlespacing*{\section}{0pt}{12pt}{4pt}
+\titlespacing*{\subsection}{0pt}{10pt}{2pt}
+
+\DeclareRobustCommand{\code}[1]{\path{#1}}
+\newcommand{\fig}[1]{\hyperref[#1]{Fig.~\ref*{#1}}}
+\newcommand{\stWrong}{\textcolor{BrickRed}{\textbf{Fails}}}
+\newcommand{\stAffected}{\textcolor{BurntOrange}{\textbf{Almost}}}
+\newcommand{\stCorrect}{\textcolor{ForestGreen!70!black}{\textbf{Passes}}}
+\newcommand{\stRejected}{\textcolor{gray}{\textbf{Rejected}}}
+\newcommand{\stWrongFlag}{\textcolor{BrickRed}{\textbf{Impossible}}}
+\newcommand{\stSuspFlag}{\textcolor{BurntOrange}{\textbf{Suspicious}}}
+\newcommand{\issue}[6]{%
+  \needspace{8\baselineskip}\item\label{#1}\textbf{#2}\par
+  \begin{tabular}{@{}p{2.3cm}@{}p{\dimexpr\linewidth-2.3cm}@{}}
+    \textcolor{BrickRed}{\textbf{Error}} & #3\\[2pt]
+    \if\relax\detokenize{#4}\relax\else\textcolor{Plum}{\textbf{Definition}} & #4\\[2pt]\fi
+    \textcolor{ForestGreen!70!black}{\textbf{Proposal}} & #5\\[2pt]
+    \textcolor{MidnightBlue}{\textbf{Evidence}} & #6
+  \end{tabular}\par\vspace{5pt}}
+\newcommand{\evidence}[4]{%
+  \begin{figure}[H]\centering
+    \includegraphics[width=#2\linewidth]{#3}
+    \caption{#4}\label{#1}
+  \end{figure}}
+\newcommand{\eur}{\,\text{€}}
+\newcommand{\pts}[1]{\begin{minipage}[t]{\linewidth}\vspace{-0.42\baselineskip}\begin{itemize}[nosep,leftmargin=1.1em,label=\textbullet,topsep=0pt,partopsep=0pt]#1\end{itemize}\strut\end{minipage}}
+\newcommand{\badge}[2]{\colorbox{#1}{\textcolor{white}{\scriptsize\textbf{\,#2\,}}}}
+\newcommand{\prioA}{\badge{BrickRed}{HIGH}}
+\newcommand{\prioM}{\badge{BurntOrange}{MEDIUM}}
+\newcommand{\prioB}{\badge{gray}{LOW}}
+\newcommand{\group}[2]{\needspace{6\baselineskip}\subsection*{#1}{\small #2}\par\vspace{2pt}}
+
+\title{\textbf{Errors in the gaming table}\\[2pt]\large\code{gld_player_gaming_daily}: what is wrong, how it is defined, what could be done and where to see it}
+\date{October 2026}
+\author{Javier Herrero Pérez \\ Whizdom.ai}
+
+\begin{document}
+\maketitle
+\vspace{-1.2cm}
+
+\textbf{Scope.} Brands 14, 23, 64, 72 and 73. September 2026: 2.45 million rows and 547,133 player-days. All the rows, no sampling, and only aggregates. The history (April 2025 to October 2026) comes from the file metadata, for all operators. The numbers come from the notebook \code{04_gaming_daily} in \code{signal_audit/notebooks/}; the production definition comes from ClickHouse.
+
+\textbf{What the table is.} One row per player, game, provider, day and currency: what was bet and won in each wallet (real money, released bonus and playable bonus), the counts of bets and rounds, the time of play and the exchange rate to euros. It is the base of the churn model: the active days, recency, tenure, churn labels and amounts come from it.
+
+\section{Summary}
+
+\textbf{In one sentence.} The amounts in the table are correct: the conversions to euros and all the totals follow their formula in 100\% of the rows, and the keys have no duplicates. What is wrong is the time of play and a few exchange rates; the workbook rule for \code{bets} is badly written. \textbf{The inputs of the churn model are correct.}
+
+\textbf{What is correct}
+\begin{itemize}[nosep]
+  \item \textbf{Keys:} no duplicate rows, no key with two versions, no player in two brands or two currencies on the same day.
+  \item \textbf{Euros:} every \code{*_eur} column is the local amount times \code{fx_rate_to_eur} (100\%).
+  \item \textbf{Totals:} \code{turnover_eur}, \code{payout_eur}, \code{ggr_eur}, \code{net_position_eur}, \code{tax_eur}, \code{hold_pct}, \code{rtp_actual}, \code{win_rate} and \code{avg_bet_eur} follow their definition (100\%).
+  \item \textbf{Dates:} \code{event_date} is the UTC day of the first play (100\%).
+  \item \textbf{Bets:} \code{bets} counts each bet once, even when two wallets pay for it.
+  \item \textbf{Logical order:} rounds $\ge$ winning rounds $\ge$ big wins; largest win $\le$ total wins.
+\end{itemize}
+
+\textbf{What is wrong, by priority.} \prioM{} wrong in many rows or a design risk, but it does not affect the model inputs today. \prioB{} few rows, only the history, or a documentation problem.
+
+\begin{center}\small
+\begin{tabular}{@{}p{1.9cm}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{4.6cm}@{}}
+\toprule
+& Error & How much & What could be done\\
+\midrule
+\ref{it:playsecs} \prioM & \code{play_secs} goes over 24~h and adds up games played at the same time & 3.7\% of player-days; every day of the history & Compute it from the play intervals, without adding up parallel games\\
+\ref{it:version} \prioM & The lake gets the old version of the table & 15 workbook columns do not arrive & Send the new table to the lake\\
+\ref{it:key} \prioM & The key has no \code{currency} or \code{brand_id} & 0 cases today; risk of losing rows & Add them to the key (the new table already does)\\
+\ref{it:bets} \prioB & The workbook rule for \code{bets} counts some bets twice & 22\% of rows; the column is correct & Fix the workbook rule\\
+\ref{it:fx} \prioB & Exchange rate 0 or from a later date & 0.04\% and 0.3\% of rows & Drop those rows or recompute the rate\\
+\ref{it:negative} \prioB & Negative wins in sports betting & 309 rows on 155 days & Keep the corrections apart\\
+\ref{it:docs} \prioB & Definitions not documented & \code{hold_pct}, \code{real_ggr_eur}, \code{turnover_eur}, \code{loyalty_points_delta} & Document them in the workbook\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{For the churn model.} It uses \code{wagered_*}, \code{event_date}, \code{turnover_eur} and \code{ggr_eur}, which are correct. It does not use \code{play_secs} or \code{loyalty_points_delta}. \code{turnover_eur} includes the playable bonus, so the official active day must still be computed with \code{wagered_real + wagered_released_bonus}, as the pipeline does.
+
+\section{The checks}
+
+Each check runs on the latest version of every September row. All dates and times are UTC. \textbf{Workbook}: a formula or rule of the definitions workbook (\code{gld-schemas.xlsx}). \textbf{Hypothesis}: a column the workbook does not describe; I test one or more definitions, and the one that passes is the real one (for example, \code{turnover_eur} with the three wallets against real money only). A check \emph{passes} if it holds in at least 99\% of the rows (with a tolerance of 0.01 + 0.1\%), is \emph{almost} from 95\%, and \emph{fails} below. A hypothesis that fails is \emph{rejected}: the guess is wrong, not the table. One that almost passes is also rejected if another definition of the same thing passes. \emph{Higher} and \emph{lower}: rows where the column is above or below the expected value.
+
+\begin{small}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{6.9cm}lrrrl@{}}
+\caption{Row checks of \code{gld_player_gaming_daily}, September 2026 (2.45 million rows).}\label{tab:checks}\\
+\toprule
+Check & Source & Pass (\%) & Higher (\%) & Lower (\%) & \\
+\midrule
+\endfirsthead
+\toprule
+Check & Source & Pass (\%) & Higher (\%) & Lower (\%) & \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\input{gaming_checks_en}
+\end{longtable}
+\end{small}
+
+The rejected hypotheses (\code{turnover_eur} with real money only, \code{payout_eur} with real wins only, \code{real_ggr_eur} with the real wallet only) are not errors: the definition that passes is the real one. The workbook rule for \code{bets} fails, but the column is correct: the rule counts twice the bets paid from two wallets (point~\ref{it:bets}). The idea that rounds with no bet are only free or bonus play is also rejected (68.5\%): I do not know what they are, but they affect only 2\% of the rows.
+
+\textbf{Notation.} \textbf{M\ldots}: code of the measure in the definitions workbook. Wallets: real money ($r$), released bonus ($l$) and playable bonus ($j$).
+
+\section{The errors}
+\begin{enumerate}[label=\textbf{\arabic*.},ref=\arabic*,leftmargin=*]
+
+\issue{it:playsecs}{\prioM\ \code{play_secs}}
+{\pts{\item \textbf{More time than the day:} 0.8\% of the rows (one game on one day) and 3.7\% of the player-days go over 24~h; in brand 73, 1.4\% and 6.1\%.
+\item \textbf{Parallel games:} in 9.2\% of the player-days the time of play is longer than the time between the first and the last play (17\% in brand 73).
+\item \textbf{In the history:} the daily maximum goes over 24~h on all 554 days, up to 210 million seconds in one row.
+\item \textbf{Mostly sports betting:} 71\% of the cases are from providers 58 and 50, in bet types (\code{Combo}, \code{Single}, \code{System}). A sports bet stays open until the match ends, so \code{play_secs} measures how long the bet is open, not time of play. In casino about 5,300 rows are left (0.2\%). See section~\ref{sec:sports}.
+\item \textbf{\code{last_played_at} on a later day} (1.6\% of the rows) is not an error: half are sports bets settled on another day, and the rest casino play that goes past midnight.
+\item \textbf{Not a load error:} 7,475 players, the top 10 have only 2.5\% of the cases, every day has cases and no value appears more than 3 times.
+\item \textbf{Affects:} \code{play_secs_*}, \code{engagement_score} and \code{session_intensity_score} in the signals table.}}
+{\pts{\item \textbf{Table (hypothesis):} the sum of the seconds of each game, $\sum_j \text{secs}_{j}$; two games at the same time count twice.
+\item \textbf{Correct:} the union of the play intervals of the day, $\bigl|\bigcup [\text{start}, \text{end}]\bigr| \le 86{,}400$~s.}}
+{\pts{\item Do not compute it for sports bets (leave it empty). In casino, compute it from the play intervals, without adding up parallel games, and with a cap of 24~h per day.
+\item Until then, do not use it.}}
+{\fig{fig:gextremes}, \fig{fig:growplay}, \fig{fig:gpdplay}, \fig{fig:gspan}, \fig{fig:g_impossible_pd_play_secs}, \fig{fig:g_impossible_pd_span_secs}, \fig{fig:g_suspicious_pd_play_over_span}.}
+
+\issue{it:version}{\prioM\ Version of the table}
+{\pts{\item \textbf{Two tables in ClickHouse:} \code{medallion.gld_player_gaming_daily} (the one that reaches the lake and is audited here) and \code{gld.player_gaming_daily} (the new design the workbook describes).
+\item \textbf{Differences:} 15 workbook columns are not in the lake (\code{platform_id}, \code{win_count_*}, \code{cashout_*}, \code{balance_*}, \code{fx_rates_state}); 12 lake columns are not in the workbook (\code{turnover_eur}, \code{ggr_eur}, \code{hold_pct}, \code{rtp_actual}\ldots). \code{provider_code} is an integer in one and text in the other.}}
+{}
+{\pts{\item Send the new table to the lake, or document in the workbook the one that is used.}}
+{Section 1 of the notebook; ClickHouse definition.}
+
+\issue{it:key}{\prioM\ Key of the table}
+{\pts{\item \textbf{The sort key has no \code{currency} or \code{brand_id}:} \code{(tenant_id, player_id, event_date, game_id, provider_code)}.
+\item \textbf{Risk:} the table removes duplicates by this key (ReplacingMergeTree), so two rows of the same player, game and day in two currencies would become one.
+\item \textbf{Today:} 0 cases (no player plays in two currencies on the same day), but nothing prevents it.}}
+{}
+{\pts{\item Add \code{currency} and \code{brand_id} to the key, as the new table already does.}}
+{ClickHouse definition; section 3 of the notebook.}
+
+\issue{it:bets}{\prioB\ Workbook rule for \code{bets}}
+{\pts{\item \textbf{The rule does not hold:} \code{bets} is the sum of \code{bet_count_*} in only 78\% of the rows; in 21\% it is lower.
+\item \textbf{But the column is correct:} a bet paid from two wallets (for example, part real money and part bonus) counts once in \code{bets} and once in each \code{bet_count_*}.
+\item \textbf{Three checks confirm it:} $\max(\text{bet\_count}_*) \le \text{bets}$ in 100\% of the rows, $\text{bets} \le$ the sum in 99.6\%, and $\text{bets} =$ the sum in 99.85\% of the rows with one wallet.}}
+{\pts{\item \textbf{Workbook:} $\text{bets} = \text{bet\_count}_r + \text{bet\_count}_l + \text{bet\_count}_j$.
+\item \textbf{Table:} number of different bets; $\text{bet\_count}_m$ = bets that use wallet $m$.}}
+{\pts{\item Fix the workbook rule and explain that the sum of \code{bet_count_*} counts twice the bets with two wallets.
+\item To count bets, use \code{bets}, not the sum.}}
+{\fig{fig:gchecks}; table~\ref{tab:checks}.}
+
+\issue{it:fx}{\prioB\ \code{fx_rate_to_eur}, \code{fx_rate_date_used}}
+{\pts{\item \textbf{Exchange rate 0:} 952 rows in September (0.04\%), with \code{dq_status = fx_suspect}; in the history, 64 days, all since August 2026. Their euro amounts are 0.
+\item \textbf{Rate from a later date:} 0.3\% of the rows use an exchange rate from after \code{event_date}.
+\item \textbf{Provisional:} from 0.6\% to 1.2\% of the rows, by brand.}}
+{\pts{\item \textbf{Expected:} \code{fx_rate_to_eur} $> 0$ and \code{fx_rate_date_used} $\le$ \code{event_date}.}}
+{\pts{\item Drop the rows with \code{dq_status = fx_suspect} or recompute their exchange rate.}}
+{\fig{fig:gextremes}, \fig{fig:g_impossible_row_fx_rate}.}
+
+\issue{it:negative}{\prioB\ Negative wins in sports betting}
+{\pts{\item \textbf{Negative \code{won_real_eur}:} 309 rows of our brands on the 155 days with negatives (of 14.5 million), 295 players; three rows in September 2026. The minimum of $-263{,}000$\eur in the metadata is from another operator.
+\item \textbf{Only sports betting:} 100\% are from providers 58 and 50. They look like corrections of a win already paid: 60 rows have no stake on that day and all have at least one winning round.
+\item \textbf{Negative \code{max_win_eur}:} 68 days; one row in September.
+\item \textbf{Effect:} a negative win makes the GGR larger than the stake (hold above 1).}}
+{\pts{\item \textbf{Expected:} wins $\ge 0$.}}
+{\pts{\item Keep the bet corrections in their own column, or take them from the day of the original win.}}
+{\fig{fig:gextremes}, \fig{fig:g_impossible_row_max_win_eur}.}
+
+\issue{it:docs}{\prioB\ Definitions not documented}
+{\pts{\item \textbf{\code{hold_pct} and \code{rtp_actual} are ratios,} not percents: $\text{hold} = \text{GGR}/\text{turnover}$ and $\text{rtp} = 1 - \text{hold}$, with a maximum of 1. The name says ``pct''.
+\item \textbf{\code{real_ggr_eur} counts the released bonus as real money.}
+\item \textbf{\code{turnover_eur} and \code{payout_eur} include the playable bonus,} which does not count for the official active day.
+\item \textbf{\code{loyalty_points_delta} has a scale that is not documented:} median of 26 million points per row and maximum of 3.3 trillion. The workbook defines it as ``net movement of loyalty points'', with no unit or range, and it is computed before the insert into ClickHouse. Without the scale I cannot say if these values are correct.\item \textbf{None of these columns is in the workbook.}}}
+{\pts{\item \textbf{Production:} $\text{turnover} = (W_r + W_l + W_j) \cdot \text{fx}$; $\text{real\_ggr} = \bigl((W_r + W_l) - (P_r + P_l)\bigr) \cdot \text{fx}$; $\text{bonus\_ggr} = (W_j - P_j) \cdot \text{fx}$.}}
+{\pts{\item Document them in the workbook and make the unit of \code{hold_pct} and the scale of \code{loyalty_points_delta} clear.}}
+{\fig{fig:gchecks}, \fig{fig:ghold}, \fig{fig:gloyalty}; table~\ref{tab:checks}.}
+
+\end{enumerate}
+
+\section{Time of play: sports betting and casino}\label{sec:sports}
+
+Most of the \code{play_secs} values over 24~h are sports bets. In sports betting, \code{play_secs} measures how long the bet is open (until the match ends), not time of play.
+
+\begin{itemize}[nosep]
+  \item \textbf{How to separate them:} by provider. Providers 58 and 50 have only six \code{game_id}, all bet types (\code{Combo}, \code{Single}, \code{System}, \code{1}, \code{2}, \code{3}), and no casino game. The game catalogue (\code{gld_game_profile}) has \code{vertical} and \code{game_type}, but they are empty.
+  \item \textbf{Sports betting:} 6\% of the rows and 71\% of the cases over 24~h (4,164 of its 20,086 players). Also 100\% of the negative wins (point~\ref{it:negative}).
+  \item \textbf{Casino:} 5,261 rows (0.23\%) are still over 24~h for one game on one day. These are games that never close: an error in the source.
+\end{itemize}
+
+\begin{table}[H]\centering\small
+\caption{Rows with \code{play_secs} over 24~h, sports betting and casino, September 2026.}\label{tab:sports}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+ & Rows & \% of rows & Rows $>$ 24~h & \% of its rows & \% of the cases\\
+\midrule
+\input{gaming_sports_en}
+\end{tabular}
+\end{table}
+
+\evidence{fig:sports}{0.95}{gaming_sports.png}{\textbf{Sports betting and casino.} Left: \% of their rows over 24~h. Right: share of all rows and of the rows over 24~h.}
+
+\textbf{Proposal.} Separate sports betting and casino with \code{provider_code} equal to 58 or 50 (or fill \code{vertical} in the catalogue). In sports betting, do not use \code{play_secs}. In casino, cap it at 24~h per day and do not add up games played at the same time.
+
+\section{Impossible and suspicious values, by brand and day}\label{sec:flags}
+
+An \emph{impossible} value cannot come from real data; a \emph{suspicious} one is possible but very rare. \textbf{In all brands and on all days} it is a calculation error; \textbf{in one brand or on a few days}, a specific problem.
+
+\begin{small}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.3cm}l>{\raggedright\arraybackslash}p{2.1cm}rrrrrrrrr@{}}
+\caption{Impossible and suspicious values in September 2026: rows, \% in all brands and in each one, and days with at least one; the darker the cell, the higher the \%. \code{row_*}: one row; \code{pd_*}: one player and one day.}\label{tab:flags}\\
+\toprule
+& & & & \multicolumn{6}{c}{\% of rows} & & \\
+\cmidrule(lr){5-10}
+Metric & Type & Rule & Rows & All & 14 & 23 & 64 & 72 & 73 & Days & Fig.\\
+\midrule
+\endfirsthead
+\toprule
+Metric & Type & Rule & Rows & All & 14 & 23 & 64 & 72 & 73 & Days & Fig.\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\input{gaming_flags_en}
+\end{longtable}
+\end{small}
+
+\textbf{What they show:}
+\begin{itemize}
+  \item \textbf{Time of play: a calculation error.} More than 24~h per row or per day, and parallel play, appear in all five brands on all 30 days; brand 73 is the worst.
+  \item \textbf{Exchange rate 0:} few rows, but on every day and in every brand.
+  \item \textbf{Extreme amounts} (turnover over 1~M\eur, average bet over 10,000\eur, more than 20,000 bets): single cases, to review.
+\end{itemize}
+
+\clearpage
+\appendix
+\section{Annex: the evidence}\label{sec:figures}
+
+\group{Checks and history}{Points~\ref{it:playsecs}, \ref{it:bets}, \ref{it:fx}, \ref{it:negative} and~\ref{it:docs}.}
+\evidence{fig:gchecks}{0.85}{gaming_checks.png}{\textbf{Row checks by brand.} \% of rows that pass each check; in red, the ones that fail. The rejected hypotheses for \code{turnover_eur}, \code{payout_eur} and \code{real_ggr_eur} fail on purpose: the real definition is the one next to them.}
+\evidence{fig:grows}{0.9}{gaming_rows_per_day.png}{\textbf{Rows per daily file} (all operators): no day is missing.}
+\evidence{fig:gextremes}{0.95}{gaming_extremes.png}{\textbf{Daily extremes in the history} (all operators): \code{play_secs} over 24~h every day; negative wins on 155 days; exchange rate 0 on 64 days; negative largest win on 68 days. Points~\ref{it:playsecs}, \ref{it:fx} and~\ref{it:negative}.}
+
+\group{Time of play}{Point~\ref{it:playsecs}. In red, more than 24~h (impossible).}
+\evidence{fig:growplay}{0.8}{gaming_row_play_secs.png}{\textbf{\code{play_secs} per row} (one game on one day).}
+\evidence{fig:gpdplay}{0.8}{gaming_pd_play_secs.png}{\textbf{\code{play_secs} per player and day} (all games).}
+\evidence{fig:gspan}{0.8}{gaming_pd_play_over_span.png}{\textbf{Time of play / time between the first and the last play of the day.} Above 1, parallel games are added up.}
+
+\group{Hold and loyalty points}{Point~\ref{it:docs}.}
+\evidence{fig:gloyalty}{0.8}{gaming_row_loyalty_points.png}{\textbf{\code{loyalty_points_delta} per row:} median of 26 million points; the scale is not documented.}
+\evidence{fig:ghold}{0.8}{gaming_row_hold_pct.png}{\textbf{\code{hold_pct} per row:} a ratio with a maximum of 1, not a percent.}
+
+\group{Impossible and suspicious values, by day and brand}{Section~\ref{sec:flags}. Rows = brands (the first one, all together), columns = days; the colour is the \% of rows that break the rule.}
+\evidence{fig:g_impossible_pd_play_secs}{0.72}{g_impossible_pd_play_secs.png}{\textbf{Impossible:} more than 24~h of play per player and day.}
+\evidence{fig:g_impossible_pd_span_secs}{0.72}{g_impossible_pd_span_secs.png}{\textbf{Impossible:} more than 24~h between the first and the last play of the day.}
+\evidence{fig:g_impossible_row_play_secs}{0.72}{g_impossible_row_play_secs.png}{\textbf{Impossible:} more than 24~h of play in one row.}
+\evidence{fig:g_impossible_row_fx_rate}{0.72}{g_impossible_row_fx_rate.png}{\textbf{Impossible:} exchange rate 0.}
+\evidence{fig:g_impossible_row_max_win_eur}{0.72}{g_impossible_row_max_win_eur.png}{\textbf{Impossible:} negative largest win.}
+\evidence{fig:g_suspicious_pd_play_over_span}{0.72}{g_suspicious_pd_play_over_span.png}{\textbf{Suspicious:} more time of play than time between the first and the last play.}
+\evidence{fig:g_suspicious_pd_play_secs}{0.72}{g_suspicious_pd_play_secs.png}{\textbf{Suspicious:} 16 to 24~h of play per player and day.}
+\evidence{fig:g_suspicious_row_play_secs}{0.72}{g_suspicious_row_play_secs.png}{\textbf{Suspicious:} 12 to 24~h of play in one row.}
+\evidence{fig:g_suspicious_pd_games}{0.72}{g_suspicious_pd_games.png}{\textbf{Suspicious:} more than 100 games in one day.}
+\evidence{fig:g_suspicious_row_avg_bet_eur}{0.72}{g_suspicious_row_avg_bet_eur.png}{\textbf{Suspicious:} average bet over 10,000\eur.}
+\evidence{fig:g_suspicious_row_bets}{0.72}{g_suspicious_row_bets.png}{\textbf{Suspicious:} more than 20,000 bets in one row.}
+\evidence{fig:g_suspicious_row_turnover_eur}{0.72}{g_suspicious_row_turnover_eur.png}{\textbf{Suspicious:} turnover over 1~M\eur\ in one row.}
+\evidence{fig:g_suspicious_row_hold_pct}{0.72}{g_suspicious_row_hold_pct.png}{\textbf{Suspicious:} hold below $-10$.}
+\evidence{fig:g_suspicious_row_rtp_actual}{0.72}{g_suspicious_row_rtp_actual.png}{\textbf{Suspicious:} rtp above 10.}
+
+\end{document}

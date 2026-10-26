@@ -11,15 +11,13 @@ Also: a duplicated uuid, a rolled-back bet, a win, and a bet of brand 99 (out of
 """
 
 import datetime as dt
-import sys
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import recompute  # noqa: E402
+from signal_audit.data import audit
+from signal_audit.data import recompute
 
 D1, D2 = dt.date(2026, 9, 1), dt.date(2026, 9, 2)
 
@@ -57,7 +55,7 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("RUN_S3", "1")
     monkeypatch.setattr(audit, "CACHE", tmp_path / "cache")
     monkeypatch.setattr(audit, "_CON", None)
-    c = audit.load_config(Path(recompute.__file__).parent / "metrics_recomputed.yaml")
+    c = audit.load_config(audit.settings.CONFIG / "metrics_recomputed.yaml")
     c["period"] = {"start": D1, "end": D2}
     c["brands"] = [14]
     recompute.build(c)

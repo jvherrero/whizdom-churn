@@ -1,10 +1,10 @@
-"""The whole audit of a signals table in one command; runs/<run>.yaml says which table and which dates.
+"""The whole audit of a signals table in one command; config/runs/<run>.yaml says which table and which dates.
 
     make audit RUN=<run>                # = AUDIT_RUN=<run> RUN_S3=1 .venv/bin/python signal_audit/run_audit.py
     make audit RUN=<run> COPY_ONLY=1    # only the copy of the snapshot days, to see the columns
 
 It needs the AWS SSO session and, for a ClickHouse table, the tunnel (.env). Each step keeps what is already
-done, so a run that stops can be started again. The report goes to runs/<run>/informe/.
+done, so a run that stops can be started again. The report goes to output/runs/<run>/informe/.
 """
 
 from __future__ import annotations
@@ -14,18 +14,17 @@ import os
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-sys.path[:0] = [str(HERE), str(HERE.parent / "src" / "features")]
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # run as a script: the repo root
 os.environ.setdefault("RUN_S3", "1")
-import audit  # noqa: E402
-import daily_cache  # noqa: E402
-import evidence as ev  # noqa: E402
-import settings  # noqa: E402
+from signal_audit import settings  # noqa: E402
+from signal_audit.checks import evidence as ev  # noqa: E402
+from signal_audit.data import audit  # noqa: E402
+import daily_cache  # noqa: E402  (src/features)
 
 
 def copy_table(days=None) -> None:
     """Copy the days of the ClickHouse table the run needs, and list the columns against the contract."""
-    import clickhouse_mirror as cm
+    from signal_audit.data import clickhouse_mirror as cm
     print("copy of the ClickHouse table")
     cm.copy(days or cm.days_needed())
     cm.write_footers()
@@ -36,8 +35,8 @@ def copy_table(days=None) -> None:
 
 def points() -> None:
     """A table with the 165 columns of the lake: snapshots, sessions from landing and the 25 points."""
-    import recompute
-    import report
+    from signal_audit.data import recompute
+    from signal_audit.report import report
     import signal_snapshots
     snaps = sorted(set(settings.EVIDENCE_DAYS) | set(settings.MONTH_STARTS) | {settings.PERIOD["start"]})
     last = max(settings.PERIOD["end"], settings.LONG["end"], *snaps)
@@ -53,7 +52,7 @@ def points() -> None:
         signal_snapshots.build([d for d in snaps if d in have], b)
 
     print("sessions recomputed from landing")
-    rc = audit.load_config(HERE / "metrics_recomputed.yaml")
+    rc = audit.load_config(settings.CONFIG / "metrics_recomputed.yaml")
     recompute.build(rc)
     recompute.build_time_of_play(rc)
 
@@ -67,8 +66,8 @@ def points() -> None:
 
 def catalogue() -> None:
     """A table with its own catalogue of checks: daily caches, recomputed checks and the report by checks."""
-    import check_report
-    import recompute_signal
+    from signal_audit.report import check_report
+    from signal_audit.checks import recompute_signal
     days = sorted(set(settings.EVIDENCE_DAYS) | set(settings.SNAPSHOTS))
     start, end = days[0] - dt.timedelta(days=100), days[-1] + dt.timedelta(days=max(recompute_signal.SHIFTS))
     print("daily caches of activity and payments")

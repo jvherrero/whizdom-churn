@@ -7,19 +7,17 @@ client, the verdicts of the points and the status of the columns.
 import contextlib
 import datetime as dt
 import math
-import sys
 from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import clickhouse_mirror as cm  # noqa: E402
-import evidence as ev  # noqa: E402
-import formula_check as fc  # noqa: E402
-import report  # noqa: E402
+from signal_audit.data import audit
+from signal_audit.data import clickhouse_mirror as cm
+from signal_audit.checks import evidence as ev
+from signal_audit.checks import formula_check as fc
+from signal_audit.report import report
 
 DAY = dt.date(2026, 9, 1)
 

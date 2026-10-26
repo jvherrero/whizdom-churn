@@ -1,1 +1,21 @@
-informe/
+# Everything generated: caches, figures and the runs (output/runs/<run>/, with the local copy of a ClickHouse table)
+output/
+__pycache__/
+.tmp/
+
+# LaTeX build files
+reports/**/*.aux
+reports/**/*.log
+reports/**/*.out
+
+# The Spanish reports, their tables and the scripts stay local; the English ones go to git
+reports/signals_daily/errores_tabla_senales.*
+reports/signals_daily/guion_revision.md
+reports/signals_daily/resumen_columnas.tex
+reports/signals_daily/criterios.tex
+reports/signals_daily/comprobaciones.tex
+reports/signals_daily/valores_raros.tex
+reports/gaming_daily/errores_tabla_juego.*
+reports/gaming_daily/gaming_checks.tex
+reports/gaming_daily/gaming_flags.tex
+reports/gaming_daily/gaming_sports.tex

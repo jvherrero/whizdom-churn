@@ -4,16 +4,14 @@
 """
 
 import datetime as dt
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import stats  # noqa: E402
+from signal_audit.data import audit
+from signal_audit.checks import stats
 
 DAYS = [dt.date(2026, 9, 1) + dt.timedelta(days=i) for i in range(3)]
 N = 4000  # players per brand and day

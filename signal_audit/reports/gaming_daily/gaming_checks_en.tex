@@ -1,0 +1,46 @@
+\code{wagered_real_eur = wagered_real * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{wagered_released_bonus_eur = wagered_released_bonus * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{wagered_playable_bonus_eur = wagered_playable_bonus * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{won_real_eur = won_real * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{won_released_bonus_eur = won_released_bonus * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{won_playable_bonus_eur = won_playable_bonus * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{tax_real_eur = tax_real * fx_rate_to_eur} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{bets = bet_count_real + bet_count_released_bonus + bet_count_playable_bonus} & workbook & 78.45 & 0.43 & 21.12 & \stWrong\\
+\code{turnover_eur = wagered_real_eur + wagered_released_bonus_eur + wagered_playable_bonus_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{turnover_eur = wagered_real_eur + wagered_released_bonus_eur} & hypothesis & 72.77 & 27.23 & 0.00 & \stRejected\\
+\code{turnover_eur = wagered_real_eur} & hypothesis & 64.35 & 35.65 & 0.00 & \stRejected\\
+\code{payout_eur = won_real_eur + won_released_bonus_eur + won_playable_bonus_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{payout_eur = won_real_eur} & hypothesis & 69.49 & 30.51 & 0.00 & \stRejected\\
+\code{ggr_eur = turnover_eur - payout_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{real_ggr_eur = wagered_real_eur - won_real_eur} & hypothesis & 78.80 & 18.23 & 2.97 & \stRejected\\
+\code{bonus_ggr_eur = ggr_eur - real_ggr_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{net_position_eur = -ggr_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{tax_eur = tax_real_eur + tax_released_bonus_eur + tax_playable_bonus_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{hold_pct = ggr_eur / turnover_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{rtp_actual = payout_eur / turnover_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{rtp_actual = 1 - hold_pct} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{bets = rounds} & hypothesis & 96.32 & 1.53 & 2.15 & \stAffected\\
+\code{bets >= greatest(bet_count_real, bet_count_released_bonus, bet_count_playable_bonus)} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{bets <= bet_count_real + bet_count_released_bonus + bet_count_playable_bonus} & hypothesis & 99.57 & 0.00 & 0.00 & \stCorrect\\
+\code{bets = sum of bet_count_* (rows with one wallet)} & hypothesis & 99.85 & 0.15 & 0.00 & \stCorrect\\
+\code{rounds > bets only in free or playable bonus play} & hypothesis & 68.54 & 0.00 & 0.00 & \stRejected\\
+\code{real_ggr_eur = wagered_real_eur + wagered_released_bonus_eur - won_real_eur - won_released_bonus_eur} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{win_rate = winning_rounds / rounds} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{avg_bet_eur = turnover_eur / bets} & hypothesis & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{won_real >= 0} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{won_released_bonus >= 0} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{won_playable_bonus >= 0} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{max_win_eur <= payout_eur + 0.01} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{play_secs <= 86400} & workbook & 99.25 & 0.00 & 0.00 & \stCorrect\\
+\code{play_secs <= epoch(last_played_at) - epoch(first_played_at) + 1} & hypothesis & 98.12 & 0.00 & 0.00 & \stAffected\\
+\code{first_played_at <= last_played_at} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{CAST(first_played_at AS DATE) = event_date} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{CAST(first_played_at + INTERVAL 3 HOUR AS DATE) = event_date} & hypothesis & 84.52 & 0.00 & 0.00 & \stRejected\\
+\code{CAST(last_played_at AS DATE) = event_date} & hypothesis & 98.35 & 0.00 & 0.00 & \stRejected\\
+\code{rounds >= winning_rounds} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{winning_rounds >= big_win_rounds} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{bets > 0} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\
+\code{turnover_eur > 0} & hypothesis & 99.69 & 0.00 & 0.00 & \stCorrect\\
+\code{fx_rate_to_eur > 0} & workbook & 99.96 & 0.00 & 0.00 & \stCorrect\\
+\code{fx_rate_date_used <= event_date} & workbook & 99.71 & 0.00 & 0.00 & \stCorrect\\
+\code{event_count >= bets} & workbook & 100.00 & 0.00 & 0.00 & \stCorrect\\

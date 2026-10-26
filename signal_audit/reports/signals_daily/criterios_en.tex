@@ -1,0 +1,14 @@
+Formula & The value is the formula of its workbook measure (M code) on other columns of the same row. & $|x - f| \le 0.01 + 0.001\,|f|$ & 18 & 18\\
+Identity & An accounting relation between columns, for example stake = real money + bonus. & $|x - f| \le 0.01 + 0.001\,|f|$ & 30 & 30\\
+Window & The window of $w$ days is the sum of its daily value over those $w$ days. & $x_w(D) = \sum_{d \in (D-w,\, D]} x_{\text{today}}(d)$ & 32 & 32\\
+Lag & A \code{prior_*} column is the value of its column $k$ days before. & $x^{\text{prior}}(D) = x(D - k)$ & 14 & 14\\
+Limit & A condition that must always hold: possible values (for example 0 to 100) and the order between windows. & the condition is true, e.g. $x_{7d} \le x_{30d}$ & 80 & 85\\
+Band & The band matches its score with the cutoffs of the workbook. & band $j$ if $c_j \le s < c_{j+1}$ & 3 & 3\\
+Validated & Compared player by player with its value recalculated from the daily tables. & same value & 3 & 3\\
+Format & The text of an id or a code follows its format: UUID, digits only, a code in upper case, never empty. & the condition is true & 5 & 5\\
+Distribution & A categorical column is not spread evenly; if its levels have an order (value, risk), they fall from the first to the last. & checked on its figure & 9 & 9\\
+Share & An amount is a part of another one: the tax, a part of the GGR. & $0 < \text{tax} \le \text{GGR}$ & 3 & 3\\
+No check & Keys, text and metadata. & --- & 8 & 8\\
+\midrule
+Total & & & 165 & 210\\
+\bottomrule

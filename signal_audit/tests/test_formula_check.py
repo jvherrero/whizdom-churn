@@ -8,15 +8,13 @@ an active-day count above 7, and a frequency score that does not follow its form
 """
 
 import datetime as dt
-import sys
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import formula_check as fc  # noqa: E402
+from signal_audit import settings
+from signal_audit.data import audit
+from signal_audit.checks import formula_check as fc
 
 DAYS = [dt.date(2026, 9, 1) + dt.timedelta(days=i) for i in range(8)]
 SNAP = DAYS[-1]
@@ -99,7 +97,7 @@ def test_band_ranges(cfg):
 
 def test_the_real_catalogue_covers_every_column():
     import json
-    inventory = Path(fc.HERE).parent / "docs/dq_reports/layer_inventory.json"
+    inventory = settings.PROJECT_ROOT / "docs/dq_reports/layer_inventory.json"
     prod = [c for t in json.loads(inventory.read_text()) if t["table"] == "gld_player_signals_daily" for c, _ in t["schema"]]
     assert set(prod) <= set(fc.load()["columns"])
 

@@ -4,15 +4,12 @@
 """
 
 import datetime as dt
-import sys
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import extra_checks as x  # noqa: E402
+from signal_audit.data import audit
+from signal_audit.checks import extra_checks as x
 
 DAY = dt.date(2026, 9, 1)
 N = 50

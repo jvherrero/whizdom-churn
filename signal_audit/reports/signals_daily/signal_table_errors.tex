@@ -1,0 +1,539 @@
+% !TEX program = xelatex
+% Errors found in gld_player_signals_daily (English). Build here with xelatex, twice for the links. Figures
+% (output/figures/) and tables (*_en.tex here): .venv/bin/python -m signal_audit.report.figures (no S3).
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[english]{babel}
+\usepackage[a4paper,margin=2.1cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{titlesec}
+\usepackage[font=small,labelfont=bf,skip=4pt,justification=raggedright,singlelinecheck=false]{caption}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,urlcolor=MidnightBlue]{hyperref}
+\PassOptionsToPackage{obeyspaces}{url}
+\usepackage{xurl}
+\urlstyle{tt}
+
+\graphicspath{{../../output/figures/}}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\titlespacing*{\section}{0pt}{12pt}{4pt}
+\titlespacing*{\subsection}{0pt}{10pt}{2pt}
+
+% A column or file name, which may break at any character
+\DeclareRobustCommand{\code}[1]{\path{#1}}
+% Link to a figure of the annex: "Fig. N"
+\newcommand{\fig}[1]{\hyperref[#1]{Fig.~\ref*{#1}}}
+% Status of a column
+\newcommand{\stWrong}{\textcolor{BrickRed}{\textbf{Wrong}}}
+\newcommand{\stAffected}{\textcolor{BurntOrange}{\textbf{Affected}}}
+\newcommand{\stUnconfirmed}{\textcolor{Plum}{\textbf{Unconfirmed}}}
+\newcommand{\stCorrect}{\textcolor{ForestGreen!70!black}{\textbf{Pass}}}
+\newcommand{\stWrongFlag}{\textcolor{BrickRed}{\textbf{Impossible}}}
+\newcommand{\stSuspFlag}{\textcolor{BurntOrange}{\textbf{Suspicious}}}
+\newcommand{\stUnchecked}{\textcolor{gray}{\textbf{Not checkable}}}
+% One error: label, column(s), what is wrong, definition (table against the right one; may be empty),
+% the proposal, the evidence
+\newcommand{\issue}[6]{%
+  \needspace{8\baselineskip}\item\label{#1}\textbf{#2}\par
+  \begin{tabular}{@{}p{2.3cm}@{}p{\dimexpr\linewidth-2.3cm}@{}}
+    \textcolor{BrickRed}{\textbf{Error}} & #3\\[2pt]
+    \if\relax\detokenize{#4}\relax\else\textcolor{Plum}{\textbf{Definition}} & #4\\[2pt]\fi
+    \textcolor{ForestGreen!70!black}{\textbf{Proposal}} & #5\\[2pt]
+    \textcolor{MidnightBlue}{\textbf{Evidence}} & #6
+  \end{tabular}\par\vspace{5pt}}
+% A figure of the annex
+\newcommand{\evidence}[4]{%
+  \begin{figure}[H]\centering
+    \includegraphics[width=#2\linewidth]{#3}
+    \caption{#4}\label{#1}
+  \end{figure}}
+\newcommand{\eur}{\,\text{€}}
+% A short list inside a field of a point
+\newcommand{\pts}[1]{\begin{minipage}[t]{\linewidth}\vspace{-0.42\baselineskip}\begin{itemize}[nosep,leftmargin=1.1em,label=\textbullet,topsep=0pt,partopsep=0pt]#1\end{itemize}\strut\end{minipage}}
+% Priority of a point
+\newcommand{\badge}[2]{\colorbox{#1}{\textcolor{white}{\scriptsize\textbf{\,#2\,}}}}
+\newcommand{\prioA}{\badge{BrickRed}{HIGH}}
+\newcommand{\prioM}{\badge{BurntOrange}{MEDIUM}}
+\newcommand{\prioB}{\badge{gray}{LOW}}
+\newcommand{\prioQ}{\badge{Plum}{NO DEFINITION}}
+% A group of the annex: a heading and what to look for
+\newcommand{\group}[2]{\needspace{6\baselineskip}\subsection*{#1}{\small #2}\par\vspace{2pt}}
+% Two figures side by side, each with its own number and caption
+\newcommand{\pair}[6]{%
+  \begin{figure}[H]\centering
+    \begin{minipage}[t]{0.485\linewidth}\centering
+      \includegraphics[width=\linewidth]{#2}\captionof{figure}{#3}\label{#1}\end{minipage}\hfill
+    \begin{minipage}[t]{0.485\linewidth}\centering
+      \includegraphics[width=\linewidth]{#5}\captionof{figure}{#6}\label{#4}\end{minipage}
+  \end{figure}}
+
+\title{\textbf{Errors in the Signals Table}\\[2pt]\large\code{gld_player_signals_daily}: what is wrong, how it is defined, what could be done, and where to see it}
+\date{October 2026}
+\author{Javier Herrero Pérez \\ Whizdom.ai}
+
+\begin{document}
+\maketitle
+\vspace{-1.2cm}
+
+\textbf{Scope.} Brands 14, 23, 64, 72 and 73. September 2026, unless another period is given. All rows, no sampling, aggregates only. The calculations and the evidence of each point are in the notebooks \code{01_distributions}, \code{02_validation} and \code{03_three_errors} of \code{signal_audit/notebooks/}; the status of each column is at the end of part A of \code{02_validation}.
+
+\section{Summary}
+
+\textbf{In one sentence.} In the signals table, the amounts and counts pass their checks (99 of 165 columns), but it has serious errors in time of play, recency and active days, and one of them uses data from the future. Several platform scores, including \code{churn_score}, are built on these columns.
+
+\textbf{The five most serious errors}
+
+\begin{center}\small
+\begin{tabular}{@{}p{0.5cm}>{\raggedright\arraybackslash}p{4.1cm}>{\raggedright\arraybackslash}p{5.3cm}>{\raggedright\arraybackslash}p{5.6cm}@{}}
+\toprule
+& Error & What it affects & What could be done\\
+\midrule
+\ref{it:recency} & \code{days_since_bet} looks 7 days into the future & \code{churn_score}, \code{deposit_recency_score}, \code{lifecycle_stage} and any model that uses it (false AUC of 0.99) & Calculate it with data up to the date \\
+\ref{it:activedays} & \code{active_days_*} counts days played only with playable bonus & 17\% to 34\% of recent players look active when they are not; \code{frequency_decline}, \code{engagement_score} & Count only real money and released bonus \\
+\ref{it:valuedecline} & \code{value_decline} has no upper limit (up to 57 million) & \code{churn_score} & Cap it at $[0, 100]$ \\
+\ref{it:tpdays} & Time of play is not updated on some days (9 days, all brands) & All \code{tp_*} columns & A freshness check in the daily process \\
+\ref{it:night}--\ref{it:entropy} & Night, weekend and entropy on another scale (up to 4) & 8\% to 28\% of the rows; \code{risk_score} through \code{rg_night_play_ratio} & Calculate them as shares from 0 to 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Priority of each point.} \prioA{} affects a platform score or a model today, in many rows. \prioM{} wrong in many rows but not used for decisions, or already fixed from now on. \prioB{} few rows, only the history, or a format detail. \prioQ{} cannot be checked because the workbook does not give the full definition.
+
+\begin{center}\small
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{13cm}@{}}
+\prioA & \ref{it:recency} recency, \ref{it:activedays} active days, \ref{it:churnscore} \code{churn_score}, \ref{it:valuedecline} \code{value_decline}, \ref{it:tpdays} freshness of time of play\\[2pt]
+\prioM & \ref{it:session} session, \ref{it:gap} gap between sessions, \ref{it:playsecs} \code{play_secs}, \ref{it:night} night, \ref{it:rgnight} \code{rg_night_play_ratio}, \ref{it:weekend} weekend, \ref{it:entropy} entropy, \ref{it:depositrecency} \code{deposit_recency_score}, \ref{it:tenure} tenure, \ref{it:recencypressure} \code{recency_pressure}, \ref{it:brand} \code{brand_id}, \ref{it:codes} empty codes\\[2pt]
+\prioB & \ref{it:hold} \code{hold_pct_l30d}, \ref{it:peak} \code{top_peak_*}, \ref{it:depfreq} \code{deposit_frequency_score}, \ref{it:units} units in the workbook, \ref{it:tax} tax at 0\\[2pt]
+\prioQ & \ref{it:ngr} NGR, \ref{it:prior} \code{prior_*_score}, \ref{it:z} z-scores\\
+\end{tabular}
+\end{center}
+
+\section{The 165 Columns}
+
+The table has \textbf{165 columns}. Each one has its checks (\code{signal_checks.yaml}): its formula in the workbook, an accounting rule, a window that must be the sum of its daily values, a \code{prior_*} value that must be the one of the window before, or a limit (an impossible value, or a longer window smaller than a shorter one). A check \emph{passes} if it holds in at least 99\% of the rows of two snapshots (15 September and 1 October 2026). Several columns were also compared with the daily tables or with the transactions; this is how the errors of definition show up.
+
+\begin{center}
+\input{resumen_columnas_en}
+\end{center}
+
+\begin{itemize}
+  \item \textbf{Pass (99):} the ids, the windows of amounts and counts (stake, wins, GGR, deposits, withdrawals, cashout, bets, sessions), their \code{prior_*}, the accounting rules, and the scores that follow their formula on correct inputs. They can be used as they are.
+  \item \textbf{Wrong (37)} and \textbf{affected (12):} points 1 to 22 of the list. A column can pass its checks and still be wrong: \code{active_days_*} is the sum of its daily value, but the daily value uses a wrong definition.
+  \item \textbf{Unconfirmed (11):} the workbook does not give the full definition (points 23 to 25).
+\end{itemize}
+The list of the 165 columns, with their status, their point and their checks, is in annex~\ref{sec:columns}.
+
+\textbf{Notation.} $D$: date of the row. $S$: stake in the window; $S_X$: stake of the bets that meet $X$. $W^{r}_d, W^{l}_d, W^{j}_d$: stake on day $d$ with real money, released bonus and playable bonus. $G$: GGR. $P$: amount won by the player. Session $s$: start $a_s$, end $b_s$, $n_s$ bets. \textbf{M053, M113, M127\ldots}: code of the measure in the data model workbook (\code{gld-schemas.xlsx}, sheet \emph{Measures}).
+
+\section{Evaluation Criteria}\label{sec:criteria}
+Every column is evaluated with the same criteria. This is the full list.
+
+\textbf{1. The data.} Two snapshots of the table, 15 September and 1 October 2026; the five brands (14, 23, 64, 72 and 73); the latest version (\code{_version}) of each row; all the rows, no sampling. The windows and lags also use the days before each snapshot. The format, distribution and share checks use every day of September 2026.
+
+\textbf{2. The checks of the table itself.} Each column has one or more in \code{signal_checks.yaml}. The table gives each kind, its rule and how many columns and checks use it; annex~\ref{sec:checks} gives the exact rule of each one.
+
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{4.3cm}rr@{}}
+\toprule
+Kind & What it checks & Rule to pass & Columns & Checks\\
+\midrule
+\input{criterios_en}
+\end{tabular}
+\end{center}
+$x$: the value of the column in the table. $f$: the expected value (the formula, the identity, the sum of the window or the value $k$ days before). The tolerance $0.01 + 0.001\,|f|$ lets the rounding of amounts pass: one cent plus 0.1\%. A column can have several checks (so there are 210 for 165 columns).
+
+\textbf{3. The share that passes.} For each check, with the two snapshots together:
+\[ \text{pass} = 100 \cdot \frac{\#\{\text{rows that meet the rule}\}}{\#\{\text{rows with a value}\}}. \]
+Rows with NULL do not count. A check \emph{passes} if it holds in at least 99\% of the rows; it is \emph{almost} from 95\% to 99\%; and it \emph{fails} below 95\%.
+
+\textbf{4. Comparisons with recalculated data.} A column can follow its own rules and still be wrongly defined: for example, \code{active_days_l30d} is the exact sum of its daily value, but the daily value uses another definition. So several columns are also compared with their recalculated value:
+\begin{itemize}[nosep]
+  \item \textbf{From each bet of the transactions:} mean and median session length, gap between sessions, \code{play_secs}, night, weekend and hourly entropy.
+  \item \textbf{From the daily gaming table:} \code{days_since_bet}, \code{active_days_*} and \code{tenure_days}.
+\end{itemize}
+The correct definition used in each case is in its point (field \emph{Definition}). What I recalculate from the transactions is compared as a distribution, not player by player: the \code{accountId} of the landing transactions is another identifier than the \code{player_id} of gold (2 of about 18,000 players match), for a reason I do not know; \code{partyId} is still to test.
+
+\textbf{5. Impossible and suspicious values.} Each metric has a real-life range (\code{metrics.yaml}). \emph{Impossible}: a value that cannot come from real data, for example a share above 1 or a session of more than 1 day. \emph{Suspicious}: a value that is possible but very rare. They are counted per brand and day (section~\ref{sec:flags}).
+
+\textbf{6. The status of each column.}
+\begin{itemize}[nosep]
+  \item \stWrong: it fails one of its checks, or the comparison of criterion 4 shows that it does not follow the workbook definition, even if it meets its rules.
+  \item \stAffected: it follows its formula, but one of its inputs is wrong.
+  \item \stUnconfirmed: the workbook does not give the full definition, so I cannot say if it is right.
+  \item \stCorrect: none of the cases above, and all its checks pass (the worst holds in 99.92\% of the rows).
+  \item \stUnchecked: technical keys and metadata (\code{_version}, \code{param_version}, \code{has_sufficient_data}), and the load times and the snapshot date (\code{_ingested_at}, \code{_processed_at}, \code{snapshot_date}), which cannot be checked with the lake files.
+\end{itemize}
+
+\textbf{7. The priority of each point.} \prioA{} it affects a platform score or a model today, in many rows. \prioM{} wrong in many rows but not used for decisions, or already fixed from now on. \prioB{} few rows, only the history, or a format detail. \prioQ{} the workbook does not give the definition.
+
+\section{High Priority}
+They affect a platform score or a model today, in many rows.
+\begin{enumerate}[label=\textbf{\arabic*.},ref=\arabic*,leftmargin=*,series=issues]
+
+\issue{it:recency}{\prioA\ \code{days_since_bet}}
+{\pts{\item \textbf{Uses future data:} it matches the recency of 7 days later ($D+7$) for 92\% of the players.
+\item \textbf{Effect:} AUC of 0.99 to predict a bet in the next 7 days, against 0.79--0.87 with the real recency.
+\item \textbf{History:} 0 for almost every player until May 2026.}}
+{\pts{\item \textbf{Table:} $R_D = (D+7) - \max\{d \le D+7 : \text{bet}\}$.
+\item \textbf{Correct:} $R_D = D - \max\{d \le D : \text{bet}\}$.}}
+{\pts{\item Calculate it with the daily activity up to $D$ (\code{days_since_last_bet} of the pipeline).}}
+{\fig{fig:recency_zero}, \fig{fig:recency_shift}, \fig{fig:recency_proof}.}
+
+\issue{it:activedays}{\prioA\ \code{active_days_today}, \code{active_days_l7d}, \code{active_days_l30d}, \code{active_days_l90d}, \code{active_days_l180d}, \code{prior_active_days_*}}
+{\pts{\item \textbf{It counts days played only with playable bonus}, which are not active days.
+\item \textbf{Evidence:} it matches a count of any wallet for 96\%--99.7\% of the players, and the official definition for only 48\%--86\%. It never counts fewer days.
+\item \textbf{Effect:} 17\%--34\% of the players who bet in 30 days have 0 active days, and the table gives them at least one.
+\item \textbf{Scope:} \code{active_days_today} too (the windows are its sum); \code{active_days_l180d} was not compared directly. Affects \code{frequency_decline} and \code{engagement_score}.}}
+{\pts{\item \textbf{Table:} $A_w = \#\{d \in (D-w, D] : W^r_d + W^l_d + W^j_d > 0\}$.
+\item \textbf{Correct (M053):} $A_w = \#\{d \in (D-w, D] : W^r_d + W^l_d > 0\}$.}}
+{\pts{\item Count only the days with a stake from real money or released bonus.}}
+{\fig{fig:active_match}, \fig{fig:false_actives}.}
+
+\issue{it:churnscore}{\prioA\ \code{churn_score} (and \code{churn_propensity_raw}, \code{churn_band})}
+{\pts{\item \textbf{It follows its formula, but with wrong inputs:} \code{days_since_bet} (point~\ref{it:recency}), the active days (point~\ref{it:activedays}) and \code{value_decline} with no upper limit (point~\ref{it:valuedecline}).
+\item \textbf{In practice:} its AUC (0.78--0.83) does not show the leak.}}
+{\pts{\item \textbf{Formula:} $\operatorname{clamp}_{[0,100]}(0.5\,R + 0.3\,F + 0.2\,M)$, with $R$ = \code{recency_pressure}, $F$ = \code{frequency_decline}, $M$ = \code{value_decline}.}}
+{\pts{\item Recalculate it with the recency up to the date, the official active days and $M$ capped at $[0,100]$, or do not use it.}}
+{\fig{fig:recency_proof}, \fig{fig:index_limits}.}
+
+\issue{it:valuedecline}{\prioA\ \code{value_decline} (\code{monetary_score} in the workbook)}
+{\pts{\item \textbf{No upper limit:} it reaches 57 million in September (802 million in the history).
+\item \textbf{How much:} 0.84\% of the rows are above 100.
+\item \textbf{Affects:} \code{churn_score}.}}
+{\pts{\item \textbf{Workbook (M125) and table:} $M = 100 \max\bigl(0, 1 - \frac{G_7/7}{G_{90}/90}\bigr)$; no limit when $G_{90}$ is small or negative.
+\item \textbf{Correct:} $\min(100, M)$.}}
+{\pts{\item Cap it at $[0,100]$ and treat $G_{90} \le 0$ apart.}}
+{\fig{fig:index_limits}.}
+
+\issue{it:tpdays}{\prioA\ All \code{tp_*}: coverage and freshness}
+{\pts{\item \textbf{Start:} 6 July 2026, with about 5\,000 rows a day.
+\item \textbf{Changes:} on 1 August it goes to about 300\,000 rows; on 19 August the session changes.
+\item \textbf{Frozen days:} 9 days are exactly the same as the day before (21--24 and 26 August; 4, 11, 14 and 15 October), in every brand.
+\item \textbf{Affects:} all \code{tp_*}.}}
+{}
+{\pts{\item Do not use the \code{tp_*} of the table in the history; use the recomputed ones.
+\item A freshness check in the daily process.}}
+{\fig{fig:tp_daily}, \fig{fig:night_days}.}
+
+\end{enumerate}
+
+\section{Medium Priority}
+Wrong in many rows but not used for decisions, or already fixed from now on. The \code{tp_*} columns exist since 6 July 2026.
+\begin{enumerate}[resume*=issues]
+
+\issue{it:session}{\prioM\ \code{tp_avg_session_duration_secs}, \code{tp_median_session_duration_secs}}
+{\pts{\item \textbf{Sessions that never close:} 0.6\% last more than 1 day, up to 28 days.
+\item \textbf{Sessions of one event:} 1.8\% last exactly 1~s.
+\item \textbf{Outside 10~s to 4~h:} 8.4\% (mean) and 6.6\% (median); 14.1\% in brand 73.
+\item \textbf{Other facts:} the window is 90 days, and the value is not \code{play_secs / sessions} (it matches in 2.9\%).
+\item \textbf{Part are sports bets:} the players who bet on sports (providers 58 and 50) have 7 times more sessions over 1 day (0.57\% against 0.08\%) and hold 64\% of the cases; the other 36\% is casino.}}
+{\pts{\item \textbf{Table (deduced):} $\bar d = \operatorname{mean}_{s} (b_s - a_s)$ over 90 days, open sessions not closed.
+\item \textbf{Correct:} session = run of bets with no gap over 30~min; $\bar d = \operatorname{mean}\{t_{\text{last}} - t_{\text{first}} : n_s \ge 2\}$; one-bet sessions counted apart.}}
+{\pts{\item Rebuild the sessions from each bet: only 0.3\% stay outside the range (mean per player) and the median hardly changes (25 vs 28~min).
+\item Note: even then there are sessions of up to 30~h of non-stop play, probably automatic.
+\item Separate the sports bets (providers 58 and 50) before building the sessions: a sports bet stays open until the match ends.}}
+{\fig{fig:session_avg}, \fig{fig:session_median}, \fig{fig:session_brands}, \fig{fig:session_checks}, \fig{fig:session_days}, \fig{fig:sessions_products}.}
+
+\issue{it:gap}{\prioM\ \code{tp_avg_session_gap_hours}}
+{\pts{\item \textbf{Negative gaps:} 0.91\% of the rows, down to $-262$~h; a session starts before the previous one ends.
+\item \textbf{Where:} every day and every brand, more in 72 and 73.
+\item \textbf{Not sports:} 60\% of the negative gaps are of players who only play casino (0.70\% of their rows).}}
+{\pts{\item \textbf{Definition:} $g_s = a_{s+1} - b_s$.
+\item \textbf{Correct:} with the 30-minute cut, always $g_s > 30$~min.}}
+{\pts{\item Calculate the gap with the rebuilt sessions.}}
+{\fig{fig:session_checks}, \fig{fig:sessions_products}.}
+
+\issue{it:playsecs}{\prioM\ \code{play_secs_today}, \code{play_secs_l7d}, \code{play_secs_l30d}, \code{play_secs_l90d}, \code{play_secs_l180d}}
+{\pts{\item \textbf{More time than the day has:} 3.7\% of the days with play go over 24~h (6.0\% in brand 73).
+\item \textbf{Maximum:} 26 million seconds (305 days) in September; 210 million in the history.
+\item \textbf{Affects:} \code{engagement_score} and \code{session_intensity_score}.
+\item \textbf{Mostly sports:} the days with sports bets go over 24~h in 13.9\% to 14.6\% of the rows, against 1.05\% of the casino-only days, and hold 77\% of the cases. In casino, the error of adding up games played at the same time is left.}}
+{\pts{\item \textbf{Table (hypothesis):} sum per game, $\sum_j \text{secs}_{j,d}$, so games played at the same time count twice.
+\item \textbf{Correct:} the union of the session intervals of the day, $\bigl|\bigcup_s [a_s, b_s] \cap d\bigr| \le 86\,400$~s.}}
+{\pts{\item Calculate it with the rebuilt sessions of each day.
+\item Do not compute the time of play of sports bets: in sports it measures how long the bet is open.}}
+{\fig{fig:session_checks}, \fig{fig:sessions_products}.}
+
+\issue{it:night}{\prioM\ \code{tp_night_index}}
+{\pts{\item \textbf{Not a share:} it reaches 4, with values on $4/k$ (4, 2, 4/3, 1\ldots).
+\item \textbf{How much:} 8.1\% of the rows are above 1.
+\item \textbf{Also:} the night hours or the time zone seem different (median 0.20 vs 0.41).}}
+{\pts{\item \textbf{Table:} $\dfrac{S_{\text{night}}/S}{6/24}$, an index against an even spread.
+\item \textbf{Correct (M127):} $S_{\text{night}}/S \in [0,1]$, from 00:00 to 06:00 local time.}}
+{\pts{\item Calculate it as a share, from each bet.}}
+{\fig{fig:tp_scale}, \fig{fig:tp_above}, \fig{fig:night}, \fig{fig:night_days}.}
+
+\issue{it:rgnight}{\prioM\ \code{rg_night_play_ratio}}
+{\pts{\item \textbf{It should be equal to} \code{tp_night_index}, but it only matches in 91.5\% of the rows.
+\item \textbf{It looks like} a version capped at 1.
+\item \textbf{Affects:} \code{risk_score}.}}
+{\pts{\item \textbf{Workbook:} $S_{\text{night}}/S$.
+\item \textbf{Table:} always in $[0,1]$, but different from \code{tp_night_index}.}}
+{\pts{\item Replace it with the recomputed night share (point~\ref{it:night}).}}
+{Annex~\ref{sec:columns}: it matches \code{tp_night_index} in 91.5\% of the rows.}
+
+\issue{it:weekend}{\prioM\ \code{tp_weekend_index}}
+{\pts{\item \textbf{Not a share:} it reaches 3.5, with values on $3.5/k$.
+\item \textbf{How much:} 23.4\% of the rows are above 1.}}
+{\pts{\item \textbf{Table:} $\dfrac{S_{\text{weekend}}/S}{2/7}$.
+\item \textbf{Correct (M147):} $S_{\text{Saturday and Sunday}}/S \in [0,1]$, local time.}}
+{\pts{\item Calculate it as a share. Multiplying the table by 2/7 already gives almost the same (median 0.40 vs 0.41).}}
+{\fig{fig:tp_scale}, \fig{fig:tp_above}, \fig{fig:weekend}.}
+
+\issue{it:entropy}{\prioM\ \code{tp_hourly_entropy}}
+{\pts{\item \textbf{Wrong scale:} it is in bits and not normalised; it reaches 4.56.
+\item \textbf{How much:} 27.8\% of the rows are above 1 (the workbook says 0--1).
+\item \textbf{Evidence of the base:} exact masses at $\log_2 2 = 1$, $\log_2 3 = 1.585$, $\log_2 4 = 2$, and none at $\ln 2$ or $\ln 3$.}}
+{\pts{\item \textbf{Table:} $H = -\sum_h p_h \log_2 p_h \in [0, 4.58]$.
+\item \textbf{Correct:} $H / \log_2 24 \in [0,1]$, with $p_h = S_{\text{hour } h}/S$ in local time.}}
+{\pts{\item Divide by $\log_2 24$, or calculate it from each bet (median 0.53 vs 0.47).}}
+{\fig{fig:tp_scale}, \fig{fig:tp_above}, \fig{fig:entropy}.}
+
+\issue{it:depositrecency}{\prioM\ \code{deposit_recency_score}}
+{\pts{\item \textbf{It measures the wrong thing:} it is a deposit score, but it uses the days since the \emph{last bet} (\code{days_since_bet}), not since the \emph{last deposit}.
+\item \textbf{Example:} a player who bets every day but has not deposited for two months looks as if they deposited yesterday.
+\item \textbf{The error is in the workbook definition,} not in the table: the table follows that formula.
+\item \textbf{It also has the leak} of \code{days_since_bet} (point~\ref{it:recency}).}}
+{\pts{\item \textbf{Workbook (M113) and table:} 100 if there is a deposit today; otherwise $100\,(1 - \min(1, \text{days\_since\_bet}/30))$.
+\item \textbf{Correct:} the same with the days since the last deposit.}}
+{\pts{\item Calculate the days since the last deposit with the payments table.}}
+{Annex~\ref{sec:columns}: it follows its formula; the error is in the input.}
+
+\issue{it:tenure}{\prioM\ \code{tenure_days}}
+{\pts{\item \textbf{In short:} until July 2026 it was wrong for about 8 in 10 players; since September it moves forward correctly.
+\item \textbf{Evidence:} between two snapshots it must grow by the days in between; until July only 11\%--33\% do. On 1 August it jumps 10--16 days too many.
+\item \textbf{Notes:} (1) the old snapshots are still wrong; (2) moving forward correctly does not mean the value is correct; (3) the churn model does not use it: it calculates its own.}}
+{\pts{\item \textbf{Correct:} $T_D = D - \min\{d : \text{active day}\}$, so $T_{D_2} - T_{D_1} = D_2 - D_1$.}}
+{\pts{\item Calculate it with the daily activity up to the date.
+\item Compare the values since September with that tenure.}}
+{\fig{fig:tenure}.}
+
+\issue{it:recencypressure}{\prioM\ \code{recency_pressure} (\code{recency_score} in the workbook)}
+{\pts{\item \textbf{Stuck at the top:} it is 100 in 91.8\% of the rows, so it hardly separates players.
+\item \textbf{Type:} a design problem, not a calculation error.}}
+{\pts{\item \textbf{Workbook:} $\min\bigl(100, 100\,\text{days\_since\_bet} / \max(\tilde g, 3)\bigr)$, with $\tilde g$ the typical gap; it reaches 100 after 3 days without a bet.}}
+{\pts{\item Use the ratio with no cap ($\text{days without a bet}/\tilde g$), or the recency in days.}}
+{\fig{fig:index_limits}.}
+
+\issue{it:brand}{\prioM\ \code{brand_id}}
+{\pts{\item \textbf{Empty:} 100\% until 5 July 2026, 99\% in July and 31\%--33\% from 1 August.}}
+{}
+{\pts{\item Take the brand of the player from \code{gld_player_gaming_daily} or from the activity cache (each player has only one).}}
+{\fig{fig:brand}.}
+
+\issue{it:codes}{\prioM\ \code{country}, \code{language}, \code{currency}: empty}
+{\pts{\item \textbf{Always empty:} \code{country} and \code{language} are empty text in 100\% of the rows, in every brand.
+\item \textbf{Almost always empty:} \code{currency}, in 85\% to 89\% of the rows.
+\item \textbf{The format of what is there is right:} upper case, 3 letters (USDT, 4), no mix such as TR and tr.}}
+{\pts{\item \textbf{Expected:} an ISO code in upper case, and NULL (not empty text) when it is not known.}}
+{\pts{\item Fill them from the players table, or leave NULL when it is not known.}}
+{\fig{fig:empty_codes}.}
+
+\end{enumerate}
+
+\section{Low Priority}
+Few rows, only the history, or a format detail.
+\begin{enumerate}[resume*=issues]
+
+\issue{it:peak}{\prioB\ \code{top_peak_hour}, \code{top_peak_day}}
+{\pts{\item \textbf{Unclear default value:} 0 in 75\% and 77\% of the rows.
+\item \textbf{Problem:} 0 is also midnight and a real day, so ``no data'' cannot be told apart.}}
+{\pts{\item \textbf{Table:} $\arg\max_h S_{\text{hour } h}$, and 0 if $S = 0$.
+\item \textbf{Correct:} NULL if $S = 0$.}}
+{\pts{\item Leave it empty (NULL) when there is no data.}}
+{\fig{fig:index_limits}.}
+
+\issue{it:hold}{\prioB\ \code{hold_pct_l30d}}
+{\pts{\item \textbf{Over 100\% (impossible):} 479 days of the history, up to 6551\%; in the five brands, 232 rows from 17 June to 17 August 2026, almost all in brand 72.
+\item \textbf{Likely cause:} negative wins (\code{won_eur_l30d} down to $-747$\eur).
+\item \textbf{Noise with few bets:} the mass at 100\% is players who won nothing; 80\% of them have 5 bets or fewer.
+\item \textbf{The bar at $-100\%$} in the distributions is not a peak: it adds up every value below $-100\%$ (0.63\% of the rows), which in fact spread down to $-300\%$ and beyond.}}
+{\pts{\item \textbf{Definition:} $h = 100\,(S - P)/S$, so $h > 100$ only if $P < 0$.}}
+{\pts{\item Calculate it only with $S > 0$ and $P \ge 0$.}}
+{\fig{fig:hold_history}, \fig{fig:hold_edge}, \fig{fig:hold_bets}, \fig{fig:hold_days}.}
+
+\issue{it:depfreq}{\prioB\ \code{deposit_frequency_score}}
+{\pts{\item \textbf{Empty before 2026:} the payments table has almost no deposits before that.}}
+{}
+{\pts{\item Do not use it in the history.}}
+{Annex~\ref{sec:columns}.}
+
+\issue{it:units}{\prioB\ Units of the scores in the workbook}
+{\pts{\item \textbf{The workbook says 0--1} for every score; the table uses 0 to 100 (so does the rule of M107).}}
+{}
+{\pts{\item Fix the unit in the workbook.}}
+{\fig{fig:index_limits}.}
+
+\issue{it:tax}{\prioB\ \code{tax_eur_*}: always 0}
+{\pts{\item \textbf{No tax:} the 27.1 million rows of September are 0 (not NULL) for the day, 90 and 180 days; the 7- and 30-day windows are their sum, also 0.
+\item \textbf{Result:} I cannot check that the tax is a logical share of the GGR.}}
+{\pts{\item \textbf{Expected:} $0 < \text{tax} \le \text{GGR}$, a fixed share of the GGR (for example 10\% to 20\%).}}
+{\pts{\item Confirm whether these brands have a tax on the stake; if not, document it; if they do, the source does not send it.}}
+{Annex~\ref{sec:checks}.}
+
+\end{enumerate}
+
+\section{Pending the Definition (Unconfirmed)}
+The workbook does not give the full definition, so they cannot be checked.
+\begin{enumerate}[resume*=issues]
+
+\issue{it:ngr}{\prioQ\ \code{ngr_eur_today}, \code{ngr_eur_l7d}, \code{ngr_eur_l30d}, \code{ngr_eur_l90d}, \code{ngr_eur_l180d}}
+{\pts{\item \textbf{It matches} in 79\% (180 days) to 99\% (today) of the rows; the table is lower.
+\item \textbf{Its windows are} the sum of its daily value.}}
+{\pts{\item \textbf{Workbook:} ``GGR minus the bonus cost and the taxes'', with no definition of the bonus cost.}}
+{\pts{\item It cannot be checked without the definition of the bonus cost.}}
+{Annex~\ref{sec:columns}.}
+
+\issue{it:prior}{\prioQ\ \code{prior_churn_score}, \code{prior_engagement_score}, \code{prior_risk_score}, \code{prior_betting_aggression_score}}
+{\pts{\item \textbf{They are not the value of 7 days before:} they match in 49\% to 93\% of the rows.
+\item \textbf{The \code{prior_*} of amounts and counts are} exactly the window before.}}
+{\pts{\item \textbf{Workbook:} it does not say from which date the previous value is.}}
+{\pts{\item It cannot be checked without that date.}}
+{Annex~\ref{sec:columns}.}
+
+\issue{it:z}{\prioQ\ \code{bet_z_score}, \code{session_len_z}}
+{\pts{\item \textbf{With the mean and the deviation per brand} they match in 0\%--0.3\% of the rows.
+\item \textbf{The scores built on them} (\code{risk_appetite_score}, \code{betting_aggression_score}) do follow their formula.}}
+{\pts{\item \textbf{Workbook:} $z = (x - \mu)/\sigma$ ``of the tenant'', without saying which players.}}
+{\pts{\item It cannot be checked without knowing which players and which group are used.}}
+{Annex~\ref{sec:columns}.}
+
+\end{enumerate}
+
+\section{Impossible and Suspicious Values, by Brand and Day}\label{sec:flags}
+
+\textbf{Why it matters.} An \emph{impossible} value (a share above 1, a session of more than a day) cannot come from real data: it is direct evidence that something is calculated wrong. A \emph{suspicious} value is possible but very rare (more than 50 deposits in a day) and needs a check. Looking at them by brand and day shows where the problem comes from:
+\begin{itemize}
+  \item \textbf{In every brand and every day} $\Rightarrow$ it is a calculation error.
+  \item \textbf{Only in one brand or on some days} $\Rightarrow$ it is a specific problem (some data, a release, some players) or real behaviour to check.
+\end{itemize}
+
+\begin{footnotesize}
+\setlength{\tabcolsep}{2pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.5cm}l>{\raggedright\arraybackslash}p{2.1cm}rrrrrrrrlr@{}}
+\caption{Impossible and suspicious values: rows, \% in all brands and in each brand, days with any, and first and last day; the darker the cell, the higher the \% (from 0.1\%, 1\%, 5\%, 10\% and 20\%). Columns of the signals table: 1 June to 15 October 2026; other metrics: September 2026.}\label{tab:flags}\\
+\toprule
+& & & & \multicolumn{6}{c}{\% of rows} & \multicolumn{2}{c}{Days} & \\
+\cmidrule(lr){5-10}\cmidrule(lr){11-12}
+Variable & Type & Rule & Rows & All & 14 & 23 & 64 & 72 & 73 & N & Period & Fig.\\
+\midrule
+\endfirsthead
+\toprule
+Variable & Type & Rule & Rows & All & 14 & 23 & 64 & 72 & 73 & N & Period & Fig.\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\input{valores_raros_en}
+\end{longtable}
+\end{footnotesize}
+
+\textbf{What they show} (the maps per day and brand are in the annex, figures~\ref{fig:days_weekend_index} to \ref{fig:susp_wagered_eur_l30d}):
+\begin{itemize}
+  \item \textbf{Time of play: a calculation error.} Night, weekend and entropy above 1, sessions over a day and negative gaps appear \textbf{in all five brands and on all 102 days} since 6 July 2026. It does not depend on the brand or the day: the formula is wrong.
+  \item \textbf{Suspicious sessions (1~s, or 4 to 24~h): also in every brand.} Between 3\% and 14\% of the rows, every day; brand 73 is the worst.
+  \item \textbf{\code{hold_pct_l30d} above 100\%: a specific problem.} Only 232 rows, from 17 June to 17 August 2026, almost all in brand 72; none after that. It points to some data with negative wins that no longer appear.
+  \item \textbf{Extreme deposits and bets: a few players to check.} More than 50 deposits in a day only in brands 72 and 73 (43 cases); mean deposits over 100\,000~€ only in brand 73 (9 cases, in EUR); more than 20\,000 bets in a day in every brand (111 cases, mostly in lira), typical of autoplay or bots. These are single cases, not a calculation error, but the data team should look at them.
+\end{itemize}
+
+\clearpage
+\appendix
+\section{Annex: the Evidence}\label{sec:figures}
+The figures are grouped like the list. Each figure starts with its finding (bold) and how to read it: what each axis is and, when needed, the formula. Its caption says what it proves and links back to the point.
+
+\textbf{Calculation of each figure.} The caption gives the exact formula of what is drawn. $\#\{\ldots\}$: number of players (or rows) that meet the condition; $N$: all the players (or rows) of the group; $b$: one bar of the histogram; $y_b$: the value of that bar. So ``100\%'' means that every player of the group meets the condition.
+
+\textbf{Colours, the same in every figure.} Red line or bar: the signals table. Blue: the value recomputed from each bet, or the correct definition. Grey: a reference. Red zone: impossible values; orange zone: suspicious values. Each brand has the same colour in every figure.
+
+\group{Sessions and time of play}{Points~\ref{it:session}, \ref{it:gap} and \ref{it:playsecs}.
+\textbf{What I recompute.} With each bet of the raw transactions (\code{GAME_BET}, not rolled back): a \emph{session} is a run of bets of one player with no gap over 30 minutes; its \emph{length} is the last bet minus the first one; one-bet sessions have no length and are counted apart (in the table they show as 1~second). The mean per player in the month is compared with \code{tp_avg_session_duration_secs}.
+\textbf{What to look at.} The table (red) has a tail of sessions over 1 day (red zone, impossible) and of 4 to 24~h (orange zone, suspicious) that the recomputed version (blue) does not have; the centre of the two curves is the same.}
+\evidence{fig:session_avg}{1.0}{cmp_session_avg.png}{\textbf{Mean session length.} The centre of the two curves is the same; only the table has the tail over 4~h and over 1 day. Point~\ref{it:session}. \textbf{Calculation:} $y_b = 100\,\#\{p : \bar L_p \in b\} / N$, with $\bar L_p = \frac{1}{n_p}\sum_s (b_s - a_s)$ the mean length of the $n_p$ sessions of player $p$ and $N$ the players.}
+\evidence{fig:session_median}{1.0}{cmp_session_median.png}{\textbf{Median session length.} The same tail in the median. Point~\ref{it:session}. \textbf{Calculation:} the same, with the median $\tilde L_p = \operatorname{median}_s (b_s - a_s)$.}
+\evidence{fig:session_brands}{1.0}{session_brands.png}{\textbf{Brand by brand.} The tail is in all five brands (3.6\% to 13.0\% of players outside 10~s to 4~h in the table, 0.2\% to 0.3\% recomputed); brand 73 is the worst. Point~\ref{it:session}. \textbf{Calculation:} $y_b = 100\,\#\{p \in m : \bar L_p \in b\} / N_m$ for each brand $m$; the box is $100\,\#\{p \in m : \bar L_p \notin [10\text{ s}, 4\text{ h}]\} / N_m$.}
+\evidence{fig:session_checks}{1.0}{session_rules.png}{\textbf{Rules of a real session.} Every rule is broken in every brand: the error is in how the table builds the sessions, not in one brand. Points~\ref{it:session}, \ref{it:gap} and \ref{it:playsecs}. \textbf{Calculation:} each cell $= 100\,\#\{\text{rows of the brand that break the rule}\} / \#\{\text{rows of the brand}\}$.}
+\evidence{fig:sessions_products}{1.0}{sessions_products.png}{\textbf{Sports or casino.} Most of the time of play over 24~h and of the sessions over 1 day are sports bets; the negative gaps are mostly casino. Points~\ref{it:session}, \ref{it:gap} and \ref{it:playsecs}. \textbf{Calculation:} for each group $G$, $100\,\#\{\text{rows of } G \text{ with the impossible value}\} / \#\{\text{rows of } G\}$; below, $100\,\#\{\text{cases of } G\} / \#\{\text{cases}\}$. Sports: providers 58 and 50 of \code{gld_player_gaming_daily}.}
+\evidence{fig:session_days}{0.8}{days_session_duration_avg_secs.png}{\textbf{When and where.} Sessions over 1 day per day and brand, June to October 2026: in every brand, worst from 1 to 18 August. Point~\ref{it:session}.}
+
+\group{Night, weekend and entropy}{Points~\ref{it:night} to \ref{it:entropy}. In the workbook the three columns are shares, so they must be between 0 and 1: anything above 1 (red zone) is impossible. Also, the table values fall on exact fractions (dotted lines), which is the sign of an index against an even spread ($3.5/k$, $4/k$) or of an entropy in bits ($\log_2 k$).}
+\evidence{fig:tp_above}{1.0}{tp_above_brands.png}{\textbf{Brand by brand.} The same error in every brand. Points~\ref{it:night}, \ref{it:weekend} and \ref{it:entropy}. \textbf{Calculation:} $100\,\#\{\text{rows with } x > 1\} / N$, with $x$ the value of the column and $N$ the rows of the brand.}
+\evidence{fig:tp_scale}{1.0}{tp_scale.png}{\textbf{The scale.} The masses at $3.5/k$, $4/k$ and $\log_2 k$ show how the table builds each index. Points~\ref{it:night}, \ref{it:weekend} and \ref{it:entropy}. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / \#\{\text{rows with } x \neq 0\}$.}
+\evidence{fig:night}{1.0}{cmp_night.png}{\textbf{Night.} \code{tp_night_index} goes up to 4. Point~\ref{it:night}. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.}
+\evidence{fig:weekend}{1.0}{cmp_weekend.png}{\textbf{Weekend.} Up to 3.5. Point~\ref{it:weekend}. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.}
+\evidence{fig:entropy}{1.0}{cmp_entropy.png}{\textbf{Hourly entropy.} Up to 4.6, in bits. Point~\ref{it:entropy}. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.}
+\evidence{fig:night_days}{0.9}{days_night_index.png}{\textbf{Night above 1, per day and brand.} In every brand since 6 July. Points~\ref{it:night} and \ref{it:tpdays}.}
+
+\group{Coverage and freshness of time of play}{Point~\ref{it:tpdays}. A \emph{frozen day} is a day when the time-of-play columns are not updated: they have exactly the same number of rows with data and the same number of impossible values as the day before, to the unit, while the rest of the table (for example, \code{active_days_l30d}) does change. If they were updated, these numbers would change a little from day to day, as they do on every other day.}
+\evidence{fig:tp_daily}{1.0}{tp_daily.png}{\textbf{Three stages and frozen days.} The history of the \code{tp_*} columns is not usable, and the daily process needs a freshness check. Point~\ref{it:tpdays}. \textbf{Calculation:} top, $N_d$ = rows of day $d$ with a value; bottom, $100\,\#\{\text{rows of day } d \text{ with an impossible value}\} / N_d$.}
+
+\group{Recency: \code{days_since_bet}}{Points~\ref{it:recency} and \ref{it:churnscore}. In each snapshot of the table (date $D$), I compare \code{days_since_bet} with the real recency of each player: the days from their last bet up to $D$, from the daily activity. Empty until May 2026; after that it matches the recency of 7 days later, which is why it predicts the future almost perfectly.}
+\evidence{fig:recency_zero}{1.0}{recency_zero.png}{\textbf{Empty in the history.} Before the daily job the column has no information. Point~\ref{it:recency}. \textbf{Calculation:} $100\,\#\{p \in A_D : \text{days\_since\_bet}_p(D) = 0\} / \#A_D$, with $A_D$ the players with a bet in $(D-30, D]$.}
+\evidence{fig:recency_shift}{1.0}{recency_shift.png}{\textbf{Which day it looks at.} For 92\% of the players the column is the recency of 7 days later. Point~\ref{it:recency}. \textbf{Calculation:} $y(s) = 100\,\#\{p : \text{days\_since\_bet}_p(D) = R_p(D+s)\} / N$, with $R_p(X) = X - \max\{d \le X : p \text{ bets on day } d\}$; median of the brands and of the days $D$.}
+\evidence{fig:recency_proof}{1.0}{recency_auc.png}{\textbf{The effect on a model.} An AUC of 0.99 is impossible with data up to $D$. \code{churn_score} does not show the leak because it mixes other inputs. Points~\ref{it:recency} and \ref{it:churnscore}. \textbf{Calculation:} AUC of $-x_p$ for the label $y_p = 1$ if $p$ bets in $[D+1, D+7]$, with $x_p$ = \code{days_since_bet}, $R_p(D)$ or \code{churn_score}.}
+
+\group{Active days and tenure}{Points~\ref{it:activedays} and \ref{it:tenure}. The table counts the days with any wallet (almost 100\% match), not the official active days; tenure does not grow day by day until August 2026.}
+\evidence{fig:active_match}{1.0}{active_match.png}{\textbf{Which definition it uses.} The table follows the count with any wallet (96\% to 100\% of players), not the official one. Point~\ref{it:activedays}. \textbf{Calculation:} blue $= 100\,\#\{p : A^{\text{table}}_p = A^{\text{official}}_p\} / N$; red, the same with $A^{\text{any wallet}}_p$; median of the brands and of the snapshots.}
+\evidence{fig:false_actives}{1.0}{false_actives.png}{\textbf{False actives.} 17\% to 34\% of the recent players. Point~\ref{it:activedays}. \textbf{Calculation:} $100\,\#\{p : \sum_d (W^r_d + W^l_d) = 0,\ \sum_d W^j_d > 0\} / \#\{p : \text{a bet in the 30 days}\}$.}
+\evidence{fig:tenure}{1.0}{tenure.png}{\textbf{Tenure.} Before the daily job it did not grow with time (11\% to 33\% of the players), on 1 August none grew as it must, and since September it grows correctly (100\%). Point~\ref{it:tenure}. \textbf{Calculation:} $100\,\#\{p : |T_p(D_2) - T_p(D_1) - (D_2 - D_1)| \le 1\} / N$ for each brand and each pair of consecutive monthly snapshots $D_1, D_2$.}
+
+\group{Scores and indices}{Points~\ref{it:valuedecline}, \ref{it:recencypressure}, \ref{it:peak} and \ref{it:units}. Distribution of each column between its limits, per brand; the red bands are the values outside them.}
+\evidence{fig:index_limits}{1.0}{index_limits.png}{\textbf{Limits and default values.} Points~\ref{it:valuedecline}, \ref{it:recencypressure}, \ref{it:peak} and \ref{it:units}. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.}
+
+\group{\code{hold_pct_l30d}}{Point~\ref{it:hold}. Above 100\% in the history, with negative wins; the mass at 100\% is players with few bets, and the bar at $-100\%$ adds up every value below $-100\%$.}
+\evidence{fig:hold_history}{1.0}{hold_history.png}{\textbf{History.} The days with a hold above 100\% are the days with negative wins. Point~\ref{it:hold}. \textbf{Calculation:} left, $\max_p h_p$ of each daily file; right, $\min_p P_p$.}
+\evidence{fig:hold_edge}{1.0}{hold_edge.png}{\textbf{The bar at $-100\%$.} It adds up every value below $-100\%$; spread in bars of one point, there is no peak at $-100\%$. Point~\ref{it:hold}. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } h \in b\} / N$.}
+\evidence{fig:hold_bets}{1.0}{hold_bets.png}{\textbf{By number of bets.} The extreme holds come from players with few bets. Point~\ref{it:hold}. \textbf{Calculation:} $100\,\#\{\text{rows of the group with } h = 100\} / \#\{\text{rows of the group}\}$, and the same with $h < -100$.}
+\evidence{fig:hold_days}{0.75}{days_hold_pct_l30d.png}{\textbf{Above 100\%, per day and brand.} From 17 June to 17 August 2026, almost all in brand 72. Point~\ref{it:hold}.}
+
+\group{Impossible and suspicious values, per day and brand}{Section~\ref{sec:flags}. Each map is one variable: rows = brands (the first one, all together), columns = days; the colour is the \% of rows of that day and brand that break the rule (white, 0\%; grey, no data). A band of colour in all rows and all days is a calculation error; single spots are specific cases.}
+\evidence{fig:days_weekend_index}{0.72}{days_weekend_index.png}{\textbf{Impossible: \code{tp_weekend_index} above 1.} Section~\ref{sec:flags}.}
+\evidence{fig:days_hourly_entropy}{0.72}{days_hourly_entropy.png}{\textbf{Impossible: \code{tp_hourly_entropy} above 1.} Section~\ref{sec:flags}.}
+\evidence{fig:days_median_session_duration_secs}{0.72}{days_median_session_duration_secs.png}{\textbf{Impossible: median session over 1 day.} Section~\ref{sec:flags}.}
+\evidence{fig:days_session_gap_avg_hours}{0.72}{days_session_gap_avg_hours.png}{\textbf{Impossible: negative gap between sessions.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_session_duration_avg_secs}{0.72}{susp_session_duration_avg_secs.png}{\textbf{Suspicious: mean session of 1~s or of 4 to 24~h.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_median_session_duration_secs}{0.72}{susp_median_session_duration_secs.png}{\textbf{Suspicious: median session of 1~s or of 4 to 24~h.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_session_gap_avg_hours}{0.72}{susp_session_gap_avg_hours.png}{\textbf{Suspicious: gap between sessions under 30~min.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_hold_pct_l30d}{0.72}{susp_hold_pct_l30d.png}{\textbf{Suspicious: hold below $-1000\%$.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_deposits_per_day}{0.72}{susp_deposits_per_day.png}{\textbf{Suspicious: more than 50 deposits in a day.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_deposit_size_eur}{0.72}{susp_deposit_size_eur.png}{\textbf{Suspicious: mean deposit over 100\,000~€.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_bets_per_active_day}{0.72}{susp_bets_per_active_day.png}{\textbf{Suspicious: more than 20\,000 bets in a day.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_sessions_per_active_day}{0.72}{susp_sessions_per_active_day.png}{\textbf{Suspicious: more than 20 sessions in a day.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_turnover_player_day}{0.72}{susp_turnover_player_day.png}{\textbf{Suspicious: turnover over 1~M€ in a day.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_avg_bet_eur_l30d}{0.72}{susp_avg_bet_eur_l30d.png}{\textbf{Suspicious: mean bet over 10\,000~€.} Section~\ref{sec:flags}.}
+\evidence{fig:susp_wagered_eur_l30d}{0.72}{susp_wagered_eur_l30d.png}{\textbf{Suspicious: more than 10~M€ staked in 30 days.} Section~\ref{sec:flags}.}
+
+\group{Keys: \code{brand_id}}{Point~\ref{it:brand}. Metadata of all daily files, all operators.}
+\evidence{fig:brand}{1.0}{missing_brand_id.png}{\textbf{Empty \code{brand_id}.} Point~\ref{it:brand}. \textbf{Calculation:} $100\,\#\{\text{rows with an empty brand\_id}\} / \#\{\text{rows}\}$ of each daily file.}
+
+\group{Codes and categories}{Point~\ref{it:codes} and criterion~2 (distribution). Every day of September 2026, the five brands.}
+\evidence{fig:empty_codes}{1.0}{empty_codes.png}{\textbf{Empty codes.} Point~\ref{it:codes}. \textbf{Calculation:} $100\,\#\{\text{rows with an empty value}\} / N_m$ per brand $m$.}
+\evidence{fig:categories}{1.0}{categories.png}{\textbf{Tiers and bands: right.} Not uniform: the value and risk levels fall from the first to the last, as expected. \emph{Not Scored} are players without enough data to compute the score. Criterion~2. \textbf{Calculation:} $y_v = 100\,\#\{\text{rows with the value } v\} / N$.}
+
+\clearpage
+\section{Annex: the 165 Columns and Their Checks}\label{sec:columns}\label{sec:checks}
+The 165 columns and their 210 checks, sorted by status and, the wrong ones, by the priority of their point. Each column is on a grey or white band, with its name, its status and, if it is in the list, the priority and number of its point, once. \emph{Rule}: the one that runs, DuckDB SQL on the columns of the table. \emph{Pass}: \% of the rows of the two snapshots that meet the rule (criterion 3), empty if it is not calculated here; green if it passes ($\ge 99\%$), orange if almost ($95\%$ to $99\%$) and red if it fails. A wrong column can pass its checks at 100\%: the error is in its definition or in an input, and it shows when it is compared with the daily tables.
+
+\begin{small}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{4.0cm}r@{}}
+\toprule
+Column & Status and point & Kind & Rule & Pass (\%)\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\csname @@input\endcsname comprobaciones_en   % expandable \input: the rows start with \rowcolor
+\end{longtable}
+\end{small}
+
+\end{document}

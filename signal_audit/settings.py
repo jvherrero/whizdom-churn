@@ -1,8 +1,9 @@
-"""The run of the audit (AUDIT_RUN, default lake): runs/<run>.yaml gives the table, its dates and its catalogue.
+"""The folders of signal_audit and the run of the audit (AUDIT_RUN, default lake): config/runs/<run>.yaml gives
+the table, its dates and its catalogue.
 
 The audit always calls the table gld_player_signals_daily; a run changes where its files come from (the lake,
-or a local copy of a ClickHouse table) and where the results go (runs/<run>/; the lake run keeps its cache in
-cache/, shared with the notebooks). Importing it sets LOCAL_TABLES and SIGNALS_CACHE_DIR for src/features.
+or a local copy of a ClickHouse table) and where the results go (output/runs/<run>/; the lake run keeps its cache
+in output/cache/, shared with the notebooks). Importing it sets LOCAL_TABLES and SIGNALS_CACHE_DIR for src/features.
 """
 
 from __future__ import annotations
@@ -16,9 +17,13 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent
+CONFIG = HERE / "config"                     # every YAML; config/runs/ has one file per run
+OUTPUT = HERE / "output"                     # everything generated, outside git
+REPORTS = HERE / "reports"                   # the documents: reports/signals_daily, reports/gaming_daily
+TEMPLATES = HERE / "report" / "templates"
 TABLE = "gld_player_signals_daily"
 NAME = os.environ.get("AUDIT_RUN", "lake")
-RUN = yaml.safe_load((HERE / "runs" / f"{NAME}.yaml").read_text(encoding="utf-8"))
+RUN = yaml.safe_load((CONFIG / "runs" / f"{NAME}.yaml").read_text(encoding="utf-8"))
 
 
 def _day(v) -> dt.date:
@@ -38,15 +43,15 @@ MONTH_STARTS = [d.date() for d in pd.date_range(HISTORY_START, max(PERIOD["end"]
 LIVE_FROM = _day(RUN["live_from"]) if RUN.get("live_from") else None   # start of the daily process, when known
 TP_EVENTS = {_day(d): text for d, text in (RUN.get("tp_events") or {}).items()}   # notes on the time-of-play figure
 
-CHECKS = HERE / RUN.get("checks", "signal_checks.yaml")          # the checks of each column
+CHECKS = CONFIG / RUN.get("checks", "signal_checks.yaml")          # the checks of each column
 CATALOGUE = "checks" in RUN       # a table with its own catalogue: a report by checks, not the 25 points
 CONTRACT = PROJECT_ROOT / RUN.get("contract", "configs/contracts/lake/gld_player_signals_daily.yaml")
 
-ROOT = HERE / "runs" / NAME
-FIGURES, TEX = ROOT / "figures", ROOT / "informe"
-RECOMPUTED = HERE / "cache" / "recomputed"                       # sessions from landing: the same for every run
+ROOT = OUTPUT / "runs" / NAME
+FIGURES, TEX = ROOT / "figures", ROOT / "informe"                # the automatic report of the run
+RECOMPUTED = OUTPUT / "cache" / "recomputed"                     # sessions from landing: the same for every run
 if NAME == "lake":
-    CACHE = HERE / "cache"
+    CACHE = OUTPUT / "cache"
     FOOTERS = PROJECT_ROOT / "data/02_intermediate/profile_tables/footers"
 else:
     CACHE = ROOT / "cache"

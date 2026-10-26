@@ -6,20 +6,17 @@ checks. No S3, no ClickHouse.
 """
 
 import datetime as dt
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import check_report  # noqa: E402
-import clickhouse_mirror as cm  # noqa: E402
-import formula_check as fc  # noqa: E402
-import recompute_signal as rs  # noqa: E402
+from signal_audit.report import check_report
+from signal_audit.data import clickhouse_mirror as cm
+from signal_audit.checks import formula_check as fc
+from signal_audit.checks import recompute_signal as rs
 
 D = dt.date(2026, 9, 15)
-CATALOGUE = Path(rs.__file__).parent / "player_signal_checks.yaml"
+CATALOGUE = rs.settings.CONFIG / "player_signal_checks.yaml"
 KEY = ["tenant_id", "player_id"]
 
 

@@ -1,0 +1,77 @@
+% Packages and macros of the automatic reports (report.py, check_report.py), English; the same as
+% reports/signals_daily/signal_table_errors.tex.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[english]{babel}
+\usepackage[a4paper,margin=2.1cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{titlesec}
+\usepackage[font=small,labelfont=bf,skip=4pt,justification=raggedright,singlelinecheck=false]{caption}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,urlcolor=MidnightBlue]{hyperref}
+\PassOptionsToPackage{obeyspaces}{url}
+\usepackage{xurl}
+\urlstyle{tt}
+
+\graphicspath{{../figures/}}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\titlespacing*{\section}{0pt}{12pt}{4pt}
+\titlespacing*{\subsection}{0pt}{10pt}{2pt}
+
+% A column or file name, which may break at any character
+\DeclareRobustCommand{\code}[1]{\path{#1}}
+% Link to a figure of the annex: "Fig. N"
+\newcommand{\fig}[1]{\hyperref[#1]{Fig.~\ref*{#1}}}
+% Status of a column
+\newcommand{\stWrong}{\textcolor{BrickRed}{\textbf{Wrong}}}
+\newcommand{\stAffected}{\textcolor{BurntOrange}{\textbf{Affected}}}
+\newcommand{\stUnconfirmed}{\textcolor{Plum}{\textbf{Unconfirmed}}}
+\newcommand{\stCorrect}{\textcolor{ForestGreen!70!black}{\textbf{Pass}}}
+\newcommand{\stWrongFlag}{\textcolor{BrickRed}{\textbf{Impossible}}}
+\newcommand{\stSuspFlag}{\textcolor{BurntOrange}{\textbf{Suspicious}}}
+\newcommand{\stUnchecked}{\textcolor{gray}{\textbf{Not checkable}}}
+% One error: label, column(s), what is wrong, definition (table against the right one; may be empty),
+% the proposal, the evidence
+\newcommand{\issue}[6]{%
+  \needspace{8\baselineskip}\item\label{#1}\textbf{#2}\par
+  \begin{tabular}{@{}p{2.3cm}@{}p{\dimexpr\linewidth-2.3cm}@{}}
+    \textcolor{BrickRed}{\textbf{Error}} & #3\\[2pt]
+    \if\relax\detokenize{#4}\relax\else\textcolor{Plum}{\textbf{Definition}} & #4\\[2pt]\fi
+    \textcolor{ForestGreen!70!black}{\textbf{Proposal}} & #5\\[2pt]
+    \textcolor{MidnightBlue}{\textbf{Evidence}} & #6
+  \end{tabular}\par\vspace{5pt}}
+% A figure of the annex
+\newcommand{\evidence}[4]{%
+  \begin{figure}[H]\centering
+    \includegraphics[width=#2\linewidth]{#3}
+    \caption{#4}\label{#1}
+  \end{figure}}
+\newcommand{\eur}{\,\text{€}}
+% A short list inside a field of a point
+\newcommand{\pts}[1]{\begin{minipage}[t]{\linewidth}\vspace{-0.42\baselineskip}\begin{itemize}[nosep,leftmargin=1.1em,label=\textbullet,topsep=0pt,partopsep=0pt]#1\end{itemize}\strut\end{minipage}}
+% Priority of a point
+\newcommand{\badge}[2]{\colorbox{#1}{\textcolor{white}{\scriptsize\textbf{\,#2\,}}}}
+\newcommand{\prioA}{\badge{BrickRed}{HIGH}}
+\newcommand{\prioM}{\badge{BurntOrange}{MEDIUM}}
+\newcommand{\prioB}{\badge{gray}{LOW}}
+\newcommand{\prioQ}{\badge{Plum}{NO DEFINITION}}
+% A group of the annex: a heading and what to look for
+\newcommand{\group}[2]{\needspace{6\baselineskip}\subsection*{#1}{\small #2}\par\vspace{2pt}}
+% Two figures side by side, each with its own number and caption
+\newcommand{\pair}[6]{%
+  \begin{figure}[H]\centering
+    \begin{minipage}[t]{0.485\linewidth}\centering
+      \includegraphics[width=\linewidth]{#2}\captionof{figure}{#3}\label{#1}\end{minipage}\hfill
+    \begin{minipage}[t]{0.485\linewidth}\centering
+      \includegraphics[width=\linewidth]{#5}\captionof{figure}{#6}\label{#4}\end{minipage}
+  \end{figure}}

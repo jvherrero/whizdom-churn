@@ -5,16 +5,13 @@ and hold checks on a small synthetic signals table.
 """
 
 import datetime as dt
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import audit  # noqa: E402
-import evidence as ev  # noqa: E402
+from signal_audit.data import audit
+from signal_audit.checks import evidence as ev
 
 D = [dt.date(2026, 8, 20) + dt.timedelta(days=i) for i in range(4)]
 
