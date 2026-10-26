@@ -730,146 +730,104 @@ def daily_extremes(ext: pd.DataFrame, columns: list[str], limits: dict, axes):
 # ---------------------------------------------------------------- a table with its own catalogue (check_report.py)
 
 def coverage(rows: pd.DataFrame, axes):
-    """Top: rows per day and brand. Bottom: % of them with has_sufficient_data = 1."""
+    """Top: rows per day, the five largest brands in colour and the others added up in grey. Bottom: % of those rows
+    with has_sufficient_data = 1."""
     import matplotlib.dates as mdates
-    for b, g in rows.groupby("brand_id"):
-        g = g.sort_values("day")
-        colour = BRAND_C.get(str(b), REF_C)
-        axes[0].plot(pd.to_datetime(g["day"]), g["rows"] / 1000, marker="o", ms=3, lw=1.5, color=colour, label=f"brand {b}")
-        axes[1].plot(pd.to_datetime(g["day"]), 100 * g["sufficient"], marker="o", ms=3, lw=1.5, color=colour)
-    axes[0].set(ylabel="thousand rows")
-    axes[1].set(ylabel="% with enough data\n(has_sufficient_data = 1)", ylim=(-2, 104), xlabel="day")
+    top = rows.groupby("brand_id")["rows"].sum().nlargest(5).index
+    colours = dict(zip(top, ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]))
+    groups = rows.assign(group=rows["brand_id"].where(rows["brand_id"].isin(top), -1), enough=rows["rows"] * rows["sufficient"])
+    g = groups.groupby(["group", "day"])[["rows", "enough"]].sum().reset_index()
+    for b, h in g.groupby("group"):
+        day = pd.to_datetime(h["day"])
+        name = f"brand {b}" if b != -1 else f"the other {rows['brand_id'].nunique() - len(top)} brands"
+        style = {"color": colours.get(b, REF_C), "marker": "o", "ms": 3.5, "lw": 1.7}
+        axes[0].plot(day, h["rows"] / 1000, label=name, **style)
+        axes[1].plot(day, 100 * h["enough"] / h["rows"], **style)
+    axes[0].set(ylabel="thousand rows", ylim=(0, None))
+    axes[1].set(ylabel="% of the rows with\nhas_sufficient_data = 1", ylim=(0, 105), xlabel="day")
     axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
-    axes[0].legend(ncol=5, loc="upper left")
+    axes[0].legend(loc="upper left", bbox_to_anchor=(1.01, 1.0))
 
-def match_heatmap(m: pd.DataFrame, ax):
-    """% of players where each recomputed column equals its rule with data up to day D + s, one row per column
-    (the variant of the active days that matches best). A correct column is dark at s = 0 only."""
-    g = m.groupby(["column", "variant", "shift"])[["n", "ok"]].sum()
-    pct = (100 * g["ok"] / g["n"].where(g["n"] > 0)).unstack("shift")
-    pct = pct.loc[pct.groupby(level="column").apply(lambda h: h.max(axis=1).idxmax())]
-    labels = [f"{c} ({v})" for c, v in pct.index]
-    im = ax.imshow(pct.to_numpy(float), aspect="auto", cmap="Blues", vmin=0, vmax=100)
-    for i in range(pct.shape[0]):
-        for j in range(pct.shape[1]):
-            v = pct.iat[i, j]
-            if pd.notna(v):
-                ax.text(j, i, f"{v:.0f}", ha="center", va="center", fontsize=7.5, color="white" if v > 60 else INK)
-    ax.set_xticks(range(pct.shape[1]), [str(s) for s in pct.columns])
-    ax.set_yticks(range(len(labels)), labels, fontsize=8)
-    ax.set_xlabel("shift s (days): the rule with data up to day D + s (s > 0: data from after the date)")
+
+def formula_vs_table(pairs: pd.DataFrame, bins: int, ax, title: str, formula: str, share: float):
+    """Rows per cell of (value of the formula, value in the table), on a log colour scale. The red line is what a
+    column that follows its formula would draw."""
+    import textwrap
+
+    from matplotlib.colors import LogNorm
+    grid = np.zeros((bins, bins))
+    grid[pairs["y"].to_numpy(), pairs["x"].to_numpy()] = pairs["n"].to_numpy()
+    pct = 100 * grid / grid.sum()
+    im = ax.imshow(np.ma.masked_equal(pct, 0), origin="lower", extent=(0, 1, 0, 1), cmap="Blues", aspect="equal",
+                   norm=LogNorm(vmin=pct[pct > 0].min(), vmax=pct.max()), interpolation="nearest")
+    ax.plot([0, 1], [0, 1], color=TABLE_C, lw=2, label="table = formula")
+    ax.text(0.03, 0.97, f"{share:.1f}% of the rows\nare on the red line", transform=ax.transAxes, va="top", fontsize=10.5,
+            weight="bold", color=TABLE_C, bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85})
+    ax.set_title(f"{title}\n" + textwrap.fill(f"= {formula}", 36), fontsize=10, loc="left")
+    ax.set(xlabel="value of the formula, from the columns of the same row", ylabel="value in the table",
+           xlim=(0, 1), ylim=(0, 1))
     ax.grid(False)
-    plt.colorbar(im, ax=ax, pad=0.01, label="% of players that match")
-
-def check_results(res: pd.DataFrame, ax):
-    """One bar per row check that fails: % of rows that meet the rule and, for a formula, % where the table is higher
-    or lower than the rule; for a limit, % that breaks it."""
-    labels = [f"{r['column']}\n({r['kind']})" for _, r in res.iterrows()]
-    y, left = np.arange(len(res)), np.zeros(len(res))
-    for col, colour, label in (("pass %", MINE_C, "meets the rule"), ("higher %", TABLE_C, "table above the rule"),
-                               ("lower %", OTHER_C, "table below the rule")):
-        v = res[col].fillna(0).to_numpy()
-        ax.barh(y, v, left=left, color=colour, label=label, height=0.6)
-        left += v
-    ax.barh(y, 100 - left, left=left, color=REF_C, label="outside the limits", height=0.6)
-    for i, v in enumerate(res["pass %"]):
-        ax.text(1, i, f"{v:.1f}% meets it", va="center", fontsize=8.5, color="white" if v > 15 else INK)
-    ax.set_yticks(y, labels, fontsize=8.5)
-    ax.invert_yaxis()
-    ax.set(xlim=(0, 100), xlabel="% of the rows of the snapshots")
-    ax.legend(ncol=4, loc="lower center", bbox_to_anchor=(0.5, 1.0))
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.03, label="% of the rows in each cell")
 
 
-# ================================================================ used by the notebooks only
-
-def compare_results(pairs: list[tuple[str, dict, dict]], ax=None, title: str = ""):
-    """Several versions of one signal on the same axes: (label, cfg, result) for each version. The
-    shaded area is outside the real-life range of the first one."""
-
-    ax = ax or plt.subplots(figsize=(8.5, 3.8))[1]
-    for (label, cfg, res), colour in zip(pairs, ("#b5452f", "#2f6f8f", "#e08e2b", "#7a7a7a")):
-        m = cfg["metrics"][res["metric"]]
-        h = res["hist"]
-        ax.step(h["x"], stats.density(h, m), where="mid", color=colour, lw=1.4,
-                label=f"{label} ({h['count'].sum():,} rows, {len(res['peaks'])} peak(s))")
-        if m["scale"] == "log":
-            _log_x(ax)
-        if m.get("log_y"):
-            ax.set_yscale("log")
-    first = pairs[0][1]["metrics"][pairs[0][2]["metric"]]
-    _shade_impossible(ax, first)
-    ax.set(title=title or pairs[0][2]["metric"], ylabel="density")
-    ax.legend(fontsize=7, loc="upper left")
-    return ax
-
-
-def rescaled(cfg: dict, rc_cfg: dict, table: str, mine: str, scale: float, label: str, ax):
-    """The table values times `scale` against the recomputed share, both without the zeros."""
-    edges = np.arange(0, 1.0201, 0.02)
-    for name, conf, s, colour, lab in ((table, cfg, scale, TABLE_C, f"signals table {label}"),
-                                       (mine, rc_cfg, 1.0, MINE_C, "recomputed from each bet")):
-        x, c = _bins(conf, name, s, drop_zero=True)
-        h, _ = np.histogram(np.clip(x, 0, 1.0199), bins=edges, weights=c)
-        ax.step(edges[:-1] + 0.01, 100 * h / h.sum(), where="mid", color=colour, lw=1.8, label=lab)
-    ax.set(xlim=(0, 1.02), ylabel="% of rows in each bar", xlabel="share (0 = none, 1 = all)")
-    ax.legend(loc="upper center")
-
-
-def overlay(series: list, ax, log_x: bool = False):
-    """Densities of several cached metrics on the same axes: [(cfg, metric, label, colour)]."""
-    for conf, name, label, colour in series:
-        m = conf["metrics"][name]
-        prof, hist = audit.metric_data(conf, name)
-        h = stats.complete(hist, m)
-        y = stats.density(h, m)
-        n_out = 100 * (prof["below_range"] + prof["above_range"]) / max(prof["n"], 1)
-        ax.step(h["x"], y, where="mid", color=colour, lw=1.6, label=f"{label} (outside 10 s to 4 h: {n_out:.1f}%)")
-    if log_x:
-        _log_x(ax)
-    ax.legend(fontsize=8)
+def limit_hist(h: pd.DataFrame, ax, title: str, lo: float | None, hi: float | None, share_out: float, compact: bool = False):
+    """Histogram of a column; the bars beyond a limit (impossible values) in red. The count of impossible rows is
+    written above the plot, not over the bars. `compact`: for a panel of many, only the name and, if there are
+    impossible rows, their share."""
+    bars, a, b = int(h["bars"].iloc[0]), h["a"].iloc[0], h["b"].iloc[0]
+    width = (b - a) / bars
+    left = a + h["bin"].to_numpy() * width
+    eps = width * 1e-6
+    outside = ((left + width <= lo + eps) if lo is not None else np.zeros(len(left), bool)) | \
+              ((left >= hi - eps) if hi is not None else np.zeros(len(left), bool))
+    share = 100 * h["n"] / h["n"].sum()
+    ax.bar(left + width / 2, share, width=width * 0.92, color=np.where(outside, TABLE_C, MINE_C))
+    for edge in (lo, hi):
+        if edge is not None:
+            ax.axvline(edge, color=INK, lw=1.2, ls="--")
+    if lo is not None:
+        ax.axvspan(a, lo, color=IMPOSSIBLE, alpha=0.08, lw=0)
+    if hi is not None:
+        ax.axvspan(hi, b, color=IMPOSSIBLE, alpha=0.08, lw=0)
+    log = share.max() / share.min() > 20   # a log scale only when the bars differ a lot: otherwise it exaggerates
+    if log:
+        ax.set_yscale("log")
+    else:
+        ax.set_ylim(0, share.max() * 1.1)
+    ax.set_xlim(a, b)
+    rule = (f"between {lo:g} and {hi:g}" if lo is not None and hi is not None
+            else f"{lo:g} or more" if lo is not None else f"at most {hi:g}")
+    main = f"{share_out:.1f}% of the rows are impossible" if share_out > 0 else "no row outside the limits"
+    extra = [f"lowest {h['min'].iloc[0]:.3g}, highest {h['max'].iloc[0]:.3g}"] if share_out > 0 else []
+    extra += [f"{100 * h[col].iloc[0]:.0f}% exactly at {edge:g}" for col, edge in (("at_lo", lo), ("at_hi", hi))
+              if edge is not None and h[col].iloc[0] >= 0.01]
+    size = (9.5, 8.5) if compact else (11, 10)
+    ax.set_title(title, fontsize=size[0] + 1, pad=40 if compact else 44)
+    ax.text(0, 1.095 if not compact else 1.115, main, transform=ax.transAxes, va="bottom", fontsize=size[1] + 1, weight="bold",
+            color=TABLE_C if share_out > 0 else MUTED)
+    ax.text(0, 1.025, "; ".join(extra), transform=ax.transAxes, va="bottom", fontsize=size[1], color=MUTED)
+    if compact:
+        ax.tick_params(labelsize=10.5)
+    else:
+        ax.set(xlabel=f"value in the table (the rule: {rule})", ylabel="% of the rows in each bar" + (" (log scale)" if log else ""))
 
 
-def leak_proof(evidence: pd.DataFrame, ax):
-    """Of the players with a recency that only later data can give, the share that bet in the next 7 days,
-    against the same share for all players."""
-    g = evidence.groupby("brand")[["table shorter than any bet up to the day %", "all players, bet in the next 7 days %",
-                                   "of those, bet in the next 7 days %"]].median()
-    x, w = np.arange(len(g)), 0.38
-    for k, (col, colour, label) in enumerate([("all players, bet in the next 7 days %", REF_C, "all players"),
-                                              ("of those, bet in the next 7 days %", TABLE_C,
-                                               "players whose table recency is impossible with data up to D")]):
-        ax.bar(x + (k - 0.5) * w, g[col], width=w * 0.95, color=colour, label=label)
-        for i, v in enumerate(g[col]):
-            ax.text(i + (k - 0.5) * w, v + 1.5, f"{v:.0f}%", ha="center", fontsize=8.5, color=INK)
-    ax.set_xticks(x, [f"brand {b}\n({v:.0f}% of players have\nan impossible recency)"
-                      for b, v in g["table shorter than any bet up to the day %"].items()])
-    ax.set(ylim=(0, 118), ylabel="% that bet between\nD + 1 and D + 7", xlabel="brand")
-    ax.legend(loc="upper left", ncol=2)
-
-
-def recency_differences(diff: pd.DataFrame, ax):
-    for col, colour in (("as of the day", MINE_C), ("7 days later", TABLE_C)):
-        ax.step(diff.index, 100 * diff[col] / diff[col].sum(), where="mid", color=colour, lw=1.8,
-                label=f"table minus the recency {col}")
-    ax.axvline(0, color="black", lw=1)
-    ax.set_xlim(-15, 15)
-    ax.set(xlabel="difference in days", ylabel="% of players",
-           title="days_since_bet minus the recomputed recency, 1 September 2026, all brands")
-    ax.legend(fontsize=8)
-
-
-def playable_share(share: pd.DataFrame, ax):
-    for b in share.columns:
-        ax.plot(share.index.to_timestamp(), share[b], marker="o", ms=3, label=f"brand {b}")
-    ax.set(title="Player-days with bets only from playable bonus (not active days, M053)", ylabel="% of player-days")
-    ax.legend(fontsize=8)
-
-
-def active_differences(diff: pd.DataFrame, ax):
-    x = diff.index.to_numpy(float)
-    for k, (col, colour) in enumerate((("table - official", MINE_C), ("table - any wallet", LIGHT_C))):
-        ax.bar(x + (k - 0.5) * 0.4, 100 * diff[col] / diff[col].sum(), width=0.4, color=colour, label=col)
-    ax.set_xlim(-1.5, 10.5)
-    ax.set(xlabel="difference in days", ylabel="% of players",
-           title="active_days_l30d minus each recount, 1 September 2026, all brands: never below 0")
-    ax.legend(fontsize=8)
+def active_day_lines(m: pd.DataFrame, axes):
+    """One panel per column that counts days with a bet: % of players where the table equals the recomputed value, with
+    data up to D + s, for the official active day (blue) and for any wallet (red)."""
+    g = m.groupby(["column", "variant", "shift"])[["n", "ok"]].sum()
+    pct = (100 * g["ok"] / g["n"].where(g["n"] > 0)).rename("pct")
+    for ax, (col, h) in zip(np.atleast_1d(axes).flat, pct.groupby(level="column")):
+        for variant, colour, label in (("official", MINE_C, "official active day (real money or released bonus)"),
+                                       ("any wallet", TABLE_C, "any wallet (playable bonus too)")):
+            v = h.xs(variant, level="variant").droplevel("column")
+            ax.plot(v.index, v.to_numpy(), marker="o", ms=4, lw=1.8, color=colour, label=label)
+            ax.annotate(f"{v.iloc[0]:.0f}%", (0, v.iloc[0]), xytext=(-8, 4 if variant == "any wallet" else -12), textcoords="offset points",
+                        fontsize=9.5, weight="bold", color=colour, ha="right")
+        ax.axvspan(0.5, v.index.max() + 0.5, color=IMPOSSIBLE, alpha=0.06, lw=0)
+        ax.set_title(col, fontsize=11)
+        ax.set(xlim=(-1.6, v.index.max() + 0.5), ylim=(0, 105), xticks=list(v.index))
+    for ax in np.atleast_1d(axes).flat:
+        ax.set_xlabel("shift s: days after D used to compute the value")
+        ax.set_ylabel("% of players where\ntable = recomputed")
+    np.atleast_1d(axes).flat[0].legend(loc="upper right", fontsize=8.5)

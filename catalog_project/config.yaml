@@ -1,0 +1,6 @@
+# Settings of the game catalog V0 (see PLAN.md). ClickHouse database: whizdomai_org_gmntc_medallion (read only).
+months: 6          # activity window: the last 6 full months before today
+coverage: 0.99     # "highly active": the smallest set of games with 99% of the rounds in the window
+batches: [sudhamshu, navid , javier]   # one file output/batch_<name>.csv each
+# Empty columns to fill by hand in each batch. Provisional: replace them with the fields of taxonomy_model.json.
+fill_columns: [mechanics, modifiers, features, themes, slug, demo_url, image_urls, collections]

@@ -3,22 +3,19 @@
 # gld-schemas.xlsx (rule and measure of each column); no code reads the workbook.
 #
 # kind (as in signal_checks.yaml):
-#   formula     the rule of the workbook on other columns of the same row (DuckDB SQL)
+#   formula     the rule of the workbook on other columns of the same row (DuckDB SQL); `label` is the
+#               formula as the figure shows it
 #   bound       `expr` must be true (possible values, coherence); rows where it is NULL are left out
-#   recomputed  the rule of the workbook with its inputs recomputed from the daily caches (recompute_signal.py),
-#               player by player on the evidence days, on day D and on D + 1 ... D + 10 (later data). `expr` is
-#               Python on the inputs below and the columns of the row:
+#   recomputed  only for the columns that count days with a bet: the rule of the workbook with the days of each
+#               player taken from the daily player table of the same database (activity_table of the run),
+#               on day D and on D + 1 ... D + 10, with the official active days and with any wallet
+#               (recompute_signal.py). `expr` is Python on these inputs and the columns of the row:
 #                 days_since_bet       days since the last day with a bet up to the day
 #                 active_days_7, _30   days with a bet in the last 7 or 30 days
-#                 ggr_today, ggr_7, ggr_30, ggr_90, wagered_30, avg_bet_7, avg_bet_30   gld_player_gaming_daily
-#                 deposits_today, deposits_7, deposits_30, deposits_90                    gld_player_payments_daily
-#                 ggr_prev             GGR of the last day with a bet before the day
 #                 active_streak        days with a bet in a row up to the day (0 if no bet that day)
 #                 gap_prev             days from the last day with a bet before the day to the day
-#                 tenure               days since the first day with a bet
-#               Each one twice: with the days of any wallet and with the official active days (M053).
 #               Functions: minimum, maximum, clip, where.
-#   none        key, metadata, or no rule that can be checked with the data we have
+#   none        key, metadata, or a rule whose inputs are not in the table
 # Scores: the table keeps them from 0 to 1, as the unit of the workbook says, while the rules of the workbook give
 # 0 to 100; the rules here are divided by 100.
 
@@ -44,7 +41,7 @@ columns:
   - {kind: recomputed, measure: M054, expr: "active_streak", note: "Consecutive days with activity up to event_date"}
   tenure_days:
   - {kind: bound, expr: "tenure_days >= 0", note: "Cannot be negative"}
-  - {kind: recomputed, expr: "tenure", note: "Days since the first day with a bet (not in the workbook sheet)"}
+  - {kind: none, note: "Days since the first day with a bet (not in the workbook sheet); its inputs are not in the table"}
   gap_days:
   - {kind: bound, expr: "gap_days >= 1", note: "NULL on the first day; never 0 (M065)"}
   - {kind: recomputed, measure: M065, expr: "gap_prev", note: "Days since the previous active day, measured back from the row date"}
@@ -56,7 +53,7 @@ columns:
 
   # trend
   momentum_score:
-  - {kind: recomputed, measure: M124, expr: "ggr_today - ggr_prev", note: "ggr_eur[this day] - ggr_eur[previous day WITH activity]"}
+  - {kind: none, measure: M124, note: "ggr_eur[this day] - ggr_eur[previous day WITH activity]; its inputs are not in the table"}
   acceleration_score:
   - {kind: none, measure: M103, note: "momentum_score[this day] - momentum_score[previous day]; which previous day is not defined"}
   volatility_score:
@@ -68,27 +65,27 @@ columns:
   - {kind: bound, expr: "rg_risk_score BETWEEN 0 AND 1", note: "clamp(0,100, ...)"}
   - {kind: none, measure: M133, note: "Needs night_index, which the table does not keep"}
   risk_appetite_score:
-  - {kind: formula, measure: M134, expr: "least(1, greatest(0, 0.5 + 0.5 * least(1, greatest(-1, bet_z_score))))", note: "clamp(0,100, 50 + 50*clamp(bet_z_score,-1,1))"}
+  - {kind: formula, measure: M134, expr: "least(1, greatest(0, 0.5 + 0.5 * least(1, greatest(-1, bet_z_score))))", label: "0.5 + 0.5 bet_z_score (clipped to ±1)", note: "clamp(0,100, 50 + 50*clamp(bet_z_score,-1,1))"}
   betting_aggression_score:
-  - {kind: formula, measure: M143, expr: "least(1, greatest(0, 0.5 + 0.25 * least(2, greatest(-2, bet_z_score)) + 0.25 * least(1, greatest(-1, stake_escalation))))", note: "clamp(0,100, 50 + 25*clamp(bet_z_score,-2,2) + 25*clamp(stake_escalation,-1,1))"}
+  - {kind: formula, measure: M143, expr: "least(1, greatest(0, 0.5 + 0.25 * least(2, greatest(-2, bet_z_score)) + 0.25 * least(1, greatest(-1, stake_escalation))))", label: "0.5 + 0.25 bet_z_score (±2) + 0.25 stake_escalation (±1)", note: "clamp(0,100, 50 + 25*clamp(bet_z_score,-2,2) + 25*clamp(stake_escalation,-1,1))"}
   bet_z_score:
   - {kind: none, measure: M139, note: "(avg_bet_eur[30d] - tenant_avg_bet) / tenant_stddev_bet; which players make the tenant mean is not defined"}
   session_len_z:
   - {kind: none, measure: M136, note: "Needs the session length, which the table does not keep"}
   stake_escalation:
   - {kind: bound, expr: "stake_escalation >= -1", note: "(avg 7d - avg 30d) / avg 30d is at least -1"}
-  - {kind: recomputed, measure: M140, expr: "where(avg_bet_30 > 0, (avg_bet_7 - avg_bet_30) / avg_bet_30, 0)", note: "(avg_bet_eur[7d] - avg_bet_eur[30d]) / avg_bet_eur[30d], else 0"}
+  - {kind: none, measure: M140, note: "(avg_bet_eur[7d] - avg_bet_eur[30d]) / avg_bet_eur[30d], else 0; its inputs are not in the table"}
 
   # responsible gaming
   rg_loss_chasing:
   - {kind: bound, expr: "rg_loss_chasing BETWEEN 0 AND 1", note: "A share"}
-  - {kind: recomputed, measure: M122, expr: "where((wagered_30 > 0) & (ggr_30 < 0), minimum(1, -ggr_30 / wagered_30), 0)", note: "if wagered_eur[30d] > 0 AND ggr_eur[30d] < 0: min(1, -ggr_eur[30d] / wagered_eur[30d]) else 0"}
+  - {kind: none, measure: M122, note: "if wagered_eur[30d] > 0 AND ggr_eur[30d] < 0: min(1, -ggr_eur[30d] / wagered_eur[30d]) else 0; its inputs are not in the table"}
   deposit_velocity:
   - {kind: bound, expr: "deposit_velocity >= 0", note: "Cannot be negative"}
-  - {kind: recomputed, measure: M115, expr: "deposits_7 / (deposits_30 / 30 * 7)", note: "deposits_eur[7d] / (deposits_eur[30d]/30 * 7)"}
+  - {kind: none, measure: M115, note: "deposits_eur[7d] / (deposits_eur[30d]/30 * 7); its inputs are not in the table"}
   net_loss_velocity:
   - {kind: bound, expr: "net_loss_velocity >= 0", note: "Cannot be negative"}
-  - {kind: recomputed, measure: M126, expr: "where(deposits_30 > 0, maximum(0, -ggr_today) / (deposits_30 / 30 + 1), 0)", note: "if deposits_eur[30d] > 0: max(0, -ggr_eur[today]) / (deposits_eur[30d]/30 + 1) else 0"}
+  - {kind: none, measure: M126, note: "if deposits_eur[30d] > 0: max(0, -ggr_eur[today]) / (deposits_eur[30d]/30 + 1) else 0; its inputs are not in the table"}
   session_intensity_score:
   - {kind: bound, expr: "session_intensity_score BETWEEN 0 AND 1", note: "min(100, ...); the workbook unit is 0-1"}
   - {kind: none, measure: M135, note: "Needs play_secs, which the table does not keep"}
@@ -96,10 +93,10 @@ columns:
   # churn
   churn_score:
   - {kind: bound, expr: "churn_score BETWEEN 0 AND 1", note: "clamp(0,100, ...)"}
-  - {kind: formula, measure: M107, expr: "least(1, greatest(0, 0.50 * recency_score + 0.30 * frequency_score + 0.20 * monetary_score))", note: "clamp(0,100, 0.50*recency_score + 0.30*frequency_score + 0.20*monetary_score)"}
+  - {kind: formula, measure: M107, expr: "least(1, greatest(0, 0.50 * recency_score + 0.30 * frequency_score + 0.20 * monetary_score))", label: "0.5 recency_score + 0.3 frequency_score + 0.2 monetary_score", note: "clamp(0,100, 0.50*recency_score + 0.30*frequency_score + 0.20*monetary_score)"}
   churn_propensity_raw:
   - {kind: bound, expr: "churn_propensity_raw BETWEEN 0 AND 1", note: "min(1, ...)"}
-  - {kind: recomputed, measure: M108, expr: "minimum(1, days_since_bet / 90)", note: "min(1, days_since_bet / 90)"}
+  - {kind: none, measure: M108, note: "min(1, days_since_bet / 90); its inputs are not in the table"}
   recency_score:
   - {kind: bound, expr: "recency_score BETWEEN 0 AND 1", note: "min(100, ...); the workbook unit is 0-1"}
   - {kind: recomputed, measure: M132, expr: "minimum(1, days_since_bet / maximum(typical_bet_gap_days, 3))", note: "min(100, 100 * days_since_bet / max(typical_gap_days, gap_floor_days)), gap floor 3 days"}
@@ -108,7 +105,7 @@ columns:
   - {kind: recomputed, measure: M117, expr: "maximum(0, 1 - (active_days_7 / 7) / (active_days_30 / 30))", note: "100 * max(0, 1 - (active_days[7d]/7) / (active_days[30d]/30))"}
   monetary_score:
   - {kind: bound, expr: "monetary_score BETWEEN 0 AND 1", note: "the workbook unit is 0-1; with no upper clamp in the rule"}
-  - {kind: recomputed, measure: M125, expr: "maximum(0, 1 - (ggr_7 / 7) / (ggr_90 / 90))", note: "100 * max(0, 1 - (ggr_eur[7d]/7) / (ggr_eur[90d]/90))"}
+  - {kind: none, measure: M125, note: "100 * max(0, 1 - (ggr_eur[7d]/7) / (ggr_eur[90d]/90)); its inputs are not in the table"}
   typical_bet_gap_days:
   - {kind: bound, expr: "typical_bet_gap_days >= 0", note: "Cannot be negative"}
   - {kind: none, measure: M145, note: "The median or typical gap between bets; the exact rule is not in the workbook"}
@@ -116,13 +113,13 @@ columns:
   # deposit behaviour
   deposit_frequency_score:
   - {kind: bound, expr: "deposit_frequency_score BETWEEN 0 AND 1", note: "clamp(0,100, ...)"}
-  - {kind: recomputed, measure: M112, expr: "where(deposits_30 > 0, clip(0.5 + 0.5 * clip((deposits_7 / 7) / (deposits_30 / 30) - 1, -1, 1), 0, 1), 0)", note: "if deposits_eur[30d] > 0: clamp(0,100, 50 + 50*clamp((deposits_eur[7d]/7)/(deposits_eur[30d]/30) - 1, -1, 1)) else 0"}
+  - {kind: none, measure: M112, note: "if deposits_eur[30d] > 0: clamp(0,100, 50 + 50*clamp((deposits_eur[7d]/7)/(deposits_eur[30d]/30) - 1, -1, 1)) else 0; its inputs are not in the table"}
   deposit_recency_score:
   - {kind: bound, expr: "deposit_recency_score BETWEEN 0 AND 1", note: "the workbook unit is 0-1"}
-  - {kind: recomputed, measure: M113, expr: "where(deposits_today > 0, 1, 1 - minimum(1, days_since_bet / 30))", note: "if deposits_eur[today] > 0 then 100 else 100*(1 - min(1, days_since_bet/30))"}
+  - {kind: none, measure: M113, note: "if deposits_eur[today] > 0 then 100 else 100*(1 - min(1, days_since_bet/30)); its inputs are not in the table"}
   deposit_monetary_score:
   - {kind: bound, expr: "deposit_monetary_score BETWEEN 0 AND 1", note: "the workbook unit is 0-1"}
-  - {kind: recomputed, measure: M114, expr: "maximum(0, 1 - (deposits_7 / 7) / (deposits_90 / 90))", note: "100 * max(0, 1 - (deposits_eur[7d]/7)/(deposits_eur[90d]/90)) (proposed in the workbook)"}
+  - {kind: none, measure: M114, note: "100 * max(0, 1 - (deposits_eur[7d]/7)/(deposits_eur[90d]/90)) (proposed in the workbook); its inputs are not in the table"}
   typical_deposit_gap_days:
   - {kind: bound, expr: "typical_deposit_gap_days >= 0", note: "Cannot be negative"}
   - {kind: none, measure: M144, note: "The typical gap between deposits; the exact rule is not in the workbook"}
@@ -176,9 +173,15 @@ columns:
   days_to_first_bet:
   - {kind: bound, expr: "days_to_first_bet >= 0", note: "Days (not in the workbook)"}
 
+
 # What each column is, the likely cause when it fails, and what to do (es, en), for the report (check_report.py).
 # The numbers of the report come from the checks above; these texts only explain them.
 explain:
+  tenant_id:
+    what: {es: "Identificador del operador: un UUID en minúsculas, una de las claves de la tabla.", en: "Identifier of the operator: a UUID in lower case, one of the keys of the table."}
+    why: {es: "Hay filas con el \\code{tenant_id} vacío, o que no es un UUID en minúsculas: no se sabe a qué operador pertenecen, y una clave vacía puede mezclar jugadores de operadores distintos.",
+          en: "Some rows have an empty \\code{tenant_id}, or one that is not a UUID in lower case: the operator is unknown, and an empty key can mix players of different operators."}
+    fix: {es: "No escribir filas sin operador, o rellenarlo en el origen.", en: "Do not write rows without an operator, or fill it at the source."}
   churn_score:
     what: {es: "Score de churn: 0.5 \\code{recency_score} + 0.3 \\code{frequency_score} + 0.2 \\code{monetary_score}, entre 0 y 1. La descripción del Excel dice ``calibrated churn propensity''.",
            en: "Churn score: 0.5 \\code{recency_score} + 0.3 \\code{frequency_score} + 0.2 \\code{monetary_score}, between 0 and 1. The workbook description says ``calibrated churn propensity''."}
@@ -201,8 +204,8 @@ explain:
   rg_loss_chasing:
     what: {es: "Persecución de pérdidas: si en 30 días el GGR es negativo, $\\min(1, -\\text{GGR}/\\text{apostado})$; si no, 0. Va de 0 a 1.",
            en: "Loss chasing: if the GGR of 30 days is negative, $\\min(1, -\\text{GGR}/\\text{stake})$; otherwise 0. From 0 to 1."}
-    why: {es: "Hay filas fuera de 0 a 1, imposible con el $\\min(1, \\ldots)$ de la regla: falta el recorte o se calcula otra cosa. Que no coincida con lo recalculado puede ser además por otras entradas.",
-          en: "Some rows are outside 0 to 1, impossible with the $\\min(1, \\ldots)$ of the rule: the cap is missing or something else is calculated. That it does not match the recomputed value may also come from other inputs."}
+    why: {es: "Hay filas fuera de 0 a 1, imposible con el $\\min(1, \\ldots)$ de la regla: falta el recorte o se calcula otra cosa.",
+          en: "Some rows are outside 0 to 1, impossible with the $\\min(1, \\ldots)$ of the rule: the cap is missing or something else is calculated."}
     fix: {es: "Aplicar la regla completa, con el recorte a 1.", en: "Apply the whole rule, with the cap at 1."}
   net_loss_velocity:
     what: {es: "Velocidad de pérdida neta: $\\max(0, -\\text{GGR hoy}) / (\\text{depósitos 30 días}/30 + 1)$; nunca negativa.",
@@ -210,74 +213,26 @@ explain:
     why: {es: "Hay valores negativos, imposibles con el $\\max(0, \\ldots)$ de la regla: falta esa parte.",
           en: "Some values are negative, impossible with the $\\max(0, \\ldots)$ of the rule: that part is missing."}
     fix: {es: "Aplicar el $\\max(0, \\ldots)$ de la regla.", en: "Apply the $\\max(0, \\ldots)$ of the rule."}
-  churn_propensity_raw:
-    what: {es: "Según la regla del Excel, $\\min(1, \\text{días desde la última apuesta}/90)$; según su descripción, ``la salida sin calibrar del modelo''.",
-           en: "By the workbook rule, $\\min(1, \\text{days since the last bet}/90)$; by its description, ``the uncalibrated model output''."}
-    why: {es: "Los valores van de 0.15 a 1, con el máximo hacia 0.3 (figura de scores): con la regla, casi todos los jugadores activos estarían cerca de 0. Es la salida de un modelo, no la regla: el Excel se contradice.",
-          en: "The values go from 0.15 to 1, with the peak near 0.3 (figure of the scores): with the rule, almost every active player would be near 0. It is the output of a model, not the rule: the workbook contradicts itself."}
-    fix: {es: "Corregir la regla del Excel para que describa el modelo.", en: "Fix the workbook rule so that it describes the model."}
-  tenure_days:
-    what: {es: "Días desde la primera actividad del jugador.", en: "Days since the first activity of the player."}
-    why: {es: "No coincide más tarde que $D$, así que no usa datos del futuro. Mi caché de actividad empieza el 1 de abril de 2025, así que para los jugadores anteriores mi valor sale recortado; también puede contar desde el registro y no desde la primera apuesta.",
-          en: "It does not match better after $D$, so it does not use later data. My activity cache starts on 1 April 2025, so for older players my value is cut short; it may also count from the registration and not from the first bet."}
-    fix: {es: "Confirmar desde qué fecha cuenta antes de darlo como error.", en: "Confirm from which date it counts before calling it an error."}
   active_streak_days:
     what: {es: "Días seguidos con actividad hasta el día de la fila (M054).", en: "Days in a row with activity up to the date of the row (M054)."}
-    why: {es: "Coincide mejor en $D$ que más tarde. Que no coincida más puede deberse a qué cuenta como actividad (apuesta, depósito o acceso) y a si el día $D$ entra.",
-          en: "It matches best on $D$. That it does not match more may come from what counts as activity (a bet, a deposit or a login) and from whether day $D$ counts."}
-    fix: {es: "Confirmar la definición de actividad.", en: "Confirm the definition of activity."}
+    why: {es: "Se compara con la racha de días con apuesta de \\code{player_daily}, con los días activos oficiales y con los de cualquier monedero, el día $D$ y los siguientes.",
+          en: "It is compared with the streak of days with a bet of \\code{player_daily}, with the official active days and with those of any wallet, on day $D$ and the days after."}
+    fix: {es: "Calcularla con los días activos oficiales hasta $D$.", en: "Calculate it with the official active days up to $D$."}
   gap_days:
     what: {es: "Días desde el día activo anterior, contados hacia atrás desde la fila; NULL el primer día (M065).",
            en: "Days since the previous active day, counted back from the row; NULL on the first day (M065)."}
-    why: {es: "Es la que más coincide; lo que queda son casos de borde: qué día cuenta como activo y desde qué día se mide.",
-          en: "It is the one that matches most; what is left are edge cases: which day counts as active and from which day it is measured."}
-    fix: {es: "Confirmar la definición de día activo.", en: "Confirm the definition of an active day."}
-  momentum_score:
-    what: {es: "GGR del día menos GGR del último día anterior con actividad (M124).", en: "GGR of the day minus GGR of the last earlier day with activity (M124)."}
-    why: {es: "Es una resta de importes: cualquier diferencia en el GGR de entrada (moneda, dinero real o real más bono, redondeo) la rompe. La mediana del cociente y de la diferencia dice si es escala o desfase.",
-          en: "It is a difference of amounts: any difference in the GGR used (currency, real money or real plus bonus, rounding) breaks it. The median of the ratio and of the difference tells whether it is a scale or an offset."}
-    fix: {es: "Confirmar qué GGR usa la plataforma.", en: "Confirm which GGR the platform uses."}
-  stake_escalation:
-    what: {es: "(apuesta media en 7 días $-$ apuesta media en 30 días) / apuesta media en 30 días (M140).",
-           en: "(mean bet in 7 days $-$ mean bet in 30 days) / mean bet in 30 days (M140)."}
-    why: {es: "Mi apuesta media es lo apostado entre el número de apuestas de la tabla de juego; si la plataforma usa rondas o moneda local, no coincide.",
-          en: "My mean bet is the stake over the number of bets of the gaming table; if the platform uses rounds or the local currency, it does not match."}
-    fix: {es: "Confirmar cómo se calcula la apuesta media.", en: "Confirm how the mean bet is calculated."}
+    why: {es: "Se compara con los días desde el día con apuesta anterior de \\code{player_daily}, con las dos definiciones de día activo, el día $D$ y los siguientes.",
+          en: "It is compared with the days since the previous day with a bet of \\code{player_daily}, with both definitions of an active day, on day $D$ and the days after."}
+    fix: {es: "Calcularla con los días activos oficiales hasta $D$.", en: "Calculate it with the official active days up to $D$."}
   recency_score:
     what: {es: "$\\min(1, \\text{días desde la última apuesta} / \\max(\\text{hueco típico}, 3))$, entre 0 y 1 (M132).",
            en: "$\\min(1, \\text{days since the last bet} / \\max(\\text{typical gap}, 3))$, between 0 and 1 (M132)."}
-    why: {es: "Depende de los días desde la última apuesta, que la tabla no guarda: lo recalculo con la actividad del lake. No coincide tampoco más tarde, así que no hay datos del futuro, sino otra entrada.",
-          en: "It depends on the days since the last bet, which the table does not keep: I recompute them with the activity of the lake. It does not match later either, so there is no later data, but another input."}
-    fix: {es: "Guardar en la tabla los días desde la última apuesta, para poder comprobarlo.", en: "Keep the days since the last bet in the table, so it can be checked."}
+    why: {es: "Los días desde la última apuesta salen de \\code{player_daily}; el hueco típico es la columna \\code{typical_bet_gap_days} de la fila. Si coincide mejor después de $D$, usa datos del futuro, como \\code{days_since_bet} en la tabla del lake.",
+          en: "The days since the last bet come from \\code{player_daily}; the typical gap is the column \\code{typical_bet_gap_days} of the row. If it matches better after $D$, it uses later data, as \\code{days_since_bet} did in the lake table."}
+    fix: {es: "Calcular los días desde la última apuesta solo con datos hasta $D$.", en: "Calculate the days since the last bet with data up to $D$ only."}
   frequency_score:
     what: {es: "$\\max(0, 1 - (\\text{días activos 7}/7)/(\\text{días activos 30}/30))$, entre 0 y 1 (M117).",
            en: "$\\max(0, 1 - (\\text{active days 7}/7)/(\\text{active days 30}/30))$, between 0 and 1 (M117)."}
-    why: {es: "No coincide ni con los días activos oficiales ni con los de cualquier monedero: la plataforma cuenta los días activos de otra forma, o con otras ventanas.",
-          en: "It matches neither the official active days nor those of any wallet: the platform counts the active days in another way, or with other windows."}
-    fix: {es: "Confirmar la definición de día activo y las ventanas.", en: "Confirm the definition of an active day and the windows."}
-  monetary_score:
-    what: {es: "$\\max(0, 1 - (\\text{GGR 7}/7)/(\\text{GGR 90}/90))$, entre 0 y 1 (M125).", en: "$\\max(0, 1 - (\\text{GGR 7}/7)/(\\text{GGR 90}/90))$, between 0 and 1 (M125)."}
-    why: {es: "Coincide sobre todo cuando vale 0; en el resto, el GGR de entrada no es el mismo, como en \\code{momentum_score}.",
-          en: "It matches mostly when it is 0; for the rest, the GGR used is not the same, as in \\code{momentum_score}."}
-    fix: {es: "Confirmar qué GGR usa la plataforma.", en: "Confirm which GGR the platform uses."}
-  deposit_frequency_score:
-    what: {es: "Si hay depósitos en 30 días, $0.5 + 0.5 \\cdot \\text{clip}((\\text{dep. 7}/7)/(\\text{dep. 30}/30) - 1, \\pm 1)$; si no, 0 (M112).",
-           en: "If there are deposits in 30 days, $0.5 + 0.5 \\cdot \\text{clip}((\\text{dep. 7}/7)/(\\text{dep. 30}/30) - 1, \\pm 1)$; otherwise 0 (M112)."}
-    why: {es: "Mis depósitos vienen de \\code{gld_player_payments_daily} del lake; si la plataforma usa otra tabla, otra moneda u otro criterio de depósito válido, no coincide.",
-          en: "My deposits come from \\code{gld_player_payments_daily} of the lake; if the platform uses another table, another currency or another rule for a valid deposit, it does not match."}
-    fix: {es: "Confirmar de qué tabla salen los depósitos.", en: "Confirm which table the deposits come from."}
-  deposit_recency_score:
-    what: {es: "1 si hay depósito hoy; si no, $1 - \\min(1, \\text{días desde la última apuesta}/30)$ (M113).",
-           en: "1 if there is a deposit today; otherwise $1 - \\min(1, \\text{days since the last bet}/30)$ (M113)."}
-    why: {es: "Depende de los depósitos y de los días desde la última apuesta, recalculados. Además, la regla del Excel usa la última \\emph{apuesta}, no el último \\emph{depósito}: es el mismo error de definición que en la tabla del lake.",
-          en: "It depends on the deposits and the days since the last bet, recomputed. Also, the workbook rule uses the last \\emph{bet}, not the last \\emph{deposit}: the same definition error as in the lake table."}
-    fix: {es: "Corregir la regla del Excel (días desde el último depósito) y confirmar las entradas.", en: "Fix the workbook rule (days since the last deposit) and confirm the inputs."}
-  deposit_monetary_score:
-    what: {es: "$\\max(0, 1 - (\\text{dep. 7}/7)/(\\text{dep. 90}/90))$, entre 0 y 1 (M114, propuesta en el Excel).",
-           en: "$\\max(0, 1 - (\\text{dep. 7}/7)/(\\text{dep. 90}/90))$, between 0 and 1 (M114, proposed in the workbook)."}
-    why: {es: "Igual que \\code{deposit_frequency_score}: las entradas de depósitos no son las mismas.", en: "As \\code{deposit_frequency_score}: the deposit inputs are not the same."}
-    fix: {es: "Confirmar de qué tabla salen los depósitos.", en: "Confirm which table the deposits come from."}
-  deposit_velocity:
-    what: {es: "Depósitos en 7 días / (depósitos en 30 días / 30 $\\times$ 7) (M115).", en: "Deposits in 7 days / (deposits in 30 days / 30 $\\times$ 7) (M115)."}
-    why: {es: "Igual que los scores de depósitos: las entradas no son las mismas.", en: "As the deposit scores: the inputs are not the same."}
-    fix: {es: "Confirmar de qué tabla salen los depósitos.", en: "Confirm which table the deposits come from."}
+    why: {es: "Los días activos salen de \\code{player_daily}, con la definición oficial y con cualquier monedero: la que mejor coincide es la que usa la tabla.",
+          en: "The active days come from \\code{player_daily}, with the official definition and with any wallet: the one that matches best is the one the table uses."}
+    fix: {es: "Contar solo los días con apuesta de dinero real o bono liberado.", en: "Count only the days with a stake from real money or released bonus."}

@@ -1,6 +1,5 @@
 <<preamble>>
 \newcommand{\prioE}{\badge{BrickRed}{ERROR}}
-\newcommand{\prioC}{\badge{BurntOrange}{TO CONFIRM}}
 \title{\textbf{Audit of the Signals Table}\\[2pt]\large\code{<<table>>}: each column against its workbook rule}
 \date{<<today>>}
 \author{Javier Herrero Pérez \\ Whizdom.ai}
@@ -14,12 +13,17 @@
 \textbf{Columns against the workbook design.} Missing: <<missing>>. Extra: <<extra>>.
 
 \section{Coverage}
-Rows per day: <<rows_lo:,.0f>> to <<rows_hi:,.0f>> in total; with \code{has_sufficient_data} = 1, <<sufficient:.1f>>\%.
+Rows per day: <<rows_lo:,.0f>> to <<rows_hi:,.0f>> in total; with \code{has_sufficient_data} = 1, <<sufficient:.1f>>\% (\fig{fig:coverage}).
 
 \section{Summary}
 \begin{center}
 \input{resumen_columnas_en}
 \end{center}
+
+\section{Active Day and Later Data}
+The columns that count days with a bet, compared player by player with the days with a bet of \code{player_daily} of the same database (\code{whizdomai_org_gmntc_gld}), with data up to $D$ and up to $D+1$ \ldots $D+10$. \emph{Official}: days with a stake from real money or released bonus (M053); \emph{any wallet}: playable bonus too. The definition that matches is the one the table uses; if a day after $D$ matches better, it uses later data (\fig{fig:active_days}).
+
+<<activity>>
 
 <<failing>>
 

@@ -1,6 +1,5 @@
 <<preamble>>
 \newcommand{\prioE}{\badge{BrickRed}{ERROR}}
-\newcommand{\prioC}{\badge{BurntOrange}{A CONFIRMAR}}
 \title{\textbf{Auditoría de la tabla de señales}\\[2pt]\large\code{<<table>>}: cada columna frente a su regla del Excel}
 \date{<<today>>}
 \author{Javier Herrero Pérez \\ Whizdom.ai}
@@ -14,12 +13,17 @@
 \textbf{Columnas frente al diseño del Excel.} Faltan: <<missing>>. Sobran: <<extra>>.
 
 \section{Cobertura}
-Filas por día: de <<rows_lo:,.0f>> a <<rows_hi:,.0f>> en total; con \code{has_sufficient_data} = 1, el <<sufficient:.1f>>\%.
+Filas por día: de <<rows_lo:,.0f>> a <<rows_hi:,.0f>> en total; con \code{has_sufficient_data} = 1, el <<sufficient:.1f>>\% (\fig{fig:coverage}).
 
 \section{Resumen}
 \begin{center}
 \input{resumen_columnas}
 \end{center}
+
+\section{Día activo y datos del futuro}
+Las columnas que cuentan días con apuesta, comparadas jugador a jugador con los días con apuesta de \code{player_daily} de la misma base (\code{whizdomai_org_gmntc_gld}), con datos hasta $D$ y hasta $D+1$ \ldots $D+10$. \emph{Oficial}: días con apuesta de dinero real o bono liberado (M053); \emph{cualquier monedero}: también el bono jugable. La definición que coincide es la que usa la tabla; si coincide mejor un día posterior a $D$, usa datos del futuro (\fig{fig:active_days}).
+
+<<activity>>
 
 <<failing>>
 

@@ -98,11 +98,12 @@ STATUS_ES = {"wrong": "Mal calculadas", "affected": "Afectadas por una entrada m
              "unchecked": "No comprobables (claves, texto, metadatos)"}
 
 
-def status_tables(status: pd.DataFrame, lang: str = "es", extra: dict | None = None):
+def status_tables(status: pd.DataFrame, lang: str = "es", extra: dict | None = None, unconfirmed: str | None = None):
     """TEX/resumen_columnas.tex (columns per status) and, through check_tables, the annex of every column
     with its checks; with lang="en", the same tables with the suffix _en. The priority of each point comes from
     report_points.yaml."""
     names, kinds, suffix = (STATUS_ES, KIND_ES, "") if lang == "es" else (STATUS_EN, KIND_EN, "_en")
+    names = names | ({"unconfirmed": unconfirmed} if unconfirmed else {})
     head = "Estado & & Columnas" if lang == "es" else "Status & & Columns"
     lines = ["\\begin{tabular}{@{}llr@{}}", "\\toprule", head + "\\\\", "\\midrule"]
     lines += [f"{STATUS_TEX[k]} & {label} & {int((status['status'] == k).sum())}\\\\" for k, label in names.items()]

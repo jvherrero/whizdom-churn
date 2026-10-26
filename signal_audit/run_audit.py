@@ -65,17 +65,18 @@ def points() -> None:
 
 
 def catalogue() -> None:
-    """A table with its own catalogue of checks: daily caches, recomputed checks and the report by checks."""
-    from signal_audit.report import check_report
+    """A table with its own catalogue of checks: the days with a bet from its daily player table, the active day and
+    later data checks, and the report by checks."""
     from signal_audit.checks import recompute_signal
+    from signal_audit.data import clickhouse_mirror as cm
+    from signal_audit.report import check_report
     days = sorted(set(settings.EVIDENCE_DAYS) | set(settings.SNAPSHOTS))
-    start, end = days[0] - dt.timedelta(days=100), days[-1] + dt.timedelta(days=max(recompute_signal.SHIFTS))
-    print("daily caches of activity and payments")
-    daily_cache.build("activity", end=end)
-    for b in ev.BRANDS:
-        daily_cache.build("payments", b, start=start, end=end)
+    first = days[0] - dt.timedelta(days=100)
+    last = min(days[-1] + dt.timedelta(days=max(recompute_signal.SHIFTS)), dt.date.today() - dt.timedelta(days=1))
+    print(f"days with a bet from {settings.RUN['activity_table']}")
+    cm.copy_activity([first + dt.timedelta(days=k) for k in range((last - first).days + 1)])
 
-    print("checks recomputed from the daily caches")
+    print("active day and later data")
     recompute_signal.match(refresh=True)
 
     print("row checks, figures and report")

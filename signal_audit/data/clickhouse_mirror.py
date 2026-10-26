@@ -51,35 +51,64 @@ def path(day: dt.date) -> Path:
     return settings.MIRROR / settings.TABLE / f"{day:%Y/%m/%d}" / "part-0.parquet"
 
 
+def _write(cl, query: str, day: dt.date, out: Path, rename: dict | None = None) -> int:
+    """The result of a query on one day, block by block, into one Parquet file; 0 rows: no file."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp, writer, rows = out.with_suffix(".tmp"), None, 0
+    with cl.query_arrow_stream(query, parameters={"day": day}, use_strings=True) as stream:
+        for block in stream:
+            block = pa.Table.from_batches([block]) if isinstance(block, pa.RecordBatch) else block
+            if rename:
+                block = block.rename_columns([rename.get(c, c) for c in block.column_names])
+            writer = writer or pq.ParquetWriter(tmp, block.schema)
+            writer.write_table(block)
+            rows += block.num_rows
+    if writer:
+        writer.close()
+        os.replace(tmp, out)
+    return rows
+
+
 def copy(days: list[dt.date], cl=None) -> list[dt.date]:
-    """Copy the days that are not copied yet; a day with no rows in ClickHouse gets no file. Returns the
-    days copied."""
+    """Copy the days of the table that are not copied yet; a day with no rows gets no file. Returns the days
+    copied."""
     todo = [d for d in sorted(set(days)) if not path(d).exists()]
     if not todo:
         return []
     cl = cl or client()
     table, date = settings.RUN["table"], settings.RUN.get("date_column", "snapshot_date")
+    query = f"SELECT * FROM {table} FINAL WHERE {date} = {{day:Date}}"
     done = []
     for day in todo:
-        out = path(day)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        tmp, writer, rows = out.with_suffix(".tmp"), None, 0
-        query = f"SELECT * FROM {table} FINAL WHERE {date} = {{day:Date}}"
-        with cl.query_arrow_stream(query, parameters={"day": day}, use_strings=True) as stream:
-            for block in stream:
-                block = pa.Table.from_batches([block]) if isinstance(block, pa.RecordBatch) else block
-                if date != "snapshot_date":
-                    block = block.rename_columns(["snapshot_date" if c == date else c for c in block.column_names])
-                writer = writer or pq.ParquetWriter(tmp, block.schema)
-                writer.write_table(block)
-                rows += block.num_rows
-        if writer is None:
-            print(f"  {day}: no rows in {table}")
-            continue
-        writer.close()
-        os.replace(tmp, out)
-        done.append(day)
-        print(f"  {day}: {rows:,} rows")
+        rows = _write(cl, query, day, path(day), {date: "snapshot_date"})
+        print(f"  {day}: {rows:,} rows" if rows else f"  {day}: no rows in {table}")
+        done += [day] if rows else []
+    return done
+
+
+def activity_path(day: dt.date) -> Path:
+    return settings.ROOT / "activity" / f"{day}.parquet"
+
+
+def copy_activity(days: list[dt.date], cl=None) -> list[dt.date]:
+    """One row per player and day with a bet, from the daily player table of the run (`activity_table`, e.g.
+    whizdomai_org_gmntc_gld.player_daily), summed in ClickHouse: bets and `active`, the official active day
+    (M053: a stake from real money or released bonus)."""
+    todo = [d for d in sorted(set(days)) if not activity_path(d).exists()]
+    if not todo:
+        return []
+    cl = cl or client()
+    table = settings.RUN["activity_table"]
+    # aliases that are not column names: in ClickHouse an alias replaces the column of the same name everywhere
+    query = f"""SELECT tenant_id, brand_id, player_id, event_date AS day, sum(bets) AS bet_count,
+                       sum(wagered_real) + sum(wagered_released_bonus) > 0 AS active
+                FROM {table} FINAL WHERE event_date = {{day:Date}}
+                GROUP BY tenant_id, brand_id, player_id, event_date HAVING bet_count > 0"""
+    done = []
+    for day in todo:
+        rows = _write(cl, query, day, activity_path(day))
+        print(f"  activity {day}: {rows:,} players" if rows else f"  activity {day}: no rows in {table}")
+        done += [day] if rows else []
     return done
 
 

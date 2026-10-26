@@ -10,3 +10,4 @@ date_column: event_date                # the date of the row in the gold design;
 period: {start: 2026-10-01, end: 2026-10-07}
 snapshots: [2026-10-07]
 history_start: 2026-10-01
+activity_table: whizdomai_org_gmntc_gld.player_daily   # the days with a bet of each player (active day and later data)

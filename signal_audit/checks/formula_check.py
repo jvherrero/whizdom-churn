@@ -54,22 +54,28 @@ def _hash(cfg: dict, group: str) -> str:
 
 
 def rows_sql(cfg: dict, days: list[dt.date], columns: list[str]) -> str:
-    """Rows of the table on `days`, five brands (from the activity cache), latest version of each key."""
+    """Rows of the table on `days`, latest version of each key. The lake table has brand_id empty in part of its
+    rows, so its brand and its five brands come from the activity cache; a table with its own catalogue keeps all
+    its rows and its own brand_id."""
     pfs, base = audit.s3_filesystem()
     files = audit.daily_files(pfs, base, cfg["table"])
     paths = [audit.uri(pfs, files[d]) for d in days if d in files]
     if not paths:
         raise FileNotFoundError(f"no {cfg['table']} file for {days}")
     listing = ", ".join(f"'{p}'" for p in paths)
-    brands = ", ".join(map(str, cfg["brands"]))
-    schema = set(audit.connection().sql(f"DESCRIBE SELECT * FROM read_parquet(['{paths[0]}'])").df()["column_name"])
-    keep = ", ".join(f'r."{c}"' for c in dict.fromkeys(KEY + ["_version"] + columns) if c in schema and c != "brand_id")
     con = audit.connection()
+    schema = set(con.sql(f"DESCRIBE SELECT * FROM read_parquet(['{paths[0]}'])").df()["column_name"])
+    keep = ", ".join(f'r."{c}"' for c in dict.fromkeys(KEY + ["_version"] + columns) if c in schema and c != "brand_id")
     con.sql("SET preserve_insertion_order = false")   # less memory; the order of the rows does not matter here
-    con.sql(f"CREATE TEMP TABLE IF NOT EXISTS players AS SELECT tenant_id, player_id, any_value(brand_id) AS brand "
-            f"FROM read_parquet('{audit.ACTIVITY}/*.parquet') WHERE brand_id IN ({brands}) GROUP BY ALL")
-    return (f"SELECT {keep}, b.brand FROM read_parquet([{listing}], union_by_name = true) r "
-            f"JOIN players b USING (tenant_id, player_id) "
+    rows = f"read_parquet([{listing}], union_by_name = true) r"
+    if audit.settings.CATALOGUE:
+        source, brand = rows, "r.brand_id"
+    else:
+        brands = ", ".join(map(str, cfg["brands"]))
+        con.sql(f"CREATE TEMP TABLE IF NOT EXISTS players AS SELECT tenant_id, player_id, any_value(brand_id) AS brand "
+                f"FROM read_parquet('{audit.ACTIVITY}/*.parquet') WHERE brand_id IN ({brands}) GROUP BY ALL")
+        source, brand = f"{rows} JOIN players b USING (tenant_id, player_id)", "b.brand"
+    return (f"SELECT {keep}, {brand} AS brand FROM {source} "
             f"QUALIFY row_number() OVER (PARTITION BY r.tenant_id, r.player_id, r.snapshot_date ORDER BY r._version DESC) = 1")
 
 
