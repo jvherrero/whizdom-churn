@@ -1,0 +1,15 @@
+# Template of a run on a ClickHouse table. Copy it to runs/<name>.yaml, set the table and the dates, and run
+#     make audit RUN=<name>
+# Everything it makes goes to runs/<name>/ (not in git): the local copy of the table (mirror/), the caches,
+# the figures and the report.
+name: example_clickhouse
+source: clickhouse
+table: whizdomai_org_gmntc_medallion.gld_player_signals_daily   # database.table in ClickHouse
+date_column: snapshot_date             # renamed to snapshot_date in the copy if it is called otherwise
+period: {start: 2026-10-01, end: 2026-10-31}
+# Optional, with their default values:
+# snapshots: [2026-10-15, 2026-10-31]  # the 15th and the last day of the period
+# long: {start: 2026-10-01, end: 2026-10-31}        # the period
+# evidence_days: []                    # every 7 days of the period
+# history_start: 2026-10-01            # the start of the period (only one monthly snapshot)
+# live_from:                           # no line on the history figures

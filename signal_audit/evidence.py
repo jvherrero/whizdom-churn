@@ -33,14 +33,14 @@ PROJECT_ROOT = HERE.parent
 sys.path[:0] = [str(HERE), str(PROJECT_ROOT / "src" / "features"), str(PROJECT_ROOT / "eda")]
 import audit  # noqa: E402
 import daily_cache  # noqa: E402
+import settings  # noqa: E402
 import signal_snapshots  # noqa: E402
 
 # ================================================================ A. the three main errors
 
 BRANDS = (14, 23, 64, 72, 73)
 KEY = ["tenant_id", "player_id"]
-LIVE_FROM = dt.date(2026, 8, 1)       # first snapshot written by the daily job (the earlier ones are the backfill)
-TP_FROM = dt.date(2026, 7, 6)         # first day with time-of-play values
+LIVE_FROM = settings.LIVE_FROM       # first snapshot written by the daily job (the earlier ones are the backfill)
 
 
 # ---------------------------------------------------------------- data
@@ -99,9 +99,14 @@ def recency_players(brand: int, day: dt.date, act: pd.DataFrame | None = None) -
 
 
 def recency_live_days(brand: int, act: pd.DataFrame) -> list[dt.date]:
-    """Live snapshots with 10 days of activity after them (to test later days)."""
+    """The evidence days of the run that are cached, with 10 days of activity after them (to test later days)."""
     last = act["day"].max().date()
-    return [d for d in snapshot_days(brand) if d >= LIVE_FROM and d + dt.timedelta(days=10) <= last]
+    return [d for d in snapshot_days(brand) if d in settings.EVIDENCE_DAYS and d + dt.timedelta(days=10) <= last]
+
+
+def month_starts(brand: int) -> list[dt.date]:
+    """The monthly snapshots of the history figures that are cached."""
+    return [d for d in snapshot_days(brand) if d in settings.MONTH_STARTS]
 
 
 def _match(a: pd.Series, b: pd.Series) -> float:
@@ -156,18 +161,25 @@ def recency_differences(brand: int, day: dt.date) -> pd.DataFrame:
     return pd.DataFrame(out).reindex(range(-30, 31)).fillna(0).astype(int)
 
 
-def recency_over_time(brands=BRANDS) -> pd.DataFrame:
-    """Every month-start snapshot (backfill and live): share with days_since_bet = 0 and the match as
-    of the day and 7 days later. From the saved results of eda/signal_validation.py."""
-    import signal_validation as sv
-    res = sv.saved_results(brands)
+def recency_over_time(brands=BRANDS, refresh: bool = False) -> pd.DataFrame:
+    """Cached in cache/local (slow: player rows of local files); `refresh` computes it again."""
+    return audit.cached_local("recency_over_time", lambda: _recency_over_time(brands), refresh)
+
+
+def _recency_over_time(brands=BRANDS) -> pd.DataFrame:
+    """Every monthly snapshot (backfill and live): of the players with a bet in the 30 days before it, the
+    share with days_since_bet = 0, and the match with the recency as of the day and 7 days later."""
     rows = []
-    for b, r in res.items():
-        g = r["recomputed"][r["recomputed"]["column"] == "days_since_bet"]
-        rows.append(pd.DataFrame({"brand": b, "day": g["day"], "players": g["players"],
-                                  "table is 0 %": 100 * g["table_zero"], "match as of the day %": 100 * g["match"],
-                                  "match 7 days later %": 100 * g["match_7d_ahead"]}))
-    return pd.concat(rows, ignore_index=True)
+    for b in brands:
+        act = activity(b)
+        for day in month_starts(b):
+            ts = pd.Timestamp(day)
+            pop = act[(act["day"] > ts - pd.Timedelta(30, unit="D")) & (act["day"] <= ts)][KEY].drop_duplicates()
+            t = snapshot(b, day).join(pop.set_index(KEY), how="inner")["days_since_bet"].astype(float)
+            rows.append({"brand": b, "day": day, "players": len(t), "table is 0 %": 100 * (t == 0).mean(),
+                         "match as of the day %": 100 * _match(t, _recency(act, ts).reindex(t.index)),
+                         "match 7 days later %": 100 * _match(t, _recency(act, ts + pd.Timedelta(7, unit="D")).reindex(t.index))})
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------- 3. active days
@@ -199,7 +211,7 @@ def _active_days_over_time(brands=BRANDS) -> pd.DataFrame:
     rows = []
     for b in brands:
         act = activity(b)
-        for day in [d for d in snapshot_days(b) if d.day == 1 and d >= dt.date(2025, 7, 1)]:
+        for day in month_starts(b):
             for col, w in WINDOWS.items():
                 p = active_days_players(b, day, act, w)
                 rows.append({"brand": b, "day": day, "column": col, "players": len(p),
@@ -217,9 +229,11 @@ def active_days_differences(brand: int, day: dt.date) -> pd.DataFrame:
                          "table - any wallet": (p["table"] - p["any wallet"]).value_counts()}).fillna(0).astype(int).sort_index()
 
 
-def false_actives(brands=BRANDS, day: dt.date = dt.date(2026, 9, 1)) -> pd.DataFrame:
-    """Players who bet in the last 30 days only with playable bonus: 0 official active days, but the
-    table gives them active days. For churn they are inactive; the table shows them as active."""
+def false_actives(brands=BRANDS, day: dt.date | None = None) -> pd.DataFrame:
+    """Players who bet in the 30 days to `day` (default: the start of the period) only with playable bonus:
+    0 official active days, but the table gives them active days. For churn they are inactive; the table
+    shows them as active."""
+    day = day or settings.PERIOD["start"]
     rows = []
     for b in brands:
         p = active_days_players(b, day)
@@ -260,7 +274,7 @@ def repeated_days(by_day: pd.DataFrame, metric: str = "night_index", control: st
 
 # ================================================================ B. session length, index limits, hold
 
-TABLE = "gld_player_signals_daily"
+TABLE = settings.TABLE
 
 # ---------------------------------------------------------------- 3. session length
 
@@ -489,6 +503,8 @@ WRONG = {
     "it:tenure": ["tenure_days"], "it:valuedecline": ["value_decline"], "it:recencypressure": ["recency_pressure"],
     "it:peak": ["top_peak_hour", "top_peak_day"], "it:hold": ["hold_pct_l30d"], "it:depfreq": ["deposit_frequency_score"],
     "it:depositrecency": ["deposit_recency_score"], "it:brand": ["brand_id"],
+    "it:codes": ["country", "language", "currency"],
+    "it:tax": ["tax_eur_today", "tax_eur_l7d", "tax_eur_l30d", "tax_eur_l90d", "tax_eur_l180d"],
 }
 AFFECTED = {
     "it:tpdays": ["tp_avg_sessions_per_active_day", "tp_max_sessions_single_day", "tp_business_hours_ratio", "tp_window_days"],
@@ -504,18 +520,14 @@ UNCONFIRMED = {
 }
 
 
-def column_status(refresh: bool = False):
-    """Cached in cache/local (slow: player rows of local files); `refresh` computes it again."""
-    return audit.cached_local("column_status", lambda: _column_status(), refresh)
-
-
-def _column_status() -> pd.DataFrame:
+def column_status(failing: set[str] | None = None) -> pd.DataFrame:
     """One row per column of the signals table: status (wrong, affected, unconfirmed, correct or
     unchecked), its checks of signal_checks.yaml, the worst pass share of those checks on the two
     snapshot days, the point of the error list, and the expression of its formula or identity (which
-    shows the inputs an affected column takes from a wrong one). Wrong, affected and unconfirmed come
-    from the groups above (the evidence is in the notebooks); every other column is correct when it
-    passes its checks, or unchecked (keys, text, metadata, bands without cutoffs)."""
+    shows the inputs an affected column takes from a wrong one). A column is wrong or affected when its
+    point of the groups above fails (`failing`, from report.verdicts; None: every point fails, as in the
+    lake report); unconfirmed always; every other column is correct when it passes its checks, or
+    unchecked (keys, text, metadata, bands without cutoffs)."""
     import formula_check as fc
     cfg = fc.load()
     ks = fc.checks(cfg)
@@ -526,6 +538,8 @@ def _column_status() -> pd.DataFrame:
     point = {}
     for status, groups in (("unconfirmed", UNCONFIRMED), ("affected", AFFECTED), ("wrong", WRONG)):
         for item, cols in groups.items():
+            if status != "unconfirmed" and failing is not None and item not in failing:
+                continue
             for c in cols:
                 point[c] = (status, item)
     rows = []
@@ -539,23 +553,32 @@ def _column_status() -> pd.DataFrame:
 
 # ================================================================ D. the other points of the error list
 
-VALIDATION = PROJECT_ROOT / "data/03_output/signal_validation"   # saved by eda/signal_validation.py (notebook eda/08)
+def tenure_growth(brands=BRANDS, refresh: bool = False) -> pd.DataFrame:
+    """Cached in cache/local (player rows of local files); `refresh` computes it again."""
+    return audit.cached_local("tenure_growth", lambda: _tenure_growth(brands), refresh)
 
 
-def tenure_growth(brands=BRANDS) -> pd.DataFrame:
-    """tenure_days must grow by the days between two monthly snapshots: share of players for which it
-    does, per brand and snapshot (saved results of eda/signal_validation.py)."""
-    return pd.concat([pd.read_csv(VALIDATION / f"brand{b}" / "tenure_growth.csv", parse_dates=["day"]).assign(brand=b)
-                      for b in brands], ignore_index=True)
+def _tenure_growth(brands=BRANDS) -> pd.DataFrame:
+    """tenure_days must grow by the days between two monthly snapshots: per brand and snapshot, the share of
+    the players in both for which it does (within 1 day), the median growth and the expected one."""
+    rows = []
+    for b in brands:
+        days = month_starts(b)
+        for prev, day in zip(days, days[1:]):
+            both = snapshot(b, prev)[["tenure_days"]].join(snapshot(b, day)[["tenure_days"]], how="inner", lsuffix="_a", rsuffix="_b")
+            growth = both["tenure_days_b"].astype(float) - both["tenure_days_a"].astype(float)
+            rows.append({"brand": b, "day": pd.Timestamp(day), "players": len(both), "expected_growth": (day - prev).days,
+                         "median_growth": float(growth.median()),
+                         "share_growing_as_expected": float(((growth - (day - prev).days).abs() <= 1).mean())})
+    return pd.DataFrame(rows)
 
 
 def deposit_frequency_filled(brands=BRANDS) -> pd.DataFrame:
-    """Snapshots where deposit_frequency_score is not 0 for every player (1) or is (0), per brand."""
+    """Monthly snapshots where deposit_frequency_score is not 0 for every player (1) or is (0), per brand."""
     rows = []
     for b in brands:
-        p = pd.read_csv(VALIDATION / f"brand{b}" / "plausibility.csv")
-        p = p[(p["column"] == "deposit_frequency_score") & p["rule"].str.startswith("filled")]
-        rows.append(p.set_index("day")["holds"].rename(b))
+        filled = {d: float((snapshot(b, d)["deposit_frequency_score"].astype(float) != 0).any()) for d in month_starts(b)}
+        rows.append(pd.Series(filled, name=b))
     return pd.concat(rows, axis=1).rename_axis("snapshot")
 
 

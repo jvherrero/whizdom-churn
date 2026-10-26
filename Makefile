@@ -27,7 +27,7 @@ cutoffs_arg := $(if $(CUTOFFS),--cutoff-dates $(CUTOFFS))
 train_args := $(if $(DATASET),--dataset-path $(DATASET)) $(if $(PARAMS),--params '$(PARAMS)') $(if $(NO_SELECTION),--no-selection) $(if $(NO_SEGMENTS),--no-segments) $(if $(NO_TUNING),--no-tuning) $(if $(N_TRIALS),--n-trials $(N_TRIALS))
 
 .PHONY: help setup lint format test \
-        profile cache features feature-store anomalies-daily anomalies-features validate-signals dataset eda-summary pipeline data-pipeline \
+        profile cache features feature-store anomalies-daily anomalies-features validate-signals audit dataset eda-summary pipeline data-pipeline \
         segments train train-baseline evaluate results survival-card ph-check ablation scoring-days threshold-comparison backtest backtest-report robustness importance model-card score alerts mlflow-ui serve promote layers contracts-lake gx-suites validate-gx reconcile distributions clean-tmp docker-build docker-run
 
 help:
@@ -41,6 +41,7 @@ help:
 	@echo "anomalies-daily     anomaly study on the player-day caches (EDA only)"
 	@echo "anomalies-features  anomaly study on features (EDA), also rewrites the winsorisation YAML [CUTOFFS=...]"
 	@echo "validate-signals    signals-table columns against the daily caches -> docs/signal_validation.md [BRANDS=\"14 64 73\"] [BUILD=1: missing snapshots from S3]"
+	@echo "audit               the whole audit of a signals table, with its report (es, en): RUN=<run of signal_audit/runs/> -> signal_audit/runs/<run>/informe/"
 	@echo "dataset             survival dataset: features + churn labels of the training cutoffs [CUTOFFS=...] [DATA_END=YYYY-MM-DD]"
 	@echo "eda-summary         EDA stage 4: training snapshot vs benchmark -> docs/eda_summary_brand{id}.md [DATASET=path] [BENCHMARK=path]"
 	@echo "pipeline            EVERYTHING as of a date: AS_OF=YYYY-MM-DD [CUTOFFS=...] [SKIP_ANOMALIES=1] [SKIP_ALERTS=1] [BACKTEST=1] [CHURN_DAYS=60]"
@@ -103,6 +104,9 @@ anomalies-features:
 
 validate-signals:
 	$(PY) eda/signal_validation.py $(if $(BRANDS),--brands $(BRANDS)) $(if $(BUILD),--build-missing) $(if $(REPORT_ONLY),--report-only)
+
+audit:
+	AUDIT_RUN=$(or $(RUN),lake) RUN_S3=1 $(PY) signal_audit/run_audit.py $(if $(COPY_ONLY),--copy-only)
 
 dataset:
 	$(PY) src/features/build_survival_dataset.py --brand-id $(BRAND) $(cutoffs_arg) $(if $(DATA_END),--data-end $(DATA_END))

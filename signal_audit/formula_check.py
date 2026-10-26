@@ -26,12 +26,15 @@ import yaml
 import audit
 
 HERE = Path(__file__).resolve().parent
-CHECKS = HERE / "signal_checks.yaml"
+CHECKS = audit.settings.CHECKS   # the catalogue of the run: signal_checks.yaml unless the run names another
 KEY = ["tenant_id", "player_id", "snapshot_date"]
 
 
 def load(path: Path = CHECKS) -> dict:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    """The checks, on the snapshot days of the run (settings.py)."""
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+    cfg["snapshots"] = [str(d) for d in audit.settings.SNAPSHOTS]
+    return cfg
 
 
 def checks(cfg: dict) -> pd.DataFrame:
@@ -221,7 +224,9 @@ def run(cfg: dict) -> pd.DataFrame:
     parts = []
     for d in cfg["snapshots"]:
         day = pd.Timestamp(d).date()
-        parts += [day_checks(cfg, day), history_checks(cfg, day)]
+        parts.append(day_checks(cfg, day))
+        if checks(cfg)["kind"].isin(["window", "lag"]).any():
+            parts.append(history_checks(cfg, day))
     res = pd.concat(parts, ignore_index=True)
     return verdicts(cfg, res)
 

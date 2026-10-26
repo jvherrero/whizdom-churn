@@ -1,0 +1,58 @@
+<<preamble>>
+\newcommand{\prioE}{\badge{BrickRed}{ERROR}}
+\newcommand{\prioC}{\badge{BurntOrange}{A CONFIRMAR}}
+\title{\textbf{Auditoría de la tabla de señales}\\[2pt]\large\code{<<table>>}: cada columna frente a su regla del Excel}
+\date{<<today>>}
+\author{Javier Herrero Pérez \\ Whizdom.ai}
+
+\begin{document}
+\maketitle
+\vspace{-1.2cm}
+
+\textbf{Alcance.} \textbf{Tabla:} \code{<<table>>} (ClickHouse, copia local por día con \texttt{FINAL}). \textbf{Marcas:} <<brands>>. \textbf{Fotos de las comprobaciones de fila:} <<snapshots>>. \textbf{Días del recálculo:} <<evidence>>. \textbf{Catálogo:} \code{<<catalogue>>}. Todas las filas, sin muestreo, y solo agregados. Generado el <<today>> por \code{signal_audit/run_audit.py}.
+
+\textbf{Columnas frente al diseño del Excel.} Faltan: <<missing>>. Sobran: <<extra>>.
+
+\section{Cobertura}
+Filas por día: de <<rows_lo:,.0f>> a <<rows_hi:,.0f>> en total; con \code{has_sufficient_data} = 1, el <<sufficient:.1f>>\%.
+
+\section{Resumen}
+\begin{center}
+\input{resumen_columnas}
+\end{center}
+
+<<failing>>
+
+\section{Criterios de evaluación}
+Cada columna tiene sus comprobaciones en el catálogo. Las de fila (fórmula y límite) se ejecutan sobre todas las filas de las fotos; las \emph{recalculadas} aplican la regla del Excel con sus entradas recalculadas desde las tablas diarias de juego y de pagos, jugador a jugador, el día $D$ y los días $D+1$ a $D+10$: una columna correcta coincide en $D$; si coincide mejor más tarde, usa datos del futuro. Cada entrada se calcula con los días de cualquier monedero y con los días activos oficiales (M053), y se da la que mejor coincide. Una comprobación \emph{pasa} si se cumple en al menos el 99\%. Tolerancia: $0.01 + 0.001\,|f|$.
+
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{4.3cm}rr@{}}
+\toprule
+Tipo & Qué comprueba & Regla para pasar & Columnas & Comprob.\\
+\midrule
+\input{criterios}
+\end{tabular}
+\end{center}
+
+\clearpage
+\appendix
+\section{Anexo: las figuras}\label{sec:figures}
+<<figures>>
+
+\clearpage
+\section{Anexo: las columnas y sus comprobaciones}\label{sec:columns}\label{sec:checks}
+\begin{small}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}p{4.8cm}r@{}}
+\toprule
+Columna & Estado & Tipo & Regla & Cumple (\%)\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\csname @@input\endcsname comprobaciones   % expandable \input: the rows start with \rowcolor
+\end{longtable}
+\end{small}
+
+\end{document}

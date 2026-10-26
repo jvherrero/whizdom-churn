@@ -27,10 +27,11 @@ HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "features"))
 from datalake import daily_files, s3_duckdb, s3_filesystem, uri  # noqa: E402
+import settings  # noqa: E402
 
 CONFIG = HERE / "metrics.yaml"
-CACHE = HERE / "cache"
-FOOTERS = PROJECT_ROOT / "data/02_intermediate/profile_tables/footers"
+CACHE = settings.CACHE                 # one folder per run (settings.py)
+FOOTERS = settings.FOOTERS
 # Local activity cache of the churn project: gives the brand of each (tenant_id, player_id) for the
 # tables without brand_id. tenant_id is the operator (a UUID), not the brand.
 ACTIVITY = PROJECT_ROOT / "data/02_intermediate/daily_cache/activity"
@@ -40,10 +41,22 @@ QUANTILES = [0.001, 0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99, 0.999]
 # ---------------------------------------------------------------- config and cache
 
 def load_config(path: Path = CONFIG) -> dict:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    """A config; the signals configs (metrics.yaml, metrics_recomputed.yaml) take the period of the run."""
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if path.name.startswith("metrics"):
+        cfg["period"] = dict(settings.PERIOD)
+    return cfg
+
+
+def local_root() -> Path:
+    """Folder of the local files of the audit (the signals recomputed from landing, recompute.py). They do not
+    depend on the signals table, so every run reads them from the lake cache."""
+    return CACHE if settings.NAME == "lake" else settings.RECOMPUTED.parent
 
 
 def period_days(cfg: dict) -> list[dt.date]:
+    if cfg.get("days"):   # a list of days instead of the whole period
+        return sorted(pd.Timestamp(d).date() for d in cfg["days"])
     start, end = (pd.Timestamp(cfg["period"][k]).date() for k in ("start", "end"))
     return [start + dt.timedelta(days=i) for i in range((end - start).days + 1)]
 
@@ -109,6 +122,7 @@ def connection():
     global _CON
     if _CON is None:
         _CON = s3_duckdb() if os.environ.get("RUN_S3") == "1" or os.environ.get("DATALAKE_ROOT") else duckdb.connect()
+        _CON.sql("SET TimeZone = 'UTC'")   # the lake timestamps are UTC: CAST(ts AS DATE) must give the UTC day
     return _CON
 
 
@@ -135,7 +149,7 @@ def source(cfg: dict, table: str, fill_brand: bool = False, columns: list[str] |
     and `brand_filled` says which rows got it that way. `columns` adds columns that no metric uses."""
     t = cfg["tables"][table]
     if t.get("local"):
-        paths = [CACHE / t["local"].format(day=d) for d in period_days(cfg)]
+        paths = [local_root() / t["local"].format(day=d) for d in period_days(cfg)]
         paths = [str(p) for p in paths if p.exists()]
         if not paths:
             raise FileNotFoundError(f"no local file for {table}: build it first")

@@ -1,0 +1,684 @@
+# The points of the automatic report (report.py): the 25 points of the error list of the signals table,
+# each with the rule that decides if it fails, and its texts. Edit the thresholds here, not in the code.
+#
+# <<name:format>> is a number of report.facts(), with a Python format (for example <<vd_above:.2f>>).
+# Point fields:
+#   id         the label of the point (the same as in informe/errores_tabla_senales.tex)
+#   priority   A high, M medium, B low, Q no definition (the priority when it fails)
+#   fail_if    a Python expression on the facts: the point fails when it is true. Without it the point is
+#              "unconfirmed" (the workbook does not give the full definition).
+#   rule       the rule, for the summary table (es, en)
+#   title      the column or columns (LaTeX)
+#   result     what the numbers say (es, en); the same text for a pass and a fail
+#   definition the definition in the workbook and the correct one (es, en; may be empty)
+#   fix        what could be done, shown when the point fails (es, en)
+#   figures    its figures (names of figures: below)
+# Figure fields: point (the claim follows its verdict), claim (pass, fail; or one text), how (how to read it),
+# caption (es, en). The figures are in English, as in the report.
+
+points:
+- id: it:recency
+  name: {es: 'recencia', en: 'recency'}
+  priority: A
+  fail_if: rec_match0 < 99
+  title: \code{days_since_bet}
+  rule:
+    es: 'coincide con la recencia real del día $D$ en $\ge 99\%$ de los jugadores'
+    en: 'matches the real recency of day $D$ for $\ge 99\%$ of the players'
+  result:
+    es: 'Coincide con la recencia real del día $D$ en el <<rec_match0:.1f>>\% de los jugadores; donde más coincide es con la recencia de $D+<<rec_best_shift>>$ (<<rec_best:.1f>>\%). AUC para predecir una apuesta en los 7 días siguientes: <<rec_auc_table:.2f>> con la columna y de <<rec_auc_real_lo:.2f>> a <<rec_auc_real_hi:.2f>> con la recencia real. En <<rec_zero_months>> de <<rec_months>> fotos mensuales vale 0 para el 90\% o más de los jugadores activos.'
+    en: 'It matches the real recency of day $D$ for <<rec_match0:.1f>>\% of the players; it matches best the recency of $D+<<rec_best_shift>>$ (<<rec_best:.1f>>\%). AUC to predict a bet in the next 7 days: <<rec_auc_table:.2f>> with the column and <<rec_auc_real_lo:.2f>> to <<rec_auc_real_hi:.2f>> with the real recency. In <<rec_zero_months>> of <<rec_months>> monthly snapshots it is 0 for 90\% or more of the active players.'
+  definition:
+    es: 'Correcta: $R_D = D - \max\{d \le D : \text{apuesta}\}$, solo con datos hasta $D$.'
+    en: 'Correct: $R_D = D - \max\{d \le D : \text{bet}\}$, with data up to $D$ only.'
+  fix:
+    es: 'Calcularla con la actividad diaria hasta $D$ (\code{days_since_last_bet} del pipeline). Entra en \code{churn_score}, \code{deposit_recency_score} y \code{lifecycle_stage}.'
+    en: 'Calculate it with the daily activity up to $D$ (\code{days_since_last_bet} of the pipeline). It goes into \code{churn_score}, \code{deposit_recency_score} and \code{lifecycle_stage}.'
+  figures: [recency_shift, recency_auc, recency_zero]
+
+- id: it:activedays
+  name: {es: 'días activos', en: 'active days'}
+  priority: A
+  fail_if: ad_off_lo < 99
+  title: \code{active_days_today}, \code{active_days_l7d}, \code{active_days_l30d}, \code{active_days_l90d}, \code{active_days_l180d}, \code{prior_active_days_*}
+  rule:
+    es: 'igual a los días activos oficiales (M053) en $\ge 99\%$ de los jugadores'
+    en: 'equal to the official active days (M053) for $\ge 99\%$ of the players'
+  result:
+    es: 'Coincide con los días activos oficiales en el <<ad_off_lo:.0f>>--<<ad_off_hi:.0f>>\% de los jugadores, y con los días con apuesta de cualquier monedero en el <<ad_any_lo:.0f>>--<<ad_any_hi:.0f>>\%. Del <<fa_lo:.0f>> al <<fa_hi:.0f>>\% de los jugadores que apostaron en los 30 días hasta el <<period_start_es>> solo apostaron con bono jugable (0 días activos), y la tabla les da de media <<fa_days_lo:.1f>>--<<fa_days_hi:.1f>> días.'
+    en: 'It matches the official active days for <<ad_off_lo:.0f>>--<<ad_off_hi:.0f>>\% of the players, and the days with a bet from any wallet for <<ad_any_lo:.0f>>--<<ad_any_hi:.0f>>\%. <<fa_lo:.0f>> to <<fa_hi:.0f>>\% of the players who bet in the 30 days to <<period_start_en>> only bet with playable bonus (0 active days), and the table gives them <<fa_days_lo:.1f>>--<<fa_days_hi:.1f>> days on average.'
+  definition:
+    es: 'Correcta (M053): $A_w = \#\{d \in (D-w, D] : W^r_d + W^l_d > 0\}$; un día con solo bono jugable no cuenta.'
+    en: 'Correct (M053): $A_w = \#\{d \in (D-w, D] : W^r_d + W^l_d > 0\}$; a day with only playable bonus does not count.'
+  fix:
+    es: 'Contar solo los días con apuesta de dinero real o bono liberado. Afecta a \code{frequency_decline} y \code{engagement_score}.'
+    en: 'Count only the days with a stake from real money or released bonus. It affects \code{frequency_decline} and \code{engagement_score}.'
+  figures: [active_match, false_actives]
+
+- id: it:churnscore
+  name: {es: '\code{churn_score}', en: '\code{churn_score}'}
+  priority: A
+  fail_if: rec_match0 < 99 or ad_off_lo < 99 or vd_above > 0.01
+  title: \code{churn_score} (\code{churn_propensity_raw}, \code{churn_band})
+  rule:
+    es: 'sus entradas (puntos 1, 2 y 4) pasan'
+    en: 'its inputs (points 1, 2 and 4) pass'
+  result:
+    es: 'Cumple su fórmula en el <<churn_formula:.2f>>\% de las filas. Sus entradas son \code{days_since_bet}, los días activos y \code{value_decline}. Su AUC es de <<churn_auc_lo:.2f>> a <<churn_auc_hi:.2f>>.'
+    en: 'It follows its formula in <<churn_formula:.2f>>\% of the rows. Its inputs are \code{days_since_bet}, the active days and \code{value_decline}. Its AUC is <<churn_auc_lo:.2f>> to <<churn_auc_hi:.2f>>.'
+  definition:
+    es: 'Fórmula (M107): $\operatorname{clamp}_{[0,100]}(0.5\,R + 0.3\,F + 0.2\,M)$, con $R$ = \code{recency_pressure}, $F$ = \code{frequency_decline}, $M$ = \code{value_decline}.'
+    en: 'Formula (M107): $\operatorname{clamp}_{[0,100]}(0.5\,R + 0.3\,F + 0.2\,M)$, with $R$ = \code{recency_pressure}, $F$ = \code{frequency_decline}, $M$ = \code{value_decline}.'
+  fix:
+    es: 'Recalcularlo con las entradas corregidas, o no usarlo.'
+    en: 'Recalculate it with the corrected inputs, or do not use it.'
+  figures: [recency_auc, index_limits]
+
+- id: it:valuedecline
+  name: {es: '\code{value_decline}', en: '\code{value_decline}'}
+  priority: A
+  fail_if: vd_above > 0.01
+  title: \code{value_decline} (\code{monetary_score})
+  rule:
+    es: 'entre 0 y 100 en $\ge 99.99\%$ de las filas'
+    en: 'between 0 and 100 in $\ge 99.99\%$ of the rows'
+  result:
+    es: 'El <<vd_above:.2f>>\% de las filas pasa de 100; el máximo es <<vd_max:,.0f>>. El <<vd_at100:.1f>>\% vale exactamente 100.'
+    en: '<<vd_above:.2f>>\% of the rows are above 100; the maximum is <<vd_max:,.0f>>. <<vd_at100:.1f>>\% are exactly 100.'
+  definition:
+    es: 'Excel (M125): $M = 100 \max\bigl(0, 1 - \frac{G_7/7}{G_{90}/90}\bigr)$, sin techo cuando $G_{90}$ es pequeño o negativo. Correcta: $\min(100, M)$.'
+    en: 'Workbook (M125): $M = 100 \max\bigl(0, 1 - \frac{G_7/7}{G_{90}/90}\bigr)$, with no limit when $G_{90}$ is small or negative. Correct: $\min(100, M)$.'
+  fix:
+    es: 'Recortarlo a $[0, 100]$ y tratar aparte $G_{90} \le 0$. Entra en \code{churn_score}.'
+    en: 'Cap it at $[0, 100]$ and treat $G_{90} \le 0$ apart. It goes into \code{churn_score}.'
+  figures: [index_limits]
+
+- id: it:tpdays
+  name: {es: 'frescura del tiempo de juego', en: 'freshness of time of play'}
+  priority: A
+  fail_if: tp_frozen_n > 0 or tp_first > long_start
+  title: \code{tp_*}
+  rule:
+    es: 'con datos desde el inicio del periodo largo y sin días congelados'
+    en: 'with data from the start of the long period and no frozen days'
+  result:
+    es: 'Primer día con valores: <<tp_first_es>> (periodo largo: <<long_es>>). Días congelados, iguales al anterior en todas las marcas: <<tp_frozen_n>> (<<tp_frozen>>).'
+    en: 'First day with values: <<tp_first_en>> (long period: <<long_en>>). Frozen days, the same as the day before in every brand: <<tp_frozen_n>> (<<tp_frozen>>).'
+  definition:
+    es: 'Un día congelado tiene exactamente las mismas filas con dato y los mismos valores imposibles que el día anterior, mientras el resto de la tabla cambia.'
+    en: 'A frozen day has exactly the same rows with a value and the same impossible values as the day before, while the rest of the table changes.'
+  fix:
+    es: 'Un control de frescura en el proceso diario; no usar el histórico de las \code{tp_*}.'
+    en: 'A freshness check in the daily process; do not use the history of the \code{tp_*}.'
+  figures: [tp_daily]
+
+- id: it:session
+  name: {es: 'duración de sesión', en: 'session length'}
+  priority: M
+  fail_if: se_over_day > 0.1
+  title: \code{tp_avg_session_duration_secs}, \code{tp_median_session_duration_secs}
+  rule:
+    es: 'sesión media de más de 1 día en $\le 0.1\%$ de las filas'
+    en: 'mean session over 1 day in $\le 0.1\%$ of the rows'
+  result:
+    es: 'El <<se_over_day:.2f>>\% de las filas tiene una sesión media de más de 1 día (hasta <<se_max_days:.0f>> días) y el <<se_one_sec:.1f>>\% de exactamente 1~s. Fuera de 10~s a 4~h: <<se_outside:.1f>>\% en la tabla y <<se_outside_rc:.1f>>\% en las sesiones recalculadas desde cada apuesta. Los jugadores con apuestas deportivas tienen el <<se_sports:.0f>>\% de las sesiones de más de 1 día.'
+    en: '<<se_over_day:.2f>>\% of the rows have a mean session over 1 day (up to <<se_max_days:.0f>> days) and <<se_one_sec:.1f>>\% of exactly 1~s. Outside 10~s to 4~h: <<se_outside:.1f>>\% in the table and <<se_outside_rc:.1f>>\% in the sessions recomputed from each bet. The players with sports bets hold <<se_sports:.0f>>\% of the sessions over 1 day.'
+  definition:
+    es: 'Correcta: sesión = racha de apuestas sin huecos de más de 30~min; dura de la primera a la última apuesta.'
+    en: 'Correct: session = run of bets with no gap over 30~min; it lasts from the first to the last bet.'
+  fix:
+    es: 'Reconstruir las sesiones desde cada apuesta, y separar antes las apuestas deportivas (proveedores 58 y 50).'
+    en: 'Rebuild the sessions from each bet, and separate the sports bets (providers 58 and 50) first.'
+  figures: [cmp_session_avg, cmp_session_median, session_brands, session_rules, sessions_products]
+
+- id: it:gap
+  name: {es: 'hueco entre sesiones', en: 'gap between sessions'}
+  priority: M
+  fail_if: gap_neg > 0.1
+  title: \code{tp_avg_session_gap_hours}
+  rule:
+    es: 'hueco negativo en $\le 0.1\%$ de las filas'
+    en: 'negative gap in $\le 0.1\%$ of the rows'
+  result:
+    es: 'El hueco es negativo en el <<gap_neg:.2f>>\% de las filas con hueco (mínimo <<gap_min:.0f>>~h); el <<gap_casino:.0f>>\% de esos casos son jugadores solo de casino.'
+    en: 'The gap is negative in <<gap_neg:.2f>>\% of the rows with a gap (minimum <<gap_min:.0f>>~h); <<gap_casino:.0f>>\% of those cases are casino-only players.'
+  definition:
+    es: '$g_s = a_{s+1} - b_s$: con sesiones del jugador, nunca es negativo.'
+    en: '$g_s = a_{s+1} - b_s$: with sessions of the player, it is never negative.'
+  fix:
+    es: 'Calcular el hueco con las sesiones reconstruidas.'
+    en: 'Calculate the gap with the rebuilt sessions.'
+  figures: [session_rules, sessions_products]
+
+- id: it:playsecs
+  name: {es: '\code{play_secs}', en: '\code{play_secs}'}
+  priority: M
+  fail_if: ps_over_day > 0.1
+  title: \code{play_secs_today}, \code{play_secs_l7d}, \code{play_secs_l30d}, \code{play_secs_l90d}, \code{play_secs_l180d}
+  rule:
+    es: 'más de 24~h en un día en $\le 0.1\%$ de los días con juego'
+    en: 'over 24~h in a day in $\le 0.1\%$ of the days with play'
+  result:
+    es: 'El <<ps_over_day:.2f>>\% de los días con juego pasa de 24~h. Los días con alguna apuesta deportiva tienen el <<ps_sports:.0f>>\% de esos casos.'
+    en: '<<ps_over_day:.2f>>\% of the days with play go over 24~h. The days with some sports bet hold <<ps_sports:.0f>>\% of those cases.'
+  definition:
+    es: 'Correcta: la unión de los intervalos de sesión del día, $\le 86\,400$~s.'
+    en: 'Correct: the union of the session intervals of the day, $\le 86\,400$~s.'
+  fix:
+    es: 'Calcularlo con las sesiones reconstruidas de cada día, sin el tiempo de las apuestas deportivas.'
+    en: 'Calculate it with the rebuilt sessions of each day, without the time of the sports bets.'
+  figures: [session_rules, sessions_products]
+
+- id: it:night
+  name: {es: 'noche', en: 'night'}
+  priority: M
+  fail_if: night_above > 0.01
+  title: \code{tp_night_index}
+  rule:
+    es: 'entre 0 y 1 (una proporción) en $\ge 99.99\%$ de las filas'
+    en: 'between 0 and 1 (a share) in $\ge 99.99\%$ of the rows'
+  result:
+    es: 'El <<night_above:.1f>>\% de las filas pasa de 1; el máximo es <<night_max:.2f>>.'
+    en: '<<night_above:.1f>>\% of the rows are above 1; the maximum is <<night_max:.2f>>.'
+  definition:
+    es: 'Correcta (M127): $S_{\text{noche}}/S \in [0,1]$, de 00:00 a 06:00 hora local.'
+    en: 'Correct (M127): $S_{\text{night}}/S \in [0,1]$, from 00:00 to 06:00 local time.'
+  fix:
+    es: 'Calcularla como proporción, desde cada apuesta.'
+    en: 'Calculate it as a share, from each bet.'
+  figures: [tp_scale, tp_above_brands, cmp_night]
+
+- id: it:rgnight
+  name: {es: '\code{rg_night_play_ratio}', en: '\code{rg_night_play_ratio}'}
+  priority: M
+  fail_if: rgn_match < 99
+  title: \code{rg_night_play_ratio}
+  rule:
+    es: 'igual a \code{tp_night_index} en $\ge 99\%$ de las filas'
+    en: 'equal to \code{tp_night_index} in $\ge 99\%$ of the rows'
+  result:
+    es: 'Coincide con \code{tp_night_index} en el <<rgn_match:.1f>>\% de las filas. Entra en \code{risk_score}.'
+    en: 'It matches \code{tp_night_index} in <<rgn_match:.1f>>\% of the rows. It goes into \code{risk_score}.'
+  definition:
+    es: 'Excel: $S_{\text{noche}}/S$, la misma medida que \code{tp_night_index}.'
+    en: 'Workbook: $S_{\text{night}}/S$, the same measure as \code{tp_night_index}.'
+  fix:
+    es: 'Sustituirla por la proporción de noche recalculada.'
+    en: 'Replace it with the recomputed night share.'
+  figures: []
+
+- id: it:weekend
+  name: {es: 'fin de semana', en: 'weekend'}
+  priority: M
+  fail_if: weekend_above > 0.01
+  title: \code{tp_weekend_index}
+  rule:
+    es: 'entre 0 y 1 en $\ge 99.99\%$ de las filas'
+    en: 'between 0 and 1 in $\ge 99.99\%$ of the rows'
+  result:
+    es: 'El <<weekend_above:.1f>>\% de las filas pasa de 1; el máximo es <<weekend_max:.2f>>.'
+    en: '<<weekend_above:.1f>>\% of the rows are above 1; the maximum is <<weekend_max:.2f>>.'
+  definition:
+    es: 'Correcta (M147): $S_{\text{sábado y domingo}}/S \in [0,1]$, hora local.'
+    en: 'Correct (M147): $S_{\text{Saturday and Sunday}}/S \in [0,1]$, local time.'
+  fix:
+    es: 'Calcularla como proporción.'
+    en: 'Calculate it as a share.'
+  figures: [tp_scale, tp_above_brands, cmp_weekend]
+
+- id: it:entropy
+  name: {es: 'entropía horaria', en: 'hourly entropy'}
+  priority: M
+  fail_if: ent_above > 0.01
+  title: \code{tp_hourly_entropy}
+  rule:
+    es: 'entre 0 y 1 en $\ge 99.99\%$ de las filas'
+    en: 'between 0 and 1 in $\ge 99.99\%$ of the rows'
+  result:
+    es: 'El <<ent_above:.1f>>\% de las filas pasa de 1; el máximo es <<ent_max:.2f>> ($\log_2 24 = 4.58$).'
+    en: '<<ent_above:.1f>>\% of the rows are above 1; the maximum is <<ent_max:.2f>> ($\log_2 24 = 4.58$).'
+  definition:
+    es: 'Correcta: $H / \log_2 24 \in [0,1]$, con $p_h = S_{\text{hora } h}/S$ en hora local.'
+    en: 'Correct: $H / \log_2 24 \in [0,1]$, with $p_h = S_{\text{hour } h}/S$ in local time.'
+  fix:
+    es: 'Dividir entre $\log_2 24$, o calcularla desde cada apuesta.'
+    en: 'Divide by $\log_2 24$, or calculate it from each bet.'
+  figures: [tp_scale, tp_above_brands, cmp_entropy]
+
+- id: it:depositrecency
+  name: {es: '\code{deposit_recency_score}', en: '\code{deposit_recency_score}'}
+  priority: M
+  fail_if: deprec_formula >= 99
+  title: \code{deposit_recency_score}
+  rule:
+    es: 'no sigue la fórmula del Excel, que usa los días desde la última apuesta'
+    en: 'does not follow the workbook formula, which uses the days since the last bet'
+  result:
+    es: 'Cumple la fórmula del Excel en el <<deprec_formula:.2f>>\% de las filas: mide los días desde la última \emph{apuesta}, no desde el último \emph{depósito}.'
+    en: 'It follows the workbook formula in <<deprec_formula:.2f>>\% of the rows: it measures the days since the last \emph{bet}, not since the last \emph{deposit}.'
+  definition:
+    es: 'Excel (M113): 100 si hay depósito hoy; si no, $100\,(1 - \min(1, \text{days\_since\_bet}/30))$. Correcta: lo mismo con los días desde el último depósito.'
+    en: 'Workbook (M113): 100 if there is a deposit today; otherwise $100\,(1 - \min(1, \text{days\_since\_bet}/30))$. Correct: the same with the days since the last deposit.'
+  fix:
+    es: 'Calcular los días desde el último depósito con la tabla de pagos.'
+    en: 'Calculate the days since the last deposit with the payments table.'
+  figures: []
+
+- id: it:tenure
+  name: {es: 'antigüedad', en: 'tenure'}
+  priority: M
+  fail_if: ten_min < 99
+  title: \code{tenure_days}
+  rule:
+    es: 'entre dos fotos mensuales crece los días que pasan ($\pm 1$) en $\ge 99\%$ de los jugadores'
+    en: 'between two monthly snapshots it grows by the days in between ($\pm 1$) for $\ge 99\%$ of the players'
+  result:
+    es: 'Crece lo que debe en el <<ten_min:.0f>>\% (peor marca y par de fotos) al <<ten_max:.0f>>\% de los jugadores; en el último par de fotos, al menos el <<ten_last:.0f>>\%. Pares de fotos: <<ten_pairs>>.'
+    en: 'It grows as it must for <<ten_min:.0f>>\% (worst brand and pair of snapshots) to <<ten_max:.0f>>\% of the players; in the last pair of snapshots, at least <<ten_last:.0f>>\%. Pairs of snapshots: <<ten_pairs>>.'
+  definition:
+    es: 'Correcta: $T_D = D - \min\{d : \text{día activo}\}$, así que $T_{D_2} - T_{D_1} = D_2 - D_1$.'
+    en: 'Correct: $T_D = D - \min\{d : \text{active day}\}$, so $T_{D_2} - T_{D_1} = D_2 - D_1$.'
+  fix:
+    es: 'Calcularla con la actividad diaria hasta la fecha.'
+    en: 'Calculate it with the daily activity up to the date.'
+  figures: [tenure]
+
+- id: it:recencypressure
+  name: {es: '\code{recency_pressure}', en: '\code{recency_pressure}'}
+  priority: M
+  fail_if: rp_at100 > 50
+  title: \code{recency_pressure} (\code{recency_score})
+  rule:
+    es: 'vale 100 en $\le 50\%$ de las filas'
+    en: 'is 100 in $\le 50\%$ of the rows'
+  result:
+    es: 'Vale 100 en el <<rp_at100:.1f>>\% de las filas.'
+    en: 'It is 100 in <<rp_at100:.1f>>\% of the rows.'
+  definition:
+    es: 'Excel: $\min\bigl(100, 100\,\text{days\_since\_bet} / \max(\tilde g, 3)\bigr)$: llega a 100 a los 3 días sin apostar. Es un problema de diseño, no de cálculo.'
+    en: 'Workbook: $\min\bigl(100, 100\,\text{days\_since\_bet} / \max(\tilde g, 3)\bigr)$: it reaches 100 after 3 days without a bet. A design problem, not a calculation error.'
+  fix:
+    es: 'Usar el cociente sin recortar, o la recencia en días.'
+    en: 'Use the ratio with no cap, or the recency in days.'
+  figures: [index_limits]
+
+- id: it:brand
+  name: {es: '\code{brand_id}', en: '\code{brand_id}'}
+  priority: M
+  fail_if: brand_null > 1
+  title: \code{brand_id}
+  rule:
+    es: 'vacío en $\le 1\%$ de las filas del periodo'
+    en: 'empty in $\le 1\%$ of the rows of the period'
+  result:
+    es: 'Vacío en el <<brand_null:.1f>>\% de las filas del periodo (todos los operadores).'
+    en: 'Empty in <<brand_null:.1f>>\% of the rows of the period (all operators).'
+  definition: {es: '', en: ''}
+  fix:
+    es: 'Tomar la marca del jugador de \code{gld_player_gaming_daily} (cada jugador tiene una sola).'
+    en: 'Take the brand of the player from \code{gld_player_gaming_daily} (each player has only one).'
+  figures: [missing_brand_id]
+
+- id: it:codes
+  name: {es: 'códigos vacíos', en: 'empty codes'}
+  priority: M
+  fail_if: max(code_country, code_language, code_currency_hi) > 1
+  title: \code{country}, \code{language}, \code{currency}
+  rule:
+    es: 'vacías en $\le 1\%$ de las filas'
+    en: 'empty in $\le 1\%$ of the rows'
+  result:
+    es: 'Vacías: \code{country} en el <<code_country:.0f>>\%, \code{language} en el <<code_language:.0f>>\% y \code{currency} en el <<code_currency_lo:.0f>>--<<code_currency_hi:.0f>>\% de las filas, según la marca.'
+    en: 'Empty: \code{country} in <<code_country:.0f>>\%, \code{language} in <<code_language:.0f>>\% and \code{currency} in <<code_currency_lo:.0f>>--<<code_currency_hi:.0f>>\% of the rows, by brand.'
+  definition:
+    es: 'Esperado: un código ISO en mayúsculas, y NULL (no texto vacío) cuando no se sabe.'
+    en: 'Expected: an ISO code in upper case, and NULL (not empty text) when it is not known.'
+  fix:
+    es: 'Rellenarlas desde la tabla de jugadores, o dejar NULL.'
+    en: 'Fill them from the players table, or leave NULL.'
+  figures: [empty_codes]
+
+- id: it:hold
+  name: {es: '\code{hold_pct_l30d}', en: '\code{hold_pct_l30d}'}
+  priority: B
+  fail_if: hold_rows > 0
+  title: \code{hold_pct_l30d}
+  rule:
+    es: 'nunca por encima de 100\% en el periodo largo'
+    en: 'never above 100\% in the long period'
+  result:
+    es: 'Filas por encima de 100\% en el periodo largo: <<hold_rows:,.0f>>. En los ficheros diarios copiados, <<hold_days>> días con algún valor por encima de 100\% (máximo <<hold_max:,.0f>>\%).'
+    en: 'Rows above 100\% in the long period: <<hold_rows:,.0f>>. In the daily files read, <<hold_days>> days with a value above 100\% (maximum <<hold_max:,.0f>>\%).'
+  definition:
+    es: '$h = 100\,(S - P)/S$: solo pasa de 100 si lo ganado $P$ es negativo.'
+    en: '$h = 100\,(S - P)/S$: it is only above 100 if the amount won $P$ is negative.'
+  fix:
+    es: 'Calcularlo solo con $S > 0$ y $P \ge 0$.'
+    en: 'Calculate it only with $S > 0$ and $P \ge 0$.'
+  figures: [hold_history, hold_bets]
+
+- id: it:peak
+  name: {es: '\code{top_peak_*}', en: '\code{top_peak_*}'}
+  priority: B
+  fail_if: max(peak_hour0, peak_day0) > 20
+  title: \code{top_peak_hour}, \code{top_peak_day}
+  rule:
+    es: 'vale 0 en $\le 20\%$ de las filas'
+    en: 'is 0 in $\le 20\%$ of the rows'
+  result:
+    es: 'Vale 0 en el <<peak_hour0:.0f>>\% (hora) y el <<peak_day0:.0f>>\% (día) de las filas; 0 es también medianoche y un día real.'
+    en: 'It is 0 in <<peak_hour0:.0f>>\% (hour) and <<peak_day0:.0f>>\% (day) of the rows; 0 is also midnight and a real day.'
+  definition:
+    es: 'Correcta: NULL cuando no hay datos.'
+    en: 'Correct: NULL when there is no data.'
+  fix:
+    es: 'Dejarla vacía (NULL) cuando no hay datos.'
+    en: 'Leave it empty (NULL) when there is no data.'
+  figures: [index_limits]
+
+- id: it:depfreq
+  name: {es: '\code{deposit_frequency_score}', en: '\code{deposit_frequency_score}'}
+  priority: B
+  fail_if: dep_empty > 0
+  title: \code{deposit_frequency_score}
+  rule:
+    es: 'con valor en todas las fotos mensuales'
+    en: 'filled in every monthly snapshot'
+  result:
+    es: 'Vale 0 para todos los jugadores en <<dep_empty>> de <<dep_months>> fotos mensuales (marca y mes).'
+    en: 'It is 0 for every player in <<dep_empty>> of <<dep_months>> monthly snapshots (brand and month).'
+  definition: {es: '', en: ''}
+  fix:
+    es: 'No usarla en las fotos vacías.'
+    en: 'Do not use it in the empty snapshots.'
+  figures: []
+
+- id: it:units
+  name: {es: 'unidades del Excel', en: 'units in the workbook'}
+  priority: B
+  fail_if: units_max > 1
+  title: {es: Unidades de los scores en el Excel, en: Units of the scores in the workbook}
+  rule:
+    es: 'los scores van de 0 a 1, como dice el Excel'
+    en: 'the scores go from 0 to 1, as the workbook says'
+  result:
+    es: 'El máximo de \code{churn_score} es <<units_max:.0f>>: la tabla usa de 0 a 100 y el Excel dice 0--1.'
+    en: 'The maximum of \code{churn_score} is <<units_max:.0f>>: the table uses 0 to 100 and the workbook says 0--1.'
+  definition: {es: '', en: ''}
+  fix:
+    es: 'Corregir la unidad en el Excel.'
+    en: 'Fix the unit in the workbook.'
+  figures: []
+
+- id: it:tax
+  name: {es: 'impuestos', en: 'tax'}
+  priority: B
+  fail_if: tax_zero > 99 or tax_above > 0
+  title: \code{tax_eur_*}
+  rule:
+    es: 'distinto de 0 y nunca mayor que el GGR'
+    en: 'not 0, and never above the GGR'
+  result:
+    es: 'Vale 0 en el <<tax_zero:.1f>>\% de las filas (día, 90 y 180 días); por encima del GGR: <<tax_above:,.0f>> filas.'
+    en: 'It is 0 in <<tax_zero:.1f>>\% of the rows (day, 90 and 180 days); above the GGR: <<tax_above:,.0f>> rows.'
+  definition:
+    es: 'Esperado: $0 < \text{impuesto} \le \text{GGR}$.'
+    en: 'Expected: $0 < \text{tax} \le \text{GGR}$.'
+  fix:
+    es: 'Confirmar si estas marcas tienen impuesto; si lo tienen, el origen no lo envía.'
+    en: 'Confirm whether these brands have a tax; if they do, the source does not send it.'
+  figures: []
+
+- id: it:ngr
+  name: {es: 'NGR', en: 'NGR'}
+  priority: Q
+  title: \code{ngr_eur_today}, \code{ngr_eur_l7d}, \code{ngr_eur_l30d}, \code{ngr_eur_l90d}, \code{ngr_eur_l180d}
+  rule:
+    es: 'el Excel no define el coste del bono'
+    en: 'the workbook does not define the bonus cost'
+  result:
+    es: 'Coincide con GGR menos bono menos impuestos en el <<ngr_lo:.0f>>--<<ngr_hi:.0f>>\% de las filas, según la ventana.'
+    en: 'It matches GGR minus bonus minus tax in <<ngr_lo:.0f>>--<<ngr_hi:.0f>>\% of the rows, by window.'
+  definition:
+    es: 'Excel: ``GGR menos el coste del bono y los impuestos'''', sin definir el coste del bono.'
+    en: 'Workbook: ``GGR minus the bonus cost and the taxes'''', with no definition of the bonus cost.'
+  fix: {es: '', en: ''}
+  figures: []
+
+- id: it:prior
+  name: {es: '\code{prior_*_score}', en: '\code{prior_*_score}'}
+  priority: Q
+  title: \code{prior_churn_score}, \code{prior_engagement_score}, \code{prior_risk_score}, \code{prior_betting_aggression_score}
+  rule:
+    es: 'el Excel no dice de qué fecha son'
+    en: 'the workbook does not say from which date they are'
+  result:
+    es: 'Coinciden con el valor de 7 días antes en el <<prior_lo:.0f>>--<<prior_hi:.0f>>\% de las filas.'
+    en: 'They match the value of 7 days before in <<prior_lo:.0f>>--<<prior_hi:.0f>>\% of the rows.'
+  definition:
+    es: 'Excel: el valor anterior, sin decir de qué fecha.'
+    en: 'Workbook: the previous value, without saying from which date.'
+  fix: {es: '', en: ''}
+  figures: []
+
+- id: it:z
+  name: {es: 'z-scores', en: 'z-scores'}
+  priority: Q
+  title: \code{bet_z_score}, \code{session_len_z}
+  rule:
+    es: 'el Excel no dice sobre qué jugadores se calculan'
+    en: 'the workbook does not say on which players they are computed'
+  result:
+    es: 'Con la media y la desviación de la marca y el día coinciden en el <<z_lo:.1f>>--<<z_hi:.1f>>\% de las filas.'
+    en: 'With the mean and the deviation of the brand and day they match in <<z_lo:.1f>>--<<z_hi:.1f>>\% of the rows.'
+  definition:
+    es: 'Excel: $z = (x - \mu)/\sigma$ ``del tenant'''', sin decir sobre qué jugadores.'
+    en: 'Workbook: $z = (x - \mu)/\sigma$ ``of the tenant'''', without saying on which players.'
+  fix: {es: '', en: ''}
+  figures: []
+
+figures:
+  cmp_session_avg:
+    point: it:session
+    claim:
+      fail: The table has mean sessions of days; recomputed from each bet, they do not exist
+      pass: The mean session of the table follows the sessions recomputed from each bet
+    how: "x: mean session length of each player, <<period_en>> (log scale). y: % of players in each bar.\nRecomputed from each bet: session = bets with no gap over 30 min; length = last bet $-$ first bet."
+    caption:
+      es: '\textbf{Duración media de sesión}, la tabla (rojo) frente a la recalculada desde cada apuesta (azul). \textbf{Cálculo:} $y_b = 100\,\#\{p : \bar L_p \in b\} / N$, con $\bar L_p$ la duración media de las sesiones del jugador $p$.'
+      en: '\textbf{Mean session length}, the table (red) against the one recomputed from each bet (blue). \textbf{Calculation:} $y_b = 100\,\#\{p : \bar L_p \in b\} / N$, with $\bar L_p$ the mean length of the sessions of player $p$.'
+  cmp_session_median:
+    point: it:session
+    claim:
+      fail: The median session has the same tail of impossible values
+      pass: The median session of the table follows the recomputed one
+    how: "x: median session length of each player, <<period_en>> (log scale). y: % of players in each bar.\nRecomputed from each bet: session = bets with no gap over 30 min; length = last bet $-$ first bet."
+    caption:
+      es: '\textbf{Mediana de duración de sesión}. \textbf{Cálculo:} igual, con la mediana $\tilde L_p$.'
+      en: '\textbf{Median session length}. \textbf{Calculation:} the same, with the median $\tilde L_p$.'
+  session_brands:
+    point: it:session
+    claim:
+      fail: In every brand the table has the tail of long sessions; the recomputed sessions do not
+      pass: In every brand the table follows the recomputed sessions
+    how: "x: mean session length of each player, <<period_en>> (log scale). y: % of players in each bar. Red: signals table; blue: recomputed from each bet.\nOrange zone: 4 h to 1 day (suspicious). Red zone: over 1 day (impossible). The box gives the % of players outside 10 s to 4 h."
+    caption:
+      es: '\textbf{Marca a marca.} \textbf{Cálculo:} $y_b = 100\,\#\{p \in m : \bar L_p \in b\} / N_m$ para cada marca $m$.'
+      en: '\textbf{Brand by brand.} \textbf{Calculation:} $y_b = 100\,\#\{p \in m : \bar L_p \in b\} / N_m$ for each brand $m$.'
+  session_rules:
+    point: it:session
+    claim:
+      fail: Every brand breaks some of the rules that any real session follows
+      pass: Every brand follows the rules of a real session
+    how: "Each cell: % of the rows of that brand (<<period_en>>) that break the rule of the row. For real sessions every cell must be 0%."
+    caption:
+      es: '\textbf{Reglas de una sesión real.} \textbf{Cálculo:} cada casilla $= 100\,\#\{\text{filas de la marca que incumplen la regla}\} / \#\{\text{filas de la marca}\}$.'
+      en: '\textbf{Rules of a real session.} \textbf{Calculation:} each cell $= 100\,\#\{\text{rows of the brand that break the rule}\} / \#\{\text{rows of the brand}\}$.'
+  sessions_products:
+    point: it:session
+    claim: "Sports bets hold <<se_sports:.0f>>% of the sessions over 1 day and <<ps_sports:.0f>>% of the days over 24 h; casino-only players hold <<gap_casino:.0f>>% of the negative gaps"
+    how: "Groups (gld_player_gaming_daily, <<period_en>>): sports = providers 58 and 50. Left: player-days by what was played that day. Centre and right: players by whether they bet on sports in the period.\nBars: % of the rows of each group with the impossible value, so the bars do not add up to 100%.\nUnder each bar: the share of all the impossible cases of the panel that the group holds; these add up to 100%."
+    caption:
+      es: '\textbf{Deporte o casino.} \textbf{Cálculo:} para cada grupo $G$, $100\,\#\{\text{filas de } G \text{ con el valor imposible}\} / \#\{\text{filas de } G\}$.'
+      en: '\textbf{Sports or casino.} \textbf{Calculation:} for each group $G$, $100\,\#\{\text{rows of } G \text{ with the impossible value}\} / \#\{\text{rows of } G\}$.'
+  tp_scale:
+    point: it:night
+    claim:
+      fail: The indices are not shares when they go above 1 and sit on exact fractions
+      pass: The three indices stay between 0 and 1
+    how: "x: value in the table, <<period_en>> (zeros left out). y: % of rows in each bar (log scale). Red bars: above 1.\nAn index against an even spread: weekend = share $/ (2/7) = 3.5 \\times$ share, night = share $/ (6/24) = 4 \\times$ share.\nA player who plays on k days (or hours), one of them at the weekend (or at night), gets 3.5 / k (or 4 / k). Entropy in bits: k equal hours give log$_2$ k."
+    caption:
+      es: '\textbf{La escala} de noche, fin de semana y entropía. \textbf{Cálculo:} $y_b = 100\,\#\{\text{filas con } x \in b\} / \#\{\text{filas con } x \neq 0\}$.'
+      en: '\textbf{The scale} of night, weekend and entropy. \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / \#\{\text{rows with } x \neq 0\}$.'
+  tp_above_brands:
+    point: it:night
+    claim:
+      fail: The indices go above 1 in the brands, which is impossible for a share
+      pass: No brand has the indices above 1
+    how: "Bars: % of the rows of each brand, <<period_en>>, with a value above 1, impossible for a share (0 to 1)."
+    caption:
+      es: '\textbf{Marca a marca.} \textbf{Cálculo:} $100\,\#\{\text{filas con } x > 1\} / N$, con $N$ las filas de la marca.'
+      en: '\textbf{Brand by brand.} \textbf{Calculation:} $100\,\#\{\text{rows with } x > 1\} / N$, with $N$ the rows of the brand.'
+  cmp_night:
+    point: it:night
+    claim:
+      fail: tp_night_index goes up to <<night_max:.1f>>; a share of play at night cannot go above 1
+      pass: tp_night_index stays between 0 and 1
+    how: "x: value of each player (1 = 100% of the stake at night). y: % of rows in each bar (log scale).\nCorrect (M127): $S_{night} / S$, the stake from 00:00 to 06:00 local time over the whole stake."
+    caption:
+      es: '\textbf{Noche.} \textbf{Cálculo:} $y_b = 100\,\#\{\text{filas con } x \in b\} / N$.'
+      en: '\textbf{Night.} \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.'
+  cmp_weekend:
+    point: it:weekend
+    claim:
+      fail: tp_weekend_index goes up to <<weekend_max:.1f>>; a share of play at the weekend cannot go above 1
+      pass: tp_weekend_index stays between 0 and 1
+    how: "x: value of each player (1 = 100% of the stake at the weekend). y: % of rows in each bar (log scale).\nCorrect (M147): $S_{weekend} / S$, the stake of Saturday and Sunday (local time) over the whole stake."
+    caption:
+      es: '\textbf{Fin de semana.} \textbf{Cálculo:} $y_b = 100\,\#\{\text{filas con } x \in b\} / N$.'
+      en: '\textbf{Weekend.} \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.'
+  cmp_entropy:
+    point: it:entropy
+    claim:
+      fail: tp_hourly_entropy goes up to <<ent_max:.1f>>; the workbook says from 0 to 1
+      pass: tp_hourly_entropy stays between 0 and 1
+    how: "x: hourly entropy of each player (0 = always at the same hour, 1 = the same stake in every hour). y: % of rows in each bar (log scale).\nCorrect: $H / \\log_2 24$, with $H = -\\sum\\, p_h \\log_2 p_h$ over the 24 hours and $p_h$ = share of the stake in hour $h$."
+    caption:
+      es: '\textbf{Entropía horaria.} \textbf{Cálculo:} $y_b = 100\,\#\{\text{filas con } x \in b\} / N$.'
+      en: '\textbf{Hourly entropy.} \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.'
+  tp_daily:
+    point: it:tpdays
+    claim:
+      fail: "Time of play per day: <<tp_frozen_n>> frozen days"
+      pass: Time of play per day, with no frozen days
+    how: "Top: rows with a time-of-play value per day (five brands). Bottom: % of those rows with an impossible value.\nFrozen day (red line): the same rows and the same impossible values as the day before, to the unit, in every brand: the columns were not updated."
+    caption:
+      es: '\textbf{Cobertura y días congelados.} \textbf{Cálculo:} arriba, $N_d$ = filas del día $d$ con valor; abajo, $100\,\#\{\text{filas del día } d \text{ con un valor imposible}\} / N_d$.'
+      en: '\textbf{Coverage and frozen days.} \textbf{Calculation:} top, $N_d$ = rows of day $d$ with a value; bottom, $100\,\#\{\text{rows of day } d \text{ with an impossible value}\} / N_d$.'
+  recency_zero:
+    point: it:recency
+    claim: "days_since_bet is 0 for 90% or more of the active players in <<rec_zero_months>> of <<rec_months>> monthly snapshots"
+    how: "Each point: of the players who bet in the 30 days before a monthly snapshot, % with days_since_bet = 0 in that snapshot.\nA real recency is 0 only for the players who bet that same day, never for all of them."
+    caption:
+      es: '\textbf{\code{days_since_bet} = 0 en el histórico.} \textbf{Cálculo:} $100\,\#\{p \in A_D : \text{days\_since\_bet}_p(D) = 0\} / \#A_D$, con $A_D$ los jugadores con una apuesta en $(D-30, D]$.'
+      en: '\textbf{\code{days_since_bet} = 0 in the history.} \textbf{Calculation:} $100\,\#\{p \in A_D : \text{days\_since\_bet}_p(D) = 0\} / \#A_D$, with $A_D$ the players with a bet in $(D-30, D]$.'
+  recency_shift:
+    point: it:recency
+    claim:
+      fail: days_since_bet of day D matches best the recency of <<rec_best_shift>> days later; it uses data from the future
+      pass: days_since_bet of day D is the recency of day D
+    how: "Real recency of player p on a day X: days from X back to the last bet up to X, $R_p(X) = X - \\max\\{d \\leq X : p\\ \\mathrm{bets\\ on}\\ d\\}$.\nEach bar, for a shift s: $100 \\cdot \\#\\{p : \\mathrm{days\\_since\\_bet}_p(D) = R_p(D + s)\\} \\,/\\, \\#\\{p\\}$, the median of the brands and of the snapshots D; grey lines: each brand."
+    caption:
+      es: '\textbf{A qué día mira.} \textbf{Cálculo:} $y(s) = 100\,\#\{p : \text{days\_since\_bet}_p(D) = R_p(D+s)\} / N$, con $R_p(X) = X - \protect\max\{d \le X : p \text{ apuesta el día } d\}$; mediana de las marcas y de los días $D$.'
+      en: '\textbf{Which day it looks at.} \textbf{Calculation:} $y(s) = 100\,\#\{p : \text{days\_since\_bet}_p(D) = R_p(D+s)\} / N$, with $R_p(X) = X - \protect\max\{d \le X : p \text{ bets on day } d\}$; median of the brands and of the days $D$.'
+  recency_auc:
+    point: it:recency
+    claim:
+      fail: With days_since_bet a model looks almost perfect, because the column already knows the answer
+      pass: days_since_bet predicts the next bets as well as the real recency
+    how: "AUC of each column alone to predict whether the player bets between D + 1 and D + 7 (0.5 = chance, 1 = perfect). Median of the snapshots.\nRed: the table column. Blue: the real recency with data up to D, what a model can know on day D. Yellow: churn_score."
+    caption:
+      es: '\textbf{El efecto en un modelo.} \textbf{Cálculo:} AUC de $-x_p$ para la etiqueta $y_p = 1$ si $p$ apuesta en $[D+1, D+7]$, con $x_p$ = \code{days_since_bet}, $R_p(D)$ o \code{churn_score}.'
+      en: '\textbf{The effect on a model.} \textbf{Calculation:} AUC of $-x_p$ for the label $y_p = 1$ if $p$ bets in $[D+1, D+7]$, with $x_p$ = \code{days_since_bet}, $R_p(D)$ or \code{churn_score}.'
+  active_match:
+    point: it:activedays
+    claim:
+      fail: active_days_* counts the days with a bet from any wallet, not the official active days
+      pass: active_days_* counts the official active days
+    how: "Official count (M053): days with a bet from real money or released bonus, $\\#\\{d : W^r_d + W^l_d > 0\\}$. Any wallet: playable bonus too, $\\#\\{d : W^r_d + W^l_d + W^j_d > 0\\}$.\nBars: % of players where the table equals each count (median of the brands and of the monthly snapshots; black line: lowest and highest snapshot)."
+    caption:
+      es: '\textbf{Qué definición usa.} \textbf{Cálculo:} azul $= 100\,\#\{p : A^{\text{tabla}}_p = A^{\text{oficial}}_p\} / N$; rojo, lo mismo con $A^{\text{cualquier monedero}}_p$; mediana de las marcas y de las fotos.'
+      en: '\textbf{Which definition it uses.} \textbf{Calculation:} blue $= 100\,\#\{p : A^{\text{table}}_p = A^{\text{official}}_p\} / N$; red, the same with $A^{\text{any wallet}}_p$; median of the brands and of the snapshots.'
+  false_actives:
+    point: it:activedays
+    claim:
+      fail: Players who only bet with playable bonus have 0 active days, and the table counts them as active
+      pass: Players who only bet with playable bonus have 0 active days in the table too
+    how: "Bars: % of the players who bet in the 30 days to <<period_start_en>> whose only stake was playable bonus ($W^r + W^l = 0$),\nso 0 official active days. Above each bar: how many they are and the mean active days the table gives them."
+    caption:
+      es: '\textbf{Activos falsos.} \textbf{Cálculo:} $100\,\#\{p : \sum_d (W^r_d + W^l_d) = 0,\ \sum_d W^j_d > 0\} / \#\{p : \text{apuesta en los 30 días}\}$.'
+      en: '\textbf{False actives.} \textbf{Calculation:} $100\,\#\{p : \sum_d (W^r_d + W^l_d) = 0,\ \sum_d W^j_d > 0\} / \#\{p : \text{bets in the 30 days}\}$.'
+  tenure:
+    point: it:tenure
+    claim:
+      fail: "tenure_days grows as it must for as few as <<ten_min:.0f>>% of the players of a brand; in the last snapshot for <<ten_last:.0f>>% or more"
+      pass: tenure_days grows with time
+    how: "Tenure $T_D = D - $ first active day, so between two snapshots it must grow exactly $D_2 - D_1$ days.\nEach point: % of the players of a brand whose tenure grew by that (±1 day) since the previous monthly snapshot. It must be 100%."
+    caption:
+      es: '\textbf{Antigüedad.} \textbf{Cálculo:} $100\,\#\{p : |T_p(D_2) - T_p(D_1) - (D_2 - D_1)| \le 1\} / N$ para cada marca y par de fotos mensuales seguidas.'
+      en: '\textbf{Tenure.} \textbf{Calculation:} $100\,\#\{p : |T_p(D_2) - T_p(D_1) - (D_2 - D_1)| \le 1\} / N$ for each brand and pair of monthly snapshots in a row.'
+  index_limits:
+    point: it:valuedecline
+    claim: Four columns with a limit or a default value
+    how: "x: value in the table (all brands, <<period_en>>). y: % of rows in each bar (log scale). Red bar: the value that shows the problem.\nvalue_decline must stay between 0 and 100; recency_pressure is a score that saturates at 100; top_peak_hour and top_peak_day use 0 for no data, which is also a real value."
+    caption:
+      es: '\textbf{Límites y valores por defecto.} \textbf{Cálculo:} $y_b = 100\,\#\{\text{filas con } x \in b\} / N$.'
+      en: '\textbf{Limits and default values.} \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } x \in b\} / N$.'
+  hold_history:
+    point: it:hold
+    claim:
+      fail: "hold_pct_l30d goes above 100% on <<hold_days>> days, up to <<hold_max:,.0f>>%, because some wins are negative"
+      pass: hold_pct_l30d never goes above 100%
+    how: "Left: highest hold_pct_l30d of each daily file. Right: lowest won_eur_l30d of each daily file. Metadata of every file read, all operators.\nHold $h = 100\\,(S - P) / S$, so $h > 100$ only when the amount won $P$ is below 0."
+    caption:
+      es: '\textbf{Histórico del hold.} \textbf{Cálculo:} izquierda, $\protect\max_p h_p$ de cada fichero diario; derecha, $\protect\min_p P_p$.'
+      en: '\textbf{History of the hold.} \textbf{Calculation:} left, $\protect\max_p h_p$ of each daily file; right, $\protect\min_p P_p$.'
+  hold_bets:
+    point: it:hold
+    claim: The extreme holds by the number of bets of the player
+    how: "Groups: bets of the player in 30 days. Bars: % of the rows of the group with hold = 100% (won nothing) and with hold below $-100\\%$.\nWith 1 bet the hold is 100% if the bet lost, and far below $-100\\%$ if it won at high odds; with many bets it gets close to the house margin."
+    caption:
+      es: '\textbf{Por número de apuestas.} \textbf{Cálculo:} $100\,\#\{\text{filas del grupo con } h = 100\} / \#\{\text{filas del grupo}\}$, y lo mismo con $h < -100$.'
+      en: '\textbf{By number of bets.} \textbf{Calculation:} $100\,\#\{\text{rows of the group with } h = 100\} / \#\{\text{rows of the group}\}$, and the same with $h < -100$.'
+  missing_brand_id:
+    point: it:brand
+    claim:
+      fail: "brand_id is empty in <<brand_null:.0f>>% of the rows of <<period_en>>"
+      pass: brand_id is filled in every row
+    how: "Each point: % of the rows of the daily file with an empty brand_id (metadata of every file read, all operators)."
+    caption:
+      es: '\textbf{\code{brand_id} vacío.} \textbf{Cálculo:} $100\,\#\{\text{filas con brand\_id vacío}\} / \#\{\text{filas}\}$ de cada fichero diario.'
+      en: '\textbf{Empty \code{brand_id}.} \textbf{Calculation:} $100\,\#\{\text{rows with an empty brand\_id}\} / \#\{\text{rows}\}$ of each daily file.'
+  empty_codes:
+    point: it:codes
+    claim:
+      fail: "country is empty in <<code_country:.0f>>% of the rows, language in <<code_language:.0f>>% and currency in <<code_currency_lo:.0f>>% to <<code_currency_hi:.0f>>%"
+      pass: country, language and currency are filled
+    how: "Bars: $100\\,\\#\\{\\text{rows with an empty value}\\} / \\#\\{\\text{rows of the brand}\\}$, <<period_en>>."
+    caption:
+      es: '\textbf{Códigos vacíos.} \textbf{Cálculo:} $100\,\#\{\text{filas con el valor vacío}\} / N_m$ por marca $m$.'
+      en: '\textbf{Empty codes.} \textbf{Calculation:} $100\,\#\{\text{rows with an empty value}\} / N_m$ per brand $m$.'
+  categories:
+    point: ''
+    claim: The tiers and bands, in the order of their levels
+    how: "Bars: % of the rows (all brands, <<period_en>>) with each value, in the order of the levels. Grey: Not Scored (players without enough data) or empty.\nThe levels of value and risk should fall from the lowest to the highest."
+    caption:
+      es: '\textbf{Niveles y bandas.} \textbf{Cálculo:} $y_v = 100\,\#\{\text{filas con el valor } v\} / N$.'
+      en: '\textbf{Tiers and bands.} \textbf{Calculation:} $y_v = 100\,\#\{\text{rows with the value } v\} / N$.'
+  hold_edge:
+    point: it:hold
+    claim: The bar at $-100\%$ holds every value below $-100\%$; there is no peak at $-100\%$ itself
+    how: "x: hold_pct_l30d (%). y: % of rows in each bar. Left: every value below $-100\\%$ added up in the first bar.\nRight: the same data in bars of 1 point from $-300\\%$ to $100\\%$ (log scale)."
+    caption:
+      es: '\textbf{La barra en $-100\%$.} \textbf{Cálculo:} $y_b = 100\,\#\{\text{filas con } h \in b\} / N$.'
+      en: '\textbf{The bar at $-100\%$.} \textbf{Calculation:} $y_b = 100\,\#\{\text{rows with } h \in b\} / N$.'

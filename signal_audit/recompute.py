@@ -52,7 +52,7 @@ _DAY = re.compile(r"(\d{4})/(\d{2})/(\d{2})/")
 
 
 def out_dir() -> Path:
-    return audit.CACHE / "recomputed"
+    return audit.local_root() / "recomputed"
 
 
 def landing_files(table: str) -> dict[dt.date, list[str]]:

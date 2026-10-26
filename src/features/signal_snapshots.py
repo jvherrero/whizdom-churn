@@ -48,7 +48,9 @@ OTHER = [
 
 
 def cache_dir(brand_id: int) -> Path:
-    return daily_cache.CACHE_ROOT / "signals" / f"brand{int(brand_id)}"
+    """SIGNALS_CACHE_DIR keeps the snapshots of another copy of the table apart (signal_audit/settings.py)."""
+    root = os.environ.get("SIGNALS_CACHE_DIR")
+    return (Path(root) if root else daily_cache.CACHE_ROOT / "signals") / f"brand{int(brand_id)}"
 
 
 def _sql(day: dt.date, source: str, activity_files: list[str], brand_id: int) -> str:

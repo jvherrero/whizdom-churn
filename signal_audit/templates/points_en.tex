@@ -1,0 +1,98 @@
+<<preamble>>
+\newcommand{\auditpoint}[6]{%
+  \needspace{7\baselineskip}\item\label{#1}\textbf{#2}\par
+  \begin{tabular}{@{}p{2.3cm}@{}p{\dimexpr\linewidth-2.3cm}@{}}
+    \textcolor{MidnightBlue}{\textbf{Result}} & #3\\[2pt]
+    \if\relax\detokenize{#4}\relax\else\textcolor{Plum}{\textbf{Definition}} & #4\\[2pt]\fi
+    \if\relax\detokenize{#5}\relax\else\textcolor{ForestGreen!70!black}{\textbf{Proposal}} & #5\\[2pt]\fi
+    \if\relax\detokenize{#6}\relax\else\textcolor{MidnightBlue}{\textbf{Evidence}} & #6\fi
+  \end{tabular}\par\vspace{5pt}}
+
+\title{\textbf{Audit of the Signals Table}\\[2pt]\large\code{<<table>>}: what passes, what fails and why, calculated from the data}
+\date{<<today>>}
+\author{Javier Herrero Pérez \\ Whizdom.ai}
+
+\begin{document}
+\maketitle
+\vspace{-1.2cm}
+
+\textbf{Scope.} \textbf{Table:} \code{<<table>>}, read from <<source>>. \textbf{Brands:} <<brands>>. \textbf{Period:} <<period_en>>. \textbf{Snapshots of the formulas:} <<snapshots>>. \textbf{Long period} (frozen days and maps): <<long_en>>. \textbf{Snapshots of the recency:} <<evidence>>. \textbf{Monthly snapshots:} <<months>>. All rows, no sampling, aggregates only. Made on <<today>> by \code{signal_audit/run_audit.py}.
+
+<<schema>>
+
+\section{Summary}\label{sec:summary}
+\textbf{In one sentence.} <<n_fail>> of <<n_rules>> points with a rule fail (<<n_high>> of high priority), <<n_pass>> pass, and <<n_unconfirmed>> cannot be confirmed because the workbook does not give the definition.
+
+\begin{center}
+\input{resumen_columnas_en}
+\end{center}
+
+\textbf{The 25 points}
+
+\begin{small}
+\begin{longtable}{@{}r>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{8.2cm}l@{}}
+\toprule
+No. & Point & Rule & Verdict\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+<<points_table>>
+\end{longtable}
+\end{small}
+
+\section{Evaluation Criteria}\label{sec:criteria}
+Each column has its checks in \code{signal_checks.yaml}; they run on the snapshots of the formulas, with the latest version of each row. A check \emph{passes} if it holds in at least 99\% of the rows; it is \emph{almost} from 95\% to 99\%, and it \emph{fails} below that. The tolerance $0.01 + 0.001\,|f|$ lets the rounding of the amounts pass. Each point also has its own rule (table of section~\ref{sec:summary}), calculated with recomputed data (each bet, the daily gaming table) or with the impossible values. A column is \stWrong{} if the point that explains it fails, \stAffected{} if the point of one of its inputs fails, \stUnconfirmed{} if the workbook does not give the definition, and \stCorrect{} if it passes all its checks.
+
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{5.8cm}>{\raggedright\arraybackslash}p{4.3cm}rr@{}}
+\toprule
+Kind & What it checks & Rule to pass & Columns & Checks\\
+\midrule
+\input{criterios_en}
+\end{tabular}
+\end{center}
+
+<<points>>
+
+\section{Impossible and Suspicious Values, by Brand and Day}\label{sec:flags}
+\begin{footnotesize}
+\setlength{\tabcolsep}{2pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{2.5cm}l>{\raggedright\arraybackslash}p{2.1cm}rrrrrrrrlr@{}}
+\toprule
+& & & & \multicolumn{6}{c}{\% of rows} & \multicolumn{2}{c}{Days} & \\
+\cmidrule(lr){5-10}\cmidrule(lr){11-12}
+Variable & Kind & Rule & Rows & All & 14 & 23 & 64 & 72 & 73 & N & Period & Fig.\\
+\midrule
+\endfirsthead
+\toprule
+Variable & Kind & Rule & Rows & All & 14 & 23 & 64 & 72 & 73 & N & Period & Fig.\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\input{valores_raros_en}
+\end{longtable}
+\end{footnotesize}
+
+\clearpage
+\appendix
+\section{Annex: the Figures}\label{sec:figures}
+<<figures>>
+
+\clearpage
+\section{Annex: the Columns and Their Checks}\label{sec:columns}\label{sec:checks}
+\begin{small}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{4.0cm}r@{}}
+\toprule
+Column & Status and point & Kind & Rule & Passes (\%)\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\csname @@input\endcsname comprobaciones_en   % expandable \input: the rows start with \rowcolor
+\end{longtable}
+\end{small}
+
+\end{document}

@@ -1,0 +1,12 @@
+# whizdomai_org_gmntc_gld.player_signal (ClickHouse), first test: one week.
+#     make audit RUN=player_signal COPY_ONLY=1     step 1: copy the snapshot day and list the columns
+#     make audit RUN=player_signal                 everything
+name: player_signal
+source: clickhouse
+table: whizdomai_org_gmntc_gld.player_signal
+checks: player_signal_checks.yaml       # its own catalogue: a report by checks, not the 25 points
+contract: configs/contracts/design/gld_player_signal.yaml   # the columns it should have
+date_column: event_date                # the date of the row in the gold design; snapshot_date if the table uses that
+period: {start: 2026-10-01, end: 2026-10-07}
+snapshots: [2026-10-07]
+history_start: 2026-10-01

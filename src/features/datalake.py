@@ -37,6 +37,7 @@ def s3_filesystem(layer: str | None = None) -> tuple[fs.FileSystem, str]:
 def s3_duckdb(threads: int | None = None) -> duckdb.DuckDBPyConnection:
     """DuckDB connection that can read the source files, on S3 or local."""
     con = duckdb.connect()
+    con.sql("SET TimeZone = 'UTC'")   # dates of UTC timestamps, not of the machine's time zone
     if threads:
         con.sql(f"SET threads={threads}")
     if not os.environ.get("DATALAKE_ROOT"):
@@ -48,7 +49,12 @@ def s3_duckdb(threads: int | None = None) -> duckdb.DuckDBPyConnection:
 
 
 def daily_files(pfs: fs.FileSystem, base: str, table: str) -> dict[dt.date, str]:
-    """Map each day to the path of its daily file."""
+    """Map each day to the path of its daily file. A table in LOCAL_TABLES ("table=/folder,...") is read
+    from a local copy laid out like the lake (folder/table/YYYY/MM/DD/*.parquet), e.g. a copy of a
+    ClickHouse table (signal_audit/clickhouse_mirror.py)."""
+    local = dict(p.split("=", 1) for p in os.environ.get("LOCAL_TABLES", "").split(",") if p).get(table)
+    if local:
+        pfs, base = fs.LocalFileSystem(), str(Path(local).resolve())
     out = {}
     for info in pfs.get_file_info(fs.FileSelector(f"{base}/{table}", recursive=True, allow_not_found=True)):
         if info.path.endswith(".parquet"):
@@ -58,8 +64,8 @@ def daily_files(pfs: fs.FileSystem, base: str, table: str) -> dict[dt.date, str]
 
 
 def uri(pfs: fs.FileSystem, path: str) -> str:
-    """Path in the format DuckDB expects."""
-    return path if isinstance(pfs, fs.LocalFileSystem) else f"s3://{path}"
+    """Path in the format DuckDB expects. An absolute path is local (a table in LOCAL_TABLES)."""
+    return path if isinstance(pfs, fs.LocalFileSystem) or path.startswith("/") else f"s3://{path}"
 
 
 def last_closed_day() -> dt.date:

@@ -1,0 +1,15 @@
+# The lake table of the report of October 2026 (informe/errores_tabla_senales.tex). Its caches are in
+# signal_audit/cache/, shared with the notebooks; the automatic report goes to runs/lake/.
+name: lake
+source: lake                           # lake | clickhouse
+table: gld_player_signals_daily        # lake folder in org/40-gold
+period: {start: 2026-09-01, end: 2026-09-30}      # the month of the checks
+snapshots: [2026-09-15, 2026-10-01]               # days of the formula, window and lag checks
+long: {start: 2026-06-01, end: 2026-10-15}        # frozen days and the maps per day
+evidence_days: [2026-08-01, 2026-08-02, 2026-08-25, 2026-09-01, 2026-09-06]   # recency against the activity
+history_start: 2025-07-01                         # first monthly snapshot of the history figures
+live_from: 2026-08-01                  # first day written by the daily process (before: backfill)
+tp_events:                             # notes on the time-of-play figure
+  2026-07-06: "6 Jul: start\n(5,000 rows)"
+  2026-08-01: "1 Aug: x60 rows"
+  2026-08-19: "19 Aug: the session\ndefinition changes"
