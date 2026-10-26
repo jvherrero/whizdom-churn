@@ -1,0 +1,278 @@
+# Audit of gld_player_gaming_daily (04_gaming_daily.ipynb): metrics, real-life rules and row checks.
+# Same format as metrics.yaml for `tables` and `metrics` (read by audit.py); `checks` is read by gaming.py.
+
+period:
+  start: 2026-09-01        # the same month as the signals audit
+  end: 2026-09-30
+brands: [14, 23, 64, 72, 73]
+
+thresholds:
+  ks_good: 0.03
+  ks_fair: 0.08
+  peak_prominence: 0.05
+  smooth_bins: 2
+  max_segments: 8
+
+tables:
+  gaming_rows:                       # the table as it is: one row per player, game, provider, day and currency
+    source_table: gld_player_gaming_daily
+    date: event_date
+    key: [tenant_id, player_id, game_id, provider_code, event_date, currency]
+  gaming_player_day:                 # one row per player and day, summed over games and currencies
+    source_table: gld_player_gaming_daily
+    date: event_date
+    key: [tenant_id, player_id, game_id, provider_code, event_date, currency]
+    base: |
+      SELECT tenant_id, brand_id, player_id, event_date,
+             SUM(CAST(play_secs AS DOUBLE)) AS play_secs, SUM(CAST(turnover_eur AS DOUBLE)) AS turnover_eur,
+             SUM(bets) AS bets, COUNT(DISTINCT game_id) AS games, COUNT(DISTINCT currency) AS currencies,
+             epoch(MAX(last_played_at)) - epoch(MIN(first_played_at)) AS span_secs,
+             SUM(CAST(wagered_real_eur + wagered_released_bonus_eur AS DOUBLE)) AS wagered_active_eur,
+             SUM(CAST(wagered_playable_bonus_eur AS DOUBLE)) AS wagered_playable_eur
+      FROM {src} GROUP BY ALL
+
+metrics:
+  # ---------- one row of the table (player, game, provider, day, currency) ----------
+  row_turnover_eur:
+    table: gaming_rows
+    expr: turnover_eur
+    where: turnover_eur > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 1000000]
+    suspicious: "x > 1000000"
+    segments: [brand_id, currency]
+    note: "Turnover of one row (one game in one day). Expected log-normal."
+  row_bets:
+    table: gaming_rows
+    expr: bets
+    where: bets > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    integer: true
+    range: [1, 50000]
+    suspicious: "x > 20000"
+    segments: [brand_id]
+    note: "Bets of one row."
+  row_avg_bet_eur:
+    table: gaming_rows
+    expr: avg_bet_eur
+    where: avg_bet_eur > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 50000]
+    suspicious: "x > 10000"
+    segments: [brand_id, currency]
+    note: "Mean bet of one row."
+  row_play_secs:
+    table: gaming_rows
+    expr: play_secs
+    where: play_secs > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 86400]
+    impossible: "x > 86400"
+    suspicious: "x > 43200 AND x <= 86400"
+    segments: [brand_id]
+    note: "Seconds of play of one game in one day: more than a day is impossible."
+  row_hold_pct:
+    table: gaming_rows
+    expr: hold_pct
+    where: turnover_eur > 0
+    expected: share
+    scale: linear
+    width: 0.01
+    range: [-100000, 1]
+    plot_range: [-1, 1]
+    known_range: false
+    impossible: "x > 1"
+    suspicious: "x < -10"
+    segments: [brand_id]
+    note: "GGR / turnover as a ratio, not a percent (median 0.37, maximum 1): at most 1."
+  row_rtp_actual:
+    table: gaming_rows
+    expr: rtp_actual
+    where: turnover_eur > 0
+    expected: share
+    scale: linear
+    width: 0.01
+    range: [0, 100000]
+    plot_range: [0, 3]
+    impossible: "x < 0"
+    suspicious: "x > 10"
+    segments: [brand_id]
+    note: "Wins / turnover as a ratio: never negative."
+  row_win_rate:
+    table: gaming_rows
+    expr: win_rate
+    where: rounds > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    impossible: "x > 1 OR x < 0"
+    segments: [brand_id]
+    note: "Winning rounds / rounds."
+  row_fx_rate:
+    table: gaming_rows
+    expr: fx_rate_to_eur
+    where: fx_rate_to_eur IS NOT NULL
+    expected: share
+    scale: log
+    width: 0.02
+    range: [0.0001, 10]
+    impossible: "x <= 0"
+    segments: [currency]
+    note: "Rate from the currency to EUR: never 0 or negative; one value per currency and day."
+  row_max_win_eur:
+    table: gaming_rows
+    expr: max_win_eur
+    where: max_win_eur <> 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [0.01, 1000000]
+    impossible: "x < 0"
+    suspicious: "x > 1000000"
+    segments: [brand_id]
+    note: "Largest single win: never negative."
+  row_loyalty_points:
+    table: gaming_rows
+    expr: loyalty_points_delta
+    where: loyalty_points_delta <> 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 1000000]
+    known_range: false
+    segments: [brand_id]
+    note: "Net movement of loyalty points. No real-life range: the scale is not documented."
+
+  # ---------- one player and day (all games and currencies) ----------
+  pd_play_secs:
+    table: gaming_player_day
+    expr: play_secs
+    where: play_secs > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 86400]
+    impossible: "x > 86400"
+    suspicious: "x > 57600 AND x <= 86400"
+    segments: [brand_id]
+    note: "Seconds of play of a player in one day: more than 24 h is impossible, over 16 h is suspicious."
+  pd_play_over_span:
+    table: gaming_player_day
+    expr: play_secs / span_secs
+    where: span_secs > 0 AND play_secs > 0
+    expected: share
+    scale: log
+    width: 0.05
+    range: [0.0001, 1]
+    suspicious: "x > 1"
+    segments: [brand_id]
+    note: "Play time / time between the first and the last play of the day. Above 1, games played at the same time count twice."
+  pd_span_secs:
+    table: gaming_player_day
+    expr: span_secs
+    where: span_secs > 0
+    expected: lognormal
+    scale: log
+    width: 0.05
+    range: [1, 86400]
+    impossible: "x > 86400"
+    segments: [brand_id]
+    note: "Time between the first and the last play of a UTC day: at most 24 h."
+  pd_games:
+    table: gaming_player_day
+    expr: games
+    where: games > 0
+    expected: count
+    scale: int
+    cap: 60
+    range: [1, 100]
+    suspicious: "x > 100"
+    segments: [brand_id]
+    note: "Distinct games of a player in one day."
+  pd_currencies:
+    table: gaming_player_day
+    expr: currencies
+    where: currencies > 0
+    expected: count
+    scale: int
+    cap: 5
+    range: [1, 1]
+    suspicious: "x > 1"
+    segments: [brand_id]
+    note: "Currencies of a player in one day: usually one."
+  pd_playable_share:
+    table: gaming_player_day
+    expr: wagered_playable_eur / (wagered_active_eur + wagered_playable_eur)
+    where: wagered_active_eur + wagered_playable_eur > 0
+    expected: share
+    scale: linear
+    width: 0.02
+    range: [0, 1]
+    log_y: true
+    segments: [brand_id]
+    note: "Share of the stake of the day from playable bonus. 1 = a day played only with playable bonus (not an active day)."
+
+# Row checks (gaming.py): identity = the column equals the expression (within tolerance); bound = the
+# condition must hold. `where` limits the rows; `source`: workbook (formula of gld-schemas.xlsx) or
+# hypothesis (a column the workbook does not describe; the check tests a guess). `group`: checks that are
+# other definitions of the same thing (default: the column of an identity); a hypothesis that fails, or
+# almost passes while another check of its group passes, is "rejected" (the guess is wrong, not the table). `label`: the text shown instead of the formula.
+tolerance:
+  atol: 0.01
+  rtol: 0.001
+checks:
+  - {column: wagered_real_eur, kind: identity, expr: "wagered_real * fx_rate_to_eur", source: workbook}
+  - {column: wagered_released_bonus_eur, kind: identity, expr: "wagered_released_bonus * fx_rate_to_eur", source: workbook}
+  - {column: wagered_playable_bonus_eur, kind: identity, expr: "wagered_playable_bonus * fx_rate_to_eur", source: workbook}
+  - {column: won_real_eur, kind: identity, expr: "won_real * fx_rate_to_eur", source: workbook}
+  - {column: won_released_bonus_eur, kind: identity, expr: "won_released_bonus * fx_rate_to_eur", source: workbook}
+  - {column: won_playable_bonus_eur, kind: identity, expr: "won_playable_bonus * fx_rate_to_eur", source: workbook}
+  - {column: tax_real_eur, kind: identity, expr: "tax_real * fx_rate_to_eur", source: workbook}
+  - {column: bets, kind: identity, expr: "bet_count_real + bet_count_released_bonus + bet_count_playable_bonus", source: workbook}
+  - {column: turnover_eur, kind: identity, expr: "wagered_real_eur + wagered_released_bonus_eur + wagered_playable_bonus_eur", source: hypothesis, note: "all wallets"}
+  - {column: turnover_eur, kind: identity, expr: "wagered_real_eur + wagered_released_bonus_eur", source: hypothesis, note: "real and released bonus"}
+  - {column: turnover_eur, kind: identity, expr: "wagered_real_eur", source: hypothesis, note: "real money only"}
+  - {column: payout_eur, kind: identity, expr: "won_real_eur + won_released_bonus_eur + won_playable_bonus_eur", source: hypothesis, note: "all wallets"}
+  - {column: payout_eur, kind: identity, expr: "won_real_eur", source: hypothesis, note: "real money only"}
+  - {column: ggr_eur, kind: identity, expr: "turnover_eur - payout_eur", source: hypothesis}
+  - {column: real_ggr_eur, kind: identity, expr: "wagered_real_eur - won_real_eur", source: hypothesis}
+  - {column: bonus_ggr_eur, kind: identity, expr: "ggr_eur - real_ggr_eur", source: hypothesis}
+  - {column: net_position_eur, kind: identity, expr: "-ggr_eur", source: hypothesis}
+  - {column: tax_eur, kind: identity, expr: "tax_real_eur + tax_released_bonus_eur + tax_playable_bonus_eur", source: hypothesis}
+  - {column: hold_pct, kind: identity, expr: "ggr_eur / turnover_eur", where: "turnover_eur > 0", source: hypothesis, note: "a ratio, not a percent"}
+  - {column: rtp_actual, kind: identity, expr: "payout_eur / turnover_eur", where: "turnover_eur > 0", source: hypothesis, note: "a ratio, not a percent"}
+  - {column: rtp_actual, kind: identity, expr: "1 - hold_pct", where: "turnover_eur > 0", source: hypothesis}
+  - {column: bets, kind: identity, expr: "rounds", source: hypothesis, note: "bets counts rounds, not bet transactions"}
+  - {column: bets, kind: bound, expr: "bets >= greatest(bet_count_real, bet_count_released_bonus, bet_count_playable_bonus)", source: hypothesis, group: bets_split, note: "a bet paid from two wallets counts once in bets"}
+  - {column: bets, kind: bound, expr: "bets <= bet_count_real + bet_count_released_bonus + bet_count_playable_bonus", source: hypothesis, group: bets_split, note: "and once in the count of each wallet"}
+  - {column: bets, kind: identity, expr: "bet_count_real + bet_count_released_bonus + bet_count_playable_bonus", where: "(bet_count_real > 0)::INT + (bet_count_released_bonus > 0)::INT + (bet_count_playable_bonus > 0)::INT = 1", source: hypothesis, group: bets_one_wallet, label: "bets = sum of bet_count_* (rows with one wallet)", note: "no bet split between wallets"}
+  - {column: rounds, kind: bound, expr: "turnover_eur = 0 OR wagered_playable_bonus_eur > 0", where: "rounds > bets", source: hypothesis, label: "rounds > bets only in free or playable bonus play", note: "a round with no bet is a free or bonus round"}
+  - {column: real_ggr_eur, kind: identity, expr: "wagered_real_eur + wagered_released_bonus_eur - won_real_eur - won_released_bonus_eur", source: hypothesis, note: "real = real money and released bonus"}
+  - {column: win_rate, kind: identity, expr: "winning_rounds / rounds", where: "rounds > 0", source: hypothesis}
+  - {column: avg_bet_eur, kind: identity, expr: "turnover_eur / bets", where: "bets > 0", source: hypothesis}
+  - {column: won_real, kind: bound, expr: "won_real >= 0", source: workbook, note: "a win is never negative"}
+  - {column: won_released_bonus, kind: bound, expr: "won_released_bonus >= 0", source: workbook}
+  - {column: won_playable_bonus, kind: bound, expr: "won_playable_bonus >= 0", source: workbook}
+  - {column: max_win_eur, kind: bound, expr: "max_win_eur <= payout_eur + 0.01", where: "payout_eur > 0", source: workbook, note: "the largest win is part of all wins"}
+  - {column: play_secs, kind: bound, expr: "play_secs <= 86400", source: workbook, note: "one game in one day"}
+  - {column: play_secs, kind: bound, expr: "play_secs <= epoch(last_played_at) - epoch(first_played_at) + 1", where: "first_played_at IS NOT NULL", source: hypothesis, note: "play time fits between the first and the last play"}
+  - {column: first_played_at, kind: bound, expr: "first_played_at <= last_played_at", source: workbook}
+  - {column: first_played_at, kind: bound, expr: "CAST(first_played_at AS DATE) = event_date", where: "first_played_at IS NOT NULL", source: workbook, group: event_day, note: "the first play is on the day of the row"}
+  - {column: first_played_at, kind: bound, expr: "CAST(first_played_at + INTERVAL 3 HOUR AS DATE) = event_date", where: "first_played_at IS NOT NULL", source: hypothesis, group: event_day, note: "event_date is the Turkish day (UTC+3)"}
+  - {column: last_played_at, kind: bound, expr: "CAST(last_played_at AS DATE) = event_date", where: "last_played_at IS NOT NULL", source: hypothesis, group: event_day, note: "event_date is the day of the last play (settlement)"}
+  - {column: rounds, kind: bound, expr: "rounds >= winning_rounds", source: workbook}
+  - {column: winning_rounds, kind: bound, expr: "winning_rounds >= big_win_rounds", source: workbook}
+  - {column: bets, kind: bound, expr: "bets > 0", where: "turnover_eur > 0", source: workbook, note: "stake needs a bet"}
+  - {column: turnover_eur, kind: bound, expr: "turnover_eur > 0", where: "bets > 0", source: hypothesis, note: "a bet has a stake (free spins can be 0)"}
+  - {column: fx_rate_to_eur, kind: bound, expr: "fx_rate_to_eur > 0", where: "fx_rate_to_eur IS NOT NULL", source: workbook}
+  - {column: fx_rate_date_used, kind: bound, expr: "fx_rate_date_used <= event_date", where: "fx_rate_date_used IS NOT NULL", source: workbook, note: "no rate from the future"}
+  - {column: event_count, kind: bound, expr: "event_count >= bets", source: workbook, note: "the raw rows include every bet"}
