@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib>=3.11.2",
     "mlflow>=3.16.1",
     "numpy>=2.5.3",
+    "openpyxl>=3.1.5",
     "optuna>=5.0.0",
     "pandas>=2.3.3",
     "pandera>=0.33.1",

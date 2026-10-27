@@ -1,4 +1,4 @@
-"""Phase 1.1: freshness of ref_games and of the tables that feed it, and how the activity of the window
+"""Freshness of ref_games and of the tables that feed it, and how the activity of the window
 joins to it. Read only; it prints aggregates, never rows.
 
     .venv/bin/python catalog_project/audit_ref_games.py [query names]

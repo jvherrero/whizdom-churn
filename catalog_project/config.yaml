@@ -1,6 +1,12 @@
-# Settings of the game catalog V0 (see PLAN.md). ClickHouse database: whizdomai_org_gmntc_medallion (read only).
 months: 6          # activity window: the last 6 full months before today
-coverage: 0.99     # "highly active": the smallest set of games with 99% of the rounds in the window
-batches: [sudhamshu, navid , javier]   # one file output/batch_<name>.csv each
-# Empty columns to fill by hand in each batch. Provisional: replace them with the fields of taxonomy_model.json.
-fill_columns: [mechanics, modifiers, features, themes, slug, demo_url, image_urls, collections]
+coverage: 0.99     # "highly active": the smallest set of games with 99% of the positive GGR in the window
+# Inputs of priority_list.py (paths relative to catalog_project/)
+sa_urls: internal_taxonomy/game_slotcatalog_urls.xlsx                   # Slot Catalog URLs mapped by SA (sc_url)
+client_area: internal_taxonomy/game-filtered-20261027103158-2cb5.csv   # export of the Client Area
+games_enriched: internal_taxonomy/games_enriched.xlsx                   # games already classified: they leave the list
+# Dates in ref_games that are not a real launch: the release_date shared by 1,812 active games, and the first day of
+# the gold data (first_seen on that day only says the game was there already).
+placeholder_release_date: 2022-01-01
+data_start: 2025-04-01
+# Providers that are sports betting (single, combo...), not casino games: they stay in the priority list, with is_sports = True.
+sports_provider_codes: [BETTECH, DIGITAIN_SPORTBOOK]

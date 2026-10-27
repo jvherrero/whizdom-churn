@@ -1,4 +1,4 @@
--- ref_games after FINAL: size, keys and the last load.
+-- ref_games after FINAL: size, duplicates, empty keys and the last load.
 SELECT
     count() AS rows,
     uniqExact(game_uid) AS game_uids,
