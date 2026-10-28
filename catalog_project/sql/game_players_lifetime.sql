@@ -1,9 +1,9 @@
--- By game_uid, the unique players over the whole life of the game. The table is per tenant, game and platform, and a
--- player belongs to one tenant, so the sum over tenants is exact.
+-- By game_uid, the unique players over the whole life of the game (gld_game_lifetime). The table is per tenant, game
+-- and platform, and a player belongs to one tenant, so the sum over tenants is exact.
 WITH
 players AS (
     SELECT platform_id, lower(replaceRegexpAll(game_id, '[^a-zA-Z0-9]', '')) AS game_key, unique_players_lifetime AS n
-    FROM whizdomai_org_gmntc_medallion.gld_game_unique_players FINAL
+    FROM whizdomai_org_gmntc_medallion.gld_game_lifetime FINAL
 ),
 resolution AS (
     SELECT game_id, provider_id, any(game_uid) AS uid

@@ -31,11 +31,10 @@ def frames():
     return active, sa, ca, enriched
 
 
-def test_build_url_sources_client_area_by_mobile_id_and_reasons():
+def test_build_url_sources_and_client_area_by_mobile_id():
     games = build(*frames())
-    assert games["sc_url_source"].tolist() == ["sa_file", "", "client_area", ""]   # abc has a SA row but no sc_url
+    assert games["sc_url_source"].tolist() == ["slotcatalog_file", "", "client_area", ""]   # abc has a SA row but no sc_url
     assert games["ca_found"].tolist() == [False, True, True, False]               # 566 matches by Core Id Mobile
-    assert games["reason"].tolist() == ["", "no_sc_url+no_game_type", "", "no_sc_url"]
     assert games["ca_fills_game_type"].tolist() == [False, True, False, False]
 
 

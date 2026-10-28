@@ -1,12 +1,5 @@
 """The priority list: the highly active games (output/active_games.csv, 99% of the GGR) that are not already classified
-in games_enriched.xlsx, sorted by GGR and then rounds, with their Slot Catalog URL and what the Client
-Area already has for them (reason says if the URL or the game type is missing). A sheet by provider shows how much of its GGR is covered. Local only, no ClickHouse.
-
-The three sources join on the normalized id (lower case, letters and digits only, as in ref_games) and the provider
-code: game_id + provider_code in ref_games, game_src_id or core_id_desktop + platform in the SA file, Core Id Desktop
-or Core Id Mobile + Platform in the Client Area, game_src_id, core_desktop_id or core_mobile_id + platform_code in
-games_enriched. The URL comes from sc_url of the SA file, or else from External
-Resource of the Client Area when it is a Slot Catalog link.
+in games_enriched.xlsx, sorted by GGR and then rounds.
 
     .venv/bin/python catalog_project/priority_list.py
 """
@@ -23,7 +16,7 @@ CA_COLUMNS = {"Game type": "ca_game_type", "Provider": "ca_provider", "Theme": "
               "RTP": "ca_rtp", "Release Date": "ca_release_date", "Game slug": "ca_slug",
               "External Resource": "ca_external_resource"}
 COLUMNS = ["rank", "game_uid", "game_id", "provider_code", "provider_name", "game_name", "enrichment_status", "status",
-           "reason", "is_sports", "ggr_eur_6m", "share_of_ggr", "cumulative_share_of_ggr", "rounds_6m", "share_of_rounds",
+           "is_sports", "ggr_eur_6m", "share_of_ggr", "cumulative_share_of_ggr", "rounds_6m", "share_of_rounds",
            "wagered_eur_6m", "unique_players_30d", "unique_players_90d", "unique_players_lifetime", "stickiness_30d",
            "stickiness_90d", "days_since_launch", "vertical", "game_type", "theme", "sc_url", "sc_url_source", "ca_found",
            "ca_fills_game_type", "ca_game_type", "ca_provider", "ca_theme", "ca_volatility", "ca_rtp", "ca_release_date",
@@ -43,19 +36,18 @@ def by_key(table: pd.DataFrame, id_columns: list[str], provider: str, columns: l
 
 def build(active: pd.DataFrame, sa: pd.DataFrame, ca: pd.DataFrame, enriched: pd.DataFrame,
           sports_codes: list[str] = ()) -> pd.DataFrame:
-    """The active games with their URL, what the Client Area has, what is missing (reason, '' if nothing), if they
-    are already classified (games_enriched), if they are in the work list (not classified) and if they are sports."""
+    """The active games with their URL, what the Client Area has, if they are already classified (games_enriched),
+    if they are in the work list (not classified) and if they are sports betting."""
     sa_urls = by_key(sa[sa["sc_url"].notna()], ["game_src_id", "core_id_desktop"], "platform", ["sc_url"])
     ca_values = by_key(ca, ["Core Id Desktop", "Core Id Mobile"], "Platform", list(CA_COLUMNS)).rename(columns=CA_COLUMNS)
     games = active.assign(key=key(active["game_id"], active["provider_code"])).join(sa_urls, on="key").join(ca_values, on="key")
     games["ca_found"] = games["key"].isin(ca_values.index)
 
     ca_url = games["ca_external_resource"].where(games["ca_external_resource"].astype(str).str.contains("slotcatalog"))
-    games["sc_url_source"] = np.select([games["sc_url"].notna(), ca_url.notna()], ["sa_file", "client_area"], "")
+    games["sc_url_source"] = np.select([games["sc_url"].notna(), ca_url.notna()], ["slotcatalog_file", "client_area"], "")
     games["sc_url"] = games["sc_url"].fillna(ca_url)
 
-    no_url, no_type = games["sc_url"].isna(), games["game_type"].fillna("") == ""
-    games["reason"] = np.select([no_url & no_type, no_url, no_type], ["no_sc_url+no_game_type", "no_sc_url", "no_game_type"], "")
+    no_type = games["game_type"].fillna("") == ""
     games["ca_fills_game_type"] = no_type & games["ca_game_type"].notna()
 
     enriched_keys = pd.concat([key(enriched[c], enriched["platform_code"]) for c in ["game_src_id", "core_desktop_id", "core_mobile_id"]])
@@ -89,17 +81,18 @@ def providers(games: pd.DataFrame) -> pd.DataFrame:
 def summary(games: pd.DataFrame) -> pd.DataFrame:
     """How many games, and what share of the GGR and of the rounds, in each group."""
     listed = games["in_list"]
+    no_url, no_type = games["sc_url"].isna(), games["game_type"].fillna("") == ""
     groups = {
         "highly active games (99% of the GGR)": games["game_uid"].notna(),
-        "with Slot Catalog URL from the SA file": games["sc_url_source"] == "sa_file",
+        "with Slot Catalog URL from the slotcatalog file": games["sc_url_source"] == "slotcatalog_file",
         "with Slot Catalog URL from the Client Area only": games["sc_url_source"] == "client_area",
         "found in the Client Area file": games["ca_found"],
         "already classified (in games_enriched)": games["in_games_enriched"],
         "IN THE PRIORITY LIST": listed,
-        "  with Slot Catalog URL and game type": listed & (games["reason"] == ""),
-        "  no Slot Catalog URL only": listed & (games["reason"] == "no_sc_url"),
-        "  no game type only": listed & (games["reason"] == "no_game_type"),
-        "  no Slot Catalog URL and no game type": listed & (games["reason"] == "no_sc_url+no_game_type"),
+        "  with Slot Catalog URL and game type": listed & ~no_url & ~no_type,
+        "  no Slot Catalog URL": listed & no_url,
+        "  no game type": listed & no_type,
+        "  no Slot Catalog URL and no game type": listed & no_url & no_type,
         "  sports betting (is_sports)": listed & games["is_sports"],
         "  Client Area has the missing game type": listed & games["ca_fills_game_type"],
         "  Client Area has a theme": listed & games["ca_theme"].notna(),
@@ -122,6 +115,8 @@ def main() -> None:
     games["ca_release_date"] = games["ca_release_date"].str[:10]
     result, table, by_provider = priority(games), summary(games), providers(games)
 
+    for flag in ["is_sports", "ca_found", "ca_fills_game_type"]:     # True/False as text, so Excel does not translate them
+        result[flag] = result[flag].map({True: "True", False: "False"})
     with pd.ExcelWriter(OUT / "priority_games.xlsx") as writer:
         result.to_excel(writer, sheet_name="games", index=False)
         table.to_excel(writer, sheet_name="summary", index=False)

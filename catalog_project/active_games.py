@@ -1,10 +1,7 @@
 """The highly active games of the last 6 months: the smallest set with 99% of the positive GGR.
 
-GGR is wagered minus won, real money and bonus, in EUR. A game with GGR 0 or below never enters. Each game also gets
-its unique players, stickiness (average daily players / unique players) and days since launch.
-Read only; the file goes to output/active_games.csv.
-
     .venv/bin/python catalog_project/active_games.py
+    
 """
 
 import sys
