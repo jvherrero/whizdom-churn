@@ -19,7 +19,7 @@ def frames():
         "provider_code": ["PLAYSON", "EGT_CAS", "PRAGMATIC_CASINO", "INFIN"], "game_type": ["Slots", "", "Slots", "Slots"],
         "ggr_eur_6m": [400.0, 300.0, 200.0, 100.0], "rounds_6m": [40.0, 30.0, 20.0, 10.0],
         "provider_name": ["Playson", "EGT", "Pragmatic", "EGT"], "enrichment_status": ["enriched", "catalogued", "enriched", "enriched"]})
-    sa = pd.DataFrame({"game_src_id": ["coin_strike", "abc"], "core_id_desktop": [None, None],
+    sa = pd.DataFrame({"game_id": ["uuid1", "uuid2"], "game_src_id": ["coin_strike", "abc"], "core_id_desktop": [None, None],
                        "platform": ["PLAYSON", "INFIN"], "sc_url": ["https://slotcatalog.com/a", None]})
     ca = pd.DataFrame({"Core Id Desktop": ["other", "VS20X"], "Core Id Mobile": ["566", "x"],
                        "Platform": ["EGT_CAS", "PRAGMATIC_CASINO"], "Game type": ["Slots", "Slots"],
@@ -78,3 +78,24 @@ def test_games_already_classified_leave_the_list():
     assert games["in_games_enriched"].tolist() == [False, False, False, True]    # abc|INFIN matches by core_mobile_id
     assert priority(games)["game_uid"].tolist() == ["u1", "u2", "u3"]            # only u4 leaves, the others stay even if complete
     assert providers(games).set_index("provider_name").loc["EGT", "games_in_list"] == 1
+
+
+def test_urls_become_links(tmp_path):
+    import openpyxl
+    path = tmp_path / "x.xlsx"
+    with pd.ExcelWriter(path) as writer:
+        pd.DataFrame({"game_uid": ["a", "b"], "sc_url": ["https://slotcatalog.com/en/slots/a", None]}).to_excel(writer, sheet_name="games", index=False)
+        from priority_list import link_urls
+        link_urls(writer.sheets["games"])
+    sheet = openpyxl.load_workbook(path)["games"]
+    assert sheet["B2"].hyperlink.target == "https://slotcatalog.com/en/slots/a" and sheet["B2"].value == "https://slotcatalog.com/en/slots/a"
+    assert sheet["B3"].hyperlink is None                                         # no URL: no link
+
+
+def test_every_column_has_a_note():
+    import yaml
+    from priority_list import COLUMNS, HERE
+    notes = yaml.safe_load((HERE / "columns.yaml").read_text())
+    assert set(COLUMNS) == set(notes)                                          # no column without a note, no note without a column
+    assert all(set(n) == {"meaning", "source"} and n["meaning"] and n["source"] for n in notes.values())   # catches a comma that splits a value
+    assert not any("SA" in f"{n['meaning']} {n['source']}".split() for n in notes.values())

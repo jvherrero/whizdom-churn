@@ -1,0 +1,50 @@
+# Meaning and source of each column of the games sheet. priority_list.py writes it as the sheet "columns".
+rank: {meaning: "Position in the list by GGR (1 is the game with most GGR)", source: "calculated"}
+game_uid: {meaning: "Unique id of the game in the catalog", source: "ClickHouse slv_games_discovered_resolved"}
+game_id: {meaning: "Id of the game as the provider writes it (number or text)", source: "ClickHouse ref_games"}
+provider_code: {meaning: "Code of the provider or platform", source: "ClickHouse ref_games"}
+provider_name: {meaning: "Name of the provider or platform", source: "ClickHouse ref_games"}
+game_name: {meaning: "Name of the game; empty if the catalog has no name for it", source: "ClickHouse ref_games"}
+status: {meaning: "Commercial status (released, review, disabled, upcoming)", source: "ClickHouse ref_games"}
+is_sports: {meaning: "true if the game is sports betting (it has no Slot Catalog page)", source: "provider code in config.yaml"}
+ggr_eur_6m: {meaning: "GGR of the last 6 months in EUR (wagered minus won; real money and bonus)", source: "ClickHouse slv_game_daily"}
+share_of_ggr: {meaning: "GGR of the game divided by the GGR of all the highly active games", source: "calculated"}
+cumulative_share_of_ggr: {meaning: "Running total of share_of_ggr in the order of the list", source: "calculated"}
+rounds_6m: {meaning: "Rounds played in the last 6 months", source: "ClickHouse slv_game_daily"}
+share_of_rounds: {meaning: "Rounds of the game divided by the rounds of all the highly active games", source: "calculated"}
+wagered_eur_6m: {meaning: "Amount wagered in the last 6 months in EUR (real money and bonus)", source: "ClickHouse slv_game_daily"}
+unique_players_30d: {meaning: "Distinct players in the last 30 days", source: "ClickHouse slv_game_rounds"}
+unique_players_90d: {meaning: "Distinct players in the last 90 days", source: "ClickHouse slv_game_rounds"}
+unique_players_lifetime: {meaning: "Distinct players over the whole life of the game", source: "ClickHouse gld_game_lifetime"}
+stickiness_30d: {meaning: "Average daily players divided by distinct players of the last 30 days (how much players come back)", source: "calculated"}
+stickiness_90d: {meaning: "The same over the last 90 days", source: "calculated"}
+days_since_launch: {meaning: "Days since the launch; empty if no source has a real date", source: "ref_games release_date, else first_seen, else sc_release_date"}
+vertical: {meaning: "Group of the game (Slots, Table Games, Live Casino...)", source: "ClickHouse ref_games"}
+game_type: {meaning: "Type of game (Slots, Blackjack, Roulette...)", source: "ClickHouse ref_games"}
+theme: {meaning: "Themes of the game in the catalog", source: "ClickHouse ref_games"}
+sc_url: {meaning: "Slot Catalog page of the game (click to open)", source: "Slot Catalog mapping file, else Client Area External Resource"}
+sc_url_source: {meaning: "Where sc_url comes from: slotcatalog_file or client_area", source: "calculated"}
+ca_fills_game_type: {meaning: "true if the catalog has no game type and the Client Area has one", source: "calculated"}
+ca_game_type: {meaning: "Type of game in the Client Area", source: "Client Area export"}
+ca_provider: {meaning: "Provider in the Client Area (often the studio)", source: "Client Area export"}
+ca_theme: {meaning: "Themes in the Client Area", source: "Client Area export"}
+ca_volatility: {meaning: "Volatility in the Client Area (its own scale)", source: "Client Area export"}
+ca_rtp: {meaning: "RTP in the Client Area (number)", source: "Client Area export"}
+ca_slug: {meaning: "Slug of the game in the Client Area", source: "Client Area export"}
+sc_title: {meaning: "Title of the Slot Catalog page (it has extra text; use game_name as the name)", source: "raw Slot Catalog JSON"}
+sc_provider: {meaning: "Studio that made the game", source: "raw Slot Catalog JSON"}
+sc_game_type: {meaning: "Type of game in Slot Catalog (Video Slots, Classic Slots...)", source: "raw Slot Catalog JSON"}
+sc_theme: {meaning: "Themes in Slot Catalog, several values separated by commas", source: "raw Slot Catalog JSON"}
+sc_features: {meaning: "Mechanics and features in Slot Catalog, several values separated by commas", source: "raw Slot Catalog JSON"}
+sc_tags: {meaning: "Other tags in Slot Catalog, several values separated by commas", source: "raw Slot Catalog JSON"}
+sc_rtp: {meaning: "RTP in Slot Catalog (number); values outside 50 to 100 are errors of the page and are left empty", source: "raw Slot Catalog JSON"}
+sc_volatility: {meaning: "Volatility in Slot Catalog (its own scale)", source: "raw Slot Catalog JSON"}
+sc_max_win: {meaning: "Maximum win as a multiple of the bet", source: "raw Slot Catalog JSON"}
+sc_paylines: {meaning: "Paylines or ways to win", source: "raw Slot Catalog JSON"}
+sc_grid: {meaning: "Grid of the game (reels by rows, for example 5-3)", source: "raw Slot Catalog JSON"}
+sc_hit_frequency: {meaning: "Hit frequency in percent", source: "raw Slot Catalog JSON"}
+sc_min_bet: {meaning: "Minimum bet", source: "raw Slot Catalog JSON"}
+sc_max_bet: {meaning: "Maximum bet", source: "raw Slot Catalog JSON"}
+sc_release_date: {meaning: "Release date in Slot Catalog (day/month/year)", source: "raw Slot Catalog JSON"}
+sc_technology: {meaning: "Technologies of the game, several values separated by commas", source: "raw Slot Catalog JSON"}
+sc_description: {meaning: "Description of the game in Slot Catalog", source: "raw Slot Catalog JSON"}

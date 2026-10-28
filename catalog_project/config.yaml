@@ -4,6 +4,7 @@ coverage: 0.99     # the smallest set of games with 99% of the positive GGR in t
 sa_urls: internal_taxonomy/game_slotcatalog_urls.xlsx                   # Slot Catalog URLs
 client_area: internal_taxonomy/game-filtered-20261027103158-2cb5.csv   # export of the Client Area
 games_enriched: internal_taxonomy/games_enriched.xlsx                   # games already classified
+slotcatalog_json: internal_taxonomy/sa_raw                               # raw Slot Catalog JSON of SA, one file per game
 # Dates in ref_games that are not a real launch
 placeholder_release_date: 2022-01-01
 data_start: 2025-04-01
@@ -11,4 +12,4 @@ data_start: 2025-04-01
 sports_provider_codes: [BETTECH, DIGITAIN_SPORTBOOK]
 
 # Batches of providers for the labelling split (split_batches.py): one file per name in output/
-splits: [javier, navid, shudhamshu]
+splits: [javier, navid, sudhamshu]
