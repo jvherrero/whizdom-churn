@@ -1,6 +1,6 @@
-"""The priority list: the highly active games (output/active_games.csv, 99% of the GGR) with no Slot Catalog URL or no
-game type, and not already classified in games_enriched.xlsx, sorted by GGR and then rounds, with what the Client
-Area already has for them. A sheet by provider shows how much of its GGR is covered. Local only, no ClickHouse.
+"""The priority list: the highly active games (output/active_games.csv, 99% of the GGR) that are not already classified
+in games_enriched.xlsx, sorted by GGR and then rounds, with their Slot Catalog URL and what the Client
+Area already has for them (reason says if the URL or the game type is missing). A sheet by provider shows how much of its GGR is covered. Local only, no ClickHouse.
 
 The three sources join on the normalized id (lower case, letters and digits only, as in ref_games) and the provider
 code: game_id + provider_code in ref_games, game_src_id or core_id_desktop + platform in the SA file, Core Id Desktop
@@ -43,8 +43,8 @@ def by_key(table: pd.DataFrame, id_columns: list[str], provider: str, columns: l
 
 def build(active: pd.DataFrame, sa: pd.DataFrame, ca: pd.DataFrame, enriched: pd.DataFrame,
           sports_codes: list[str] = ()) -> pd.DataFrame:
-    """The active games with their URL, what the Client Area has, the reason they are missing ('' if not), if they
-    are already classified (games_enriched), if they are in the work list and if they are sports betting."""
+    """The active games with their URL, what the Client Area has, what is missing (reason, '' if nothing), if they
+    are already classified (games_enriched), if they are in the work list (not classified) and if they are sports."""
     sa_urls = by_key(sa[sa["sc_url"].notna()], ["game_src_id", "core_id_desktop"], "platform", ["sc_url"])
     ca_values = by_key(ca, ["Core Id Desktop", "Core Id Mobile"], "Platform", list(CA_COLUMNS)).rename(columns=CA_COLUMNS)
     games = active.assign(key=key(active["game_id"], active["provider_code"])).join(sa_urls, on="key").join(ca_values, on="key")
@@ -60,7 +60,7 @@ def build(active: pd.DataFrame, sa: pd.DataFrame, ca: pd.DataFrame, enriched: pd
 
     enriched_keys = pd.concat([key(enriched[c], enriched["platform_code"]) for c in ["game_src_id", "core_desktop_id", "core_mobile_id"]])
     games["in_games_enriched"] = games["key"].isin(enriched_keys)
-    games["in_list"] = (games["reason"] != "") & ~games["in_games_enriched"]
+    games["in_list"] = ~games["in_games_enriched"]
     games["is_sports"] = games["provider_code"].isin(sports_codes)
     return games
 
@@ -95,8 +95,8 @@ def summary(games: pd.DataFrame) -> pd.DataFrame:
         "with Slot Catalog URL from the Client Area only": games["sc_url_source"] == "client_area",
         "found in the Client Area file": games["ca_found"],
         "already classified (in games_enriched)": games["in_games_enriched"],
-        "missing URL or game type, but already classified: left out": (games["reason"] != "") & games["in_games_enriched"],
         "IN THE PRIORITY LIST": listed,
+        "  with Slot Catalog URL and game type": listed & (games["reason"] == ""),
         "  no Slot Catalog URL only": listed & (games["reason"] == "no_sc_url"),
         "  no game type only": listed & (games["reason"] == "no_game_type"),
         "  no Slot Catalog URL and no game type": listed & (games["reason"] == "no_sc_url+no_game_type"),
