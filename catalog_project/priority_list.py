@@ -115,8 +115,8 @@ def main() -> None:
     games["ca_release_date"] = games["ca_release_date"].str[:10]
     result, table, by_provider = priority(games), summary(games), providers(games)
 
-    for flag in ["is_sports", "ca_found", "ca_fills_game_type"]:     # True/False as text, so Excel does not translate them
-        result[flag] = result[flag].map({True: "True", False: "False"})
+    for flag in ["is_sports", "ca_found", "ca_fills_game_type"]:     # true/false as text, so Excel does not translate them
+        result[flag] = result[flag].map({True: "true", False: "false"})
     with pd.ExcelWriter(OUT / "priority_games.xlsx") as writer:
         result.to_excel(writer, sheet_name="games", index=False)
         table.to_excel(writer, sheet_name="summary", index=False)

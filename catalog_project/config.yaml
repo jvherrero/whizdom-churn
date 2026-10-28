@@ -9,3 +9,6 @@ placeholder_release_date: 2022-01-01
 data_start: 2025-04-01
 # Providers that are sports betting (single, combo...)
 sports_provider_codes: [BETTECH, DIGITAIN_SPORTBOOK]
+
+# Batches of providers for the labelling split (split_batches.py): one file per name in output/
+splits: [javier, navid, shudhamshu]
