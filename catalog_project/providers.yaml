@@ -1,0 +1,51 @@
+# Rebranding dictionary of providers (studios). Key: the standard name; list: every other way a source writes it.
+# Keys and aliases are compared as slugs (lower case, no accents or symbols), so "Pragmatic Play" and "pragmatic-play"
+# are the same alias. Add a name only when you are sure it is the same company: the Whizdom Game ID depends on it.
+# Decision of 2026-10-30: the casino and the live studio of one company are the same provider.
+# EGT Casino is the platform of Amusnet (EGT Interactive), so it is an alias of amusnet. EGT Digital is a different
+# company and is not merged on purpose.
+
+evolution: [Evolution Gaming, Evolution Live Dealer]
+pragmatic-play: [Pragmatic, Pragmatic Casino, Pragmatic Live, Pragmatic Live Casino]
+playtech: [Playtech Live]
+yggdrasil: [Yggdrasil Casino]
+betsoft: [Betsoft Gaming]
+hacksaw-gaming: [Hacksaw]
+red-rake-gaming: [Red Rake]
+mascot-gaming: [Mascot]
+apollo-games: [Apollo]
+avatarux: [AvatarUX Studios]
+smartsoft-gaming: [SmartSoft]
+ezugi: [EZUGI Casino]
+rtg: [RTG Gaming]
+relax-gaming: [RELAXGAMING]
+3-oaks: [3Oaks]
+1x2-gaming: [1x2gaming]
+enjoy-gaming: [EnjoyGaming]
+nolimit-city: [NolimitCity]
+pg-soft: [PgSoft]
+reel-play: [ReelPlay]
+amusnet: [EGT Casino]
+egt-digital: []
+playson: []
+isoftbet: []
+
+# Same company written in another way (found by the notebook as look-alike names, 2026-10-30).
+boomerang-studios: [Boomerang]
+candlebets: [Candle Bets]
+elysium-studios: [Elysium]
+givme: [Givme Games]
+golden-hero-group: [Golden Hero]
+jelly: [Jelly Entertainment]
+kalamba-games: [Kalamba]
+koala-games: [Koala]
+max-win-gaming: [Max Win]
+oryx: [Oryx Gaming]
+platipus: [Platipus Live]
+playn-go: [Playngo]
+tip-top: [Tiptop]
+win-fast: [Winfast]
+
+# Sports betting: the platform of Gamingtec shows the feed of the real provider.
+betby: [GT Sports (Betby feed)]
+digitain: [GT Sports (Digitain feed)]

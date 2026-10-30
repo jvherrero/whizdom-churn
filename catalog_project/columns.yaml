@@ -48,3 +48,6 @@ sc_max_bet: {meaning: "Maximum bet", source: "raw Slot Catalog JSON"}
 sc_release_date: {meaning: "Release date in Slot Catalog (day/month/year)", source: "raw Slot Catalog JSON"}
 sc_technology: {meaning: "Technologies of the game, several values separated by commas", source: "raw Slot Catalog JSON"}
 sc_description: {meaning: "Description of the game in Slot Catalog", source: "raw Slot Catalog JSON"}
+sc_pros_cons: {meaning: "Pros and cons of the game in Slot Catalog (only some pages have it)", source: "raw Slot Catalog JSON"}
+sc_how_to_play: {meaning: "How to play the game, text of Slot Catalog (only some pages have it)", source: "raw Slot Catalog JSON"}
+sc_bonuses_features: {meaning: "Bonuses and features, text of Slot Catalog (only some pages have it)", source: "raw Slot Catalog JSON"}

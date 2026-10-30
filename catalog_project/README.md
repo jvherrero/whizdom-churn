@@ -81,3 +81,52 @@ The `ca_*` columns come from the Client Area. They are a starting point to autoc
 
 `PROGRESS.md` has the day by day log, `DATA_FLOW.md` how the data moves from the client area to the catalog, and
 `PLAN.md` the original plan.
+
+## Master catalog (Whizdom Game ID)
+
+`master.ipynb` builds the master list of games with `master_lib.py` (tests in `tests/test_master_lib.py`). It starts
+from the games of ref_games seen since January 2025 (`last_seen`, `master_seen_since` in `config.yaml`), with every
+column, and joins all the data of the other sources to them:
+
+- **Sources and prefixes:** `ref_` ref_games (`sql/ref_games_master.sql`, all columns), `ca_` Client Area, `sa_` Slot
+  Catalog URL file of SA, `sc_` raw Slot Catalog JSON (all fields, also `pros_cons`, `how_to_play` and
+  `bonuses_features`), `ge_` games_enriched. The Client Area, the SA file and games_enriched are joined by game id and
+  platform; the JSON by the UUID of the SA file, else by name + provider. Columns with no prefix are made by the notebook.
+- **A game is its name + provider**, and the provider is the **studio** that made it (not the platform). The studio
+  comes from `studios` of ref_games, then the Client Area (often the distributor), then the raw JSON; if none is known,
+  the platform is used and `studio_source = platform`.
+- **Order of the catalog:** the same as `active_games.py`: GGR of the last 6 months (highest first), then rounds, then
+  `game_uid`. `ggr_eur_6m` and `rounds_6m` come from `output/active_games.csv` (`master_ggr` in `config.yaml`, the frozen list
+  of 2026-10-28) and are the sum of all the `game_uid` of the game. The first rows are the 99% list, already sorted; the
+  games with no GGR go after, by provider and name.
+- **Sports betting** has no name in any source: `explicit_names` of `config.yaml` gives the six games a name on purpose
+  (`name_source = explicit`), `providers.yaml` maps the GT Sports feeds to `betby` and `digitain`, and `is_sports` marks
+  them. Any other game with no name in any source has no ID (sheet `no name`, with its GGR).
+- **Name:** `ref_games` first; if it is empty, the Client Area, the SA file or games_enriched (`name_source`). The Client
+  Area name is not first because it is sometimes more generic (`Curse of the Pharaoh` for `... Bonus Buy`). `ref_games`
+  loses apostrophes (`Santa S Gifts`): `fix_possessive` puts them back.
+- **Studio from the same name:** a game takes the provider of the same game name from a better source (ref_games, then
+  Client Area, then JSON, then platform) if that source has one provider for the name and the RTP is the same
+  (`studio_source = same_name`). Generic names (`European Roulette`) belong to several studios, so a different RTP is a
+  different game. This joins, for example, ORYX (distributor) and Gamomat (studio) into one game.
+- **Rebranding dictionary:** `providers.yaml` maps every spelling of a provider to one standard name. A person adds names
+  to it; the notebook only proposes groups that look alike.
+- **Whizdom Game ID:** `uuid5(NAMESPACE, "<provider slug>/<game slug>")`, with a fixed namespace in the code. The same
+  game and provider always give the same ID. A game with no name gets no ID (sheet `no name`): an ID from the platform
+  id would tie the catalog to the old ids. **Provider ID:** `uuid5(NAMESPACE, "<provider slug>")` (sheet `providers`).
+- **No old ids:** the catalog leaves out the ids of platforms, brands and sources (game_uid, game_id, core ids, launch
+  and start ids, the UUID of SA...). `game_identities.parquet` keeps the link from each game_uid to its Whizdom Game ID,
+  to join the activity. A change in `slugify()` or in `providers.yaml` can change IDs, so every run
+  compares them with the last one (sheet `id changes`).
+- **Flags:** `match_status` (exact, review, no_match against the raw JSON), `no_url`, `missing_data`,
+  `provider_check` (the provider has a look-alike name not merged in `providers.yaml`), `id_shared` and
+  `same_platform_conflict` (one game with two game_uid on the same platform, so far always the same game).
+  `status` and `rtp` are ref_games, else the Client Area.
+- **Final file:** `output/master/master_catalog.xlsx`. Sheets: `read me`, `catalog` (one row per Whizdom Game ID, every
+  column of every source except the old ids; a game on several platforms shows the row with the best match), `columns`
+  (source and meaning of each column, from `master_columns.yaml` and `columns.yaml`), `providers` (Provider ID, names
+  seen, games), `flags`, `review` (only `match_status = review`) and `no name`. Columns that are empty in every row are left out. The IDs that changed against the last run are counted in `read me`.
+- **Other outputs** in `output/master/`: `master_games.parquet` (the catalog), `game_identities.parquet` (every
+  game_uid and its ID) and `raw_sources.parquet` (every raw JSON, whole, also the games that are not in ref_games).
+- Cells marked MANUAL read ClickHouse or S3. The notebook needs `output/master/ref_games.parquet`: run the MANUAL cell
+  once to export it. The final file of Navid is pending (`navid_final` in `config.yaml`).

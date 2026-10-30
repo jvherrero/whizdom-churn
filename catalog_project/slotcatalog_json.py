@@ -16,7 +16,8 @@ FIELDS = {"title": "sc_title", "provider": "sc_provider", "game_type": "sc_game_
           "features_text": "sc_features", "other_tags": "sc_tags", "rtp_text": "sc_rtp", "volatility_text": "sc_volatility",
           "max_win_text": "sc_max_win", "paylines_text": "sc_paylines", "grid_text": "sc_grid",
           "hit_frequency": "sc_hit_frequency", "min_bet_text": "sc_min_bet", "max_bet_text": "sc_max_bet",
-          "release_date_text": "sc_release_date", "technology": "sc_technology", "description": "sc_description"}
+          "release_date_text": "sc_release_date", "technology": "sc_technology", "description": "sc_description",
+          "pros_cons": "sc_pros_cons", "how_to_play": "sc_how_to_play", "bonuses_features": "sc_bonuses_features"}
 LISTS = ["theme_text", "features_text", "other_tags", "technology"]
 COLUMNS = ["sc_uuid", "sc_extracted_at", *FIELDS.values()]
 
