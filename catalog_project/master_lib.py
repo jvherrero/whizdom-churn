@@ -1,9 +1,5 @@
 """The master catalog of games: one Whizdom Game ID per game, and the functions master.ipynb uses to build it.
 
-A game is its name plus its provider (the studio that made it, not the platform that sells it). Both are written as a
-slug, the provider goes through the rebranding dictionary (providers.yaml), and the ID is
-uuid5(NAMESPACE, "<provider slug>/<game slug>"): the same game and provider always give the same ID. The ID depends on
-slugify() and on providers.yaml, so a change in either can change IDs (ID_VERSION); the notebook reports any change.
 """
 
 import difflib
@@ -20,19 +16,22 @@ from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Alignment
 
 HERE = Path(__file__).parent
-ID_VERSION = 1
+ID_VERSION = 2                                                    # 2: variants by Client Area name, RTP or type
 NAMESPACE = uuid.UUID("907a5265-b739-542f-8906-b9b0c91432a8")   # uuid5(NAMESPACE_DNS, "whizdom.ai"), fixed for ever
 SYMBOLS = re.compile(r"[™®©]")                                   # NFKD would turn ™ into "TM"
 APOSTROPHES = re.compile(r"['’`´]")                              # "Joker's" and "Jokers" are the same name
-# The source of each column of the catalog, by its prefix; a column with no prefix is made by master.ipynb.
-SOURCES = {"ref_": "ClickHouse ref_games", "ca_": "Client Area export", "sa_": "Slot Catalog URL file of SA",
-           "sc_": "raw Slot Catalog JSON", "ge_": "games_enriched.xlsx"}
+# The source of each column of the catalog, by its prefix; a column with no prefix is built for the catalog. These texts go
+# to the Excel, so they name the files that the team has, never a local file or a person.
+SOURCES = {"ref_": "ref_games (ClickHouse)", "ca_": "Client Area export", "scu_": "Slot Catalog URL file (game_slotcatalog_urls.xlsx)",
+           "sc_": "Slot Catalog JSON", "ge_": "games_enriched.xlsx", "gm_": "games matched (games_matched_final.xlsx)"}
+NO_PREFIX = "built for the catalog"
 # How the columns of each source are made (the prefix tells the source). {original} is the column or field of the source.
 HOW = {"ref_": "Copied as it is from ClickHouse (SELECT * FROM ref_games FINAL). One row per game_uid; the catalog shows the row of the best match of the ID.",
        "ca_": "Copied as it is from the Client Area export, column '{original}'. Joined to ref_games by key = game id normalized + platform code: Core Id Desktop first, then Core Id Mobile.",
-       "sa_": "Copied as it is from the Slot Catalog URL file of SA, column '{original}'. Joined by key = game id normalized + platform: game_src_id first, then core_id_desktop.",
+       "scu_": "Copied as it is from the Slot Catalog URL file, column '{original}'. Joined by key = game id normalized + platform: game_src_id first, then core_id_desktop.",
        "ge_": "Copied as it is from games_enriched, column '{original}'. Joined by key = game id normalized + platform_code: game_src_id, core_desktop_id, core_mobile_id.",
-       "sc_": "Field {original} of the raw Slot Catalog JSON, cleaned (the page marks [ i ] are removed). The JSON is the one found by the UUID of the SA file, else by name + provider."}
+       "gm_": "From games matched (games_matched_final.xlsx), by game_uid.",
+       "sc_": "Field {original} of the Slot Catalog JSON, cleaned (the page marks [ i ] are removed). The JSON is the one found by the UUID of the Slot Catalog URL file, else by name + provider."}
 SC_EXTRA = {"sc_title": " The Play at the start of the title is removed.",
             "sc_rtp": " Converted to a number; a value outside 50 to 100 is an error of the page and is left empty.",
             **dict.fromkeys(["sc_theme", "sc_features", "sc_tags", "sc_technology"], " Several values are written as a, b, c.")}
@@ -80,11 +79,84 @@ def provider_candidates(names: pd.Series, aliases: dict) -> pd.DataFrame:
     return groups.sort_values(["core", "rows"], ascending=[True, False]).reset_index(drop=True)
 
 
-def whizdom_id(game_slug: str, provider_slug: str) -> str | None:
-    """The Whizdom Game ID of a game; None if the name or the provider is missing."""
+def whizdom_id(game_slug: str, provider_slug: str, variant: str = "") -> str | None:
+    """The Whizdom Game ID of a game; None if the name or the provider is missing. A variant (two games with the same
+    name and provider, told apart by their RTP or type) adds its slug: '<provider>/<game>/rtp-94'."""
     if not game_slug or not provider_slug:
         return None
-    return str(uuid.uuid5(NAMESPACE, f"{provider_slug}/{game_slug}"))
+    return str(uuid.uuid5(NAMESPACE, f"{provider_slug}/{game_slug}" + (f"/{slugify(variant)}" if variant else "")))
+
+
+def name_from_client_area(games: pd.DataFrame) -> pd.Series:
+    """ref_games can give the same name to two games: 'Lady Wolf Moon Megaways' for 'Lady Wolf Moon' too. If the
+    game_uid of one name and provider have different names in the Client Area, each takes its Client Area name.
+    Returns the new names (empty where the name stays). Needs game_slug, provider_slug and ca_game_name."""
+    ca_slug = games["ca_game_name"].map(slugify).replace("", np.nan)
+    group = games["provider_slug"] + "/" + games["game_slug"]
+    differs = games["game_slug"].ne("") & group.notna() & ca_slug.groupby(group).transform("nunique").gt(1)
+    return games["ca_game_name"].where(differs & ca_slug.notna())
+
+
+def variant_of(games: pd.DataFrame, rtp_tol: float = 0.1) -> pd.Series:
+    """Two game_uid with the same name and provider are two games if the casino gives them a different RTP (by more
+    than rtp_tol points: Great Blue Jackpot 95.02 and 94.03) or a different game type (Roulette and Slots). Returns
+    'rtp 95.02' or 'type Roulette' for each game_uid of such a name, '' for the rest. A game_uid with no value keeps ''.
+    Needs whizdom_game_id (the ID without variant), rtp and game_type. The volatility is not used: it differs between
+    platforms for the same game (European Roulette is low on one and medium on another)."""
+    out = pd.Series("", index=games.index)
+    rtp = games["rtp"].round(2)
+    kind = games["game_type"].astype("string").str.strip().replace("", pd.NA)      # '' is no value, not a type
+    by_id = games.assign(kind=kind.str.lower()).groupby("whizdom_game_id")
+    by_rtp = (by_id["rtp"].transform("max") - by_id["rtp"].transform("min")).gt(rtp_tol)
+    by_type = ~by_rtp & by_id["kind"].transform("nunique").gt(1)
+    out[by_rtp & rtp.notna()] = "rtp " + rtp[by_rtp & rtp.notna()].map("{:g}".format).astype(str)
+    out[by_type & kind.notna()] = "type " + kind[by_type & kind.notna()].astype(str)
+    return out
+
+
+NO_TERM = {"", "na", "n/a", "none", "-", "unknown", "null", "nan"}
+
+
+def split_terms(text) -> list:
+    """The words of a list of themes or features: split by , | or ; but not inside brackets, so 'Burst (Crash|Bustabit
+    like) Mechanic' stays one word. '/' is not a separator: 'Risk/Gamble (Double) game' is one feature."""
+    if not isinstance(text, str):
+        return []
+    terms, word, depth = [], "", 0
+    for char in text:
+        depth += (char == "(") - (char == ")")
+        if char in ",|;" and depth <= 0:
+            terms.append(word)
+            word, depth = "", 0
+        else:
+            word += char
+    terms.append(word)
+    terms = [re.sub(r"(?i)^feature:\s*", "", t.strip()) for t in terms]          # 'Feature: Random reward' is 'Random reward'
+    return [t for t in terms if t.lower() not in NO_TERM]
+
+
+def term_key(term: str) -> str:
+    """Two words are the same if they only differ in case, spaces, hyphens, a final s, the end ' theme' or the start
+    'Feature:': 'Free Spins' and 'FreeSpins', 'Animals' and 'Animal', 'Fruit theme' and 'Fruit'. 'Gold' and 'Gold-color' differ."""
+    key = re.sub(r"^feature:\s*", "", term.strip().lower())
+    key = re.sub(r"\s+theme$", "", key)
+    key = re.sub(r"[^a-z0-9]", "", key)
+    return key[:-1] if len(key) > 3 and key.endswith("s") else key
+
+
+def unify_terms(frame: pd.DataFrame, columns: list) -> pd.Series:
+    """One list of themes (or features) per row out of several columns: every word of every source, the same word only
+    once (term_key), sorted, joined with ', '. Each word is written as most sources write it, with capitals first
+    (Slot Catalog writes 'Free Spins', ref_games 'free spins'). Empty if no source has a word."""
+    words = {c: frame[c].map(split_terms) for c in columns}
+    spellings = pd.Series([t for s in words.values() for terms in s for t in terms])
+    if spellings.empty:
+        return pd.Series(None, index=frame.index, dtype=object)
+    table = pd.DataFrame({"term": spellings, "key": spellings.map(term_key), "capital": spellings.str.contains(r"[A-Z]")})
+    table = table.groupby(["key", "term", "capital"]).size().rename("n").reset_index()
+    best = table.sort_values(["key", "capital", "n", "term"], ascending=[True, False, False, True]).drop_duplicates("key").set_index("key")["term"]
+    rows = pd.concat(words.values(), axis=1).apply(lambda r: sorted({best[term_key(t)] for terms in r for t in terms}, key=str.lower), axis=1)
+    return rows.map(lambda terms: ", ".join(terms) if terms else None)
 
 
 def fix_possessive(name):
@@ -111,6 +183,83 @@ def studio_from_same_name(games: pd.DataFrame, tolerance: float = 0.05) -> pd.Da
     found = targets.merge(donors, on="game_slug")
     found = found[found["rank"].gt(found["donor_rank"]) & (found["rtp"] - found["donor_rtp"]).abs().le(tolerance)]
     return found.drop_duplicates("row").set_index("row")[["provider_slug", "studio"]].reindex(games.index)
+
+
+def unify_attribute(frame: pd.DataFrame, sources: list, numeric: bool = False, tol_abs: float = 0.0, tol_rel: float = 0.0,
+                    conflict_columns: list | None = None) -> pd.DataFrame:
+    """One value of an attribute out of several columns. `sources` is [(column, normalizer)] in the order of priority: each value is
+    normalized (None if it cannot be read) and the first one that exists is the value. Returns value, source (the column that gave it)
+    and conflict (true if two sources have a different value: numbers differ by more than tol_abs + tol_rel * value). The
+    columns in `conflict_columns` (default all) are the ones compared. A conflict is solved: the value is the one that most of
+    the sources give (all of them, not only conflict_columns), and a tie goes to the first source in the order."""
+    clean = pd.DataFrame({c: frame[c].map(lambda v, f=f: f(v) if pd.notna(v) else None) for c, f in sources}, index=frame.index)
+    if numeric:
+        clean = clean.apply(pd.to_numeric, errors="coerce")
+    has = clean.notna()
+    compared = clean[conflict_columns or list(clean.columns)]
+    if numeric:
+        high, low = compared.max(axis=1), compared.min(axis=1)
+        differs = (high - low) > tol_abs + tol_rel * high.abs()
+    else:
+        differs = compared.nunique(axis=1) > 1
+    conflict = compared.notna().sum(axis=1).ge(2) & differs
+    value, source = clean.bfill(axis=1).iloc[:, 0], has.idxmax(axis=1).where(has.any(axis=1))
+
+    def same(a, b):
+        return abs(a - b) <= tol_abs + tol_rel * max(abs(a), abs(b)) if numeric else a == b
+
+    # a conflict is solved by the majority of all the sources (the value that most of them give); a tie goes to the first in order
+    for i, row in clean[conflict].iterrows():
+        given = [(c, v) for c, v in row.items() if pd.notna(v)]
+        votes = [sum(same(v, w) for _, w in given) for _, v in given]
+        source[i], value[i] = given[votes.index(max(votes))]
+    return pd.DataFrame({"value": value, "source": source, "conflict": conflict})
+
+
+def attributes_from(in_enriched: pd.Series, status: pd.Series) -> pd.Series:
+    """Where the attributes of each game come from. games_enriched wins: its classification is the one that the project follows,
+    so a game that is also in games matched (the same game with another game_uid) stays games_enriched. Else games matched
+    (matched or fuzzy); 'games matched, unmatched (pending)' if it has no match yet; else 'not in games_enriched or games matched'
+    (its attributes come only from ref_games, the Client Area and Slot Catalog). status is gm_status."""
+    names = status.map({"matched": "games matched, matched", "fuzzy": "games matched, fuzzy",
+                        "unmatched": "games matched, unmatched (pending)"}).fillna("not in games_enriched or games matched")
+    return pd.Series(np.where(in_enriched, "games_enriched", names), index=status.index)
+
+
+def tracker(rows: pd.DataFrame) -> pd.DataFrame:
+    """The Games Catalog Tracker: one row per game, with its ID, name, provider, URL and four states.
+    Raw Data: Yes if there is raw page data (a Slot Catalog JSON, or games matched matched or fuzzy).
+    Mapping: Mapped (Slot Catalog exact, games_enriched or games matched matched), To review (Slot Catalog review or
+    games matched fuzzy) or Not mapped. Status: the commercial status and 'ready to use' (released, Mapped, with an
+    RTP and a volatility), 'needs review' (released and Mapped or To review, but a check fails) or
+    'not ready'. Scope: In scope if the game is in the 99% GGR list. Notes: why the game is not ready.
+    `rows` has the columns of the catalog; a game with no name has no whizdom_game_id and its id in `id_note`. A game
+    that is only in another source says so in `source_note`, which goes first in the notes."""
+    has_id = rows["whizdom_game_id"].notna()
+    state = rows["status"].replace("", np.nan).fillna("unknown")
+    released = state.eq("released")
+    mapped = rows["match_status"].eq("exact") | rows["in_games_enriched"].eq(True) | rows["gm_status"].eq("matched")
+    review = ~mapped & (rows["match_status"].eq("review") | rows["gm_status"].eq("fuzzy"))
+    attributes = pd.DataFrame({"no RTP": rows["rtp"].isna(), "no volatility": rows["volatility"].isna()})   # conflicts are solved in the catalog
+    ready = has_id & released & mapped & ~attributes.any(axis=1)
+    readiness = np.select([ready, has_id & released & (mapped | review)], ["ready to use", "needs review"], "not ready")
+    # why the game is not ready: one text per failed check, in this order
+    id_note = rows["id_note"].fillna("") if "id_note" in rows else pd.Series("", index=rows.index)
+    source_note = rows["source_note"].fillna("") if "source_note" in rows else pd.Series("", index=rows.index)
+    texts = pd.DataFrame({"source": source_note, "name": np.where(rows["game_name"].notna(), "", "no name (" + id_note + ")"),
+                          "status": np.where(released, "", "status " + state),
+                          "variant": ("variant of a game with the same name: " + rows["variant"]).where(rows["variant"].fillna("").ne(""), "")
+                          if "variant" in rows else "",
+                          "mapping": np.select([review, ~mapped], ["mapping to review", "not mapped"], ""),
+                          **{k: np.where(v, k, "") for k, v in attributes.items()}}, index=rows.index)
+    notes = texts.apply(lambda r: ", ".join(t for t in r if t), axis=1)
+    url = rows["url"]                          # the best link of the game (see url in the catalog)
+    raw = rows["sc_title"].notna() | rows["gm_status"].isin(["matched", "fuzzy"])
+    return pd.DataFrame({"whizdom_game_id": rows["whizdom_game_id"], "Game Name": rows["game_name"], "Game Provider": rows["provider"],
+                         "External URL": url, "Raw Data": np.where(raw, "Yes", "No"),
+                         "Mapping": np.select([mapped, review], ["Mapped", "To review"], "Not mapped"),
+                         "Status": state + ", " + readiness, "Scope": np.where(rows["ggr_eur_6m"].notna(), "In scope", "Out of scope"),
+                         "Notes": notes}).reset_index(drop=True)
 
 
 def provider_id(provider_slug: str) -> str | None:
@@ -210,7 +359,7 @@ def column_notes(master: pd.DataFrame, notes: dict, originals: dict) -> pd.DataF
         values = master[column]
         filled = (values.notna() & values.astype(str).str.strip().ne("")).mean() * 100
         example = values[values.notna() & values.astype(str).str.strip().ne("")].head(1).astype(str).str[:80]
-        rows.append({"column": column, "source": note.get("source") or SOURCES.get(prefix, "made in master.ipynb"),
+        rows.append({"column": column, "source": note.get("source") or SOURCES.get(prefix, NO_PREFIX),
                      "origin": note.get("origin") or original,
                      "how": note.get("how") or (HOW.get(prefix, "").format(original=original) + SC_EXTRA.get(column, "")),
                      "meaning": meaning, "filled_pct": round(filled, 1), "example": example.iloc[0] if len(example) else ""})
@@ -224,6 +373,24 @@ def source_notes(path: Path, here: Path, rows: dict) -> pd.DataFrame:
     table["query"] = table["sql"].map(lambda f: (here / f).read_text().strip() if isinstance(f, str) else "")
     table["rows"] = table["prefix"].map(rows)
     return table[["prefix", "source", "where", "how", "joined", "query", "rows"]]
+
+
+# Words that must not be in the Excel: names of people and local files that only the author of the catalog has.
+FORBIDDEN = re.compile(r"(?i)\bnavid(?![a-z])|\bjavier(?![a-z])|sh?udhamshu|\bnv_|\brv_|\bsa_|active_games|output/|\bsql/|check_games_matched_final"
+                       r"|\.(?:py|ipynb|yaml|parquet)\b|(?-i:\bSA\b)")
+
+
+def forbidden_cells(sheets: dict, pattern: re.Pattern = FORBIDDEN) -> list:
+    """Every header or text cell of the sheets that has a forbidden word, as (sheet, column, text). Empty if all is clean."""
+    hits = []
+    for sheet, frame in sheets.items():
+        frame = frame.to_frame() if isinstance(frame, pd.Series) else frame
+        for column in frame.columns:
+            if pattern.search(str(column)):
+                hits.append((sheet, "header", str(column)))
+            text = frame[column].dropna().astype(str)
+            hits += [(sheet, column, t[:120]) for t in text[text.str.contains(pattern)].unique()]
+    return hits
 
 
 def _cell(value):

@@ -24,8 +24,8 @@ explicit_names:
 splits: [javier, navid, sudhamshu]
 # Master catalog (master.ipynb, master_lib.py, providers.yaml)
 master_out: output/master                       # parquet and summary of the master (ignored by git)
-master_seen_since: 2025-01-01                   # base list of the master: games of ref_games with last_seen on or after this day
 master_ggr: output/active_games.csv             # GGR and rounds by game_uid for the order of the catalog (frozen list of 2026-10-28)
 sa_raw_zip: s3://whizdomai-datalake/gamingtec/datalake/00-reference-data/whizdomai-games/data.zip
 sa_raw_profile: whizdomai-platform-prod         # AWS profile with read access to that bucket
-navid_final:                                    # pending: path of the final file of Navid (crawl, URLs, schema)
+navid_final: games_matched_final.xlsx           # the final file of Navid (sheets matched, fuzzy_review, unmatched)
+navid_unified: check_games_matched_final/output/games_unified.parquet   # his attributes, one value per field (check_games_matched_final/unify.ipynb)

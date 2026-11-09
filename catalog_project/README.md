@@ -85,24 +85,29 @@ The `ca_*` columns come from the Client Area. They are a starting point to autoc
 ## Master catalog (Whizdom Game ID)
 
 `master.ipynb` builds the master list of games with `master_lib.py` (tests in `tests/test_master_lib.py`). It starts
-from the games of ref_games seen since January 2025 (`last_seen`, `master_seen_since` in `config.yaml`), with every
+from all the games of ref_games (no filter by date), with every
 column, and joins all the data of the other sources to them:
 
-- **Sources and prefixes:** `ref_` ref_games (`sql/ref_games_master.sql`, all columns), `ca_` Client Area, `sa_` Slot
-  Catalog URL file of SA, `sc_` raw Slot Catalog JSON (all fields, also `pros_cons`, `how_to_play` and
-  `bonuses_features`), `ge_` games_enriched. The Client Area, the SA file and games_enriched are joined by game id and
-  platform; the JSON by the UUID of the SA file, else by name + provider. Columns with no prefix are made by the notebook.
+- **Sources and prefixes:** `ref_` ref_games (`sql/ref_games_master.sql`, all columns), `ca_` Client Area, `scu_` Slot
+  Catalog URL file, `sc_` raw Slot Catalog JSON (all fields, also `pros_cons`, `how_to_play` and
+  `bonuses_features`), `ge_` games_enriched, `gm_` games matched (`games_matched_final.xlsx`). The Client Area, the Slot
+  Catalog URL file and games_enriched are joined by game id and platform; the JSON by the UUID of the Slot Catalog URL
+  file, else by name + provider; games matched by `game_uid`. Columns with no prefix are made by the notebook.
 - **A game is its name + provider**, and the provider is the **studio** that made it (not the platform). The studio
   comes from `studios` of ref_games, then the Client Area (often the distributor), then the raw JSON; if none is known,
   the platform is used and `studio_source = platform`.
+- **Rows of the catalog:** one row per `game_uid` of ref_games (the list of ClickHouse, 20078), plus the games that are only in
+  other sources (`only_in`, at the end). A game on several platforms has one Whizdom Game ID in several rows. The Games
+  Catalog Tracker (`output/master/Games Catalog Tracker.xlsx`, section 11) is made from the same rows, in the same order.
 - **Order of the catalog:** the same as `active_games.py`: GGR of the last 6 months (highest first), then rounds, then
   `game_uid`. `ggr_eur_6m` and `rounds_6m` come from `output/active_games.csv` (`master_ggr` in `config.yaml`, the frozen list
-  of 2026-10-28) and are the sum of all the `game_uid` of the game. The first rows are the 99% list, already sorted; the
-  games with no GGR go after, by provider and name.
+  of 2026-10-28), by `game_uid`. The first rows are the 99% list, already sorted; the rows with no GGR go after.
+- **games matched and games_enriched by row:** each `game_uid` takes its own row of games matched; a `game_uid` that is not in
+  it takes the row of its game (the best status of the ID). The ge_ data of the other `game_uid` of an ID fill the empty cells.
 - **Sports betting** has no name in any source: `explicit_names` of `config.yaml` gives the six games a name on purpose
   (`name_source = explicit`), `providers.yaml` maps the GT Sports feeds to `betby` and `digitain`, and `is_sports` marks
   them. Any other game with no name in any source has no ID (sheet `no name`, with its GGR).
-- **Name:** `ref_games` first; if it is empty, the Client Area, the SA file or games_enriched (`name_source`). The Client
+- **Name:** `ref_games` first; if it is empty, the Client Area, the Slot Catalog URL file or games_enriched (`name_source`). The Client
   Area name is not first because it is sometimes more generic (`Curse of the Pharaoh` for `... Bonus Buy`). `ref_games`
   loses apostrophes (`Santa S Gifts`): `fix_possessive` puts them back.
 - **Studio from the same name:** a game takes the provider of the same game name from a better source (ref_games, then
@@ -112,21 +117,50 @@ column, and joins all the data of the other sources to them:
 - **Rebranding dictionary:** `providers.yaml` maps every spelling of a provider to one standard name. A person adds names
   to it; the notebook only proposes groups that look alike.
 - **Whizdom Game ID:** `uuid5(NAMESPACE, "<provider slug>/<game slug>")`, with a fixed namespace in the code. The same
-  game and provider always give the same ID. A game with no name gets no ID (sheet `no name`): an ID from the platform
+  game and provider always give the same ID. **Variants (ID version 2):** one name and provider can be two games. If the
+  Client Area gives them two names, each takes its Client Area name (Lady Wolf Moon / Lady Wolf Moon Megaways); else, if
+  the RTP of the casino differs by more than 0.1 points or the game type differs, the variant goes into the ID
+  (`<provider>/<game>/rtp-94`) and into the column `variant`. The volatility is not used: it differs between platforms for
+  the same game. A game with no name gets no ID (sheet `no name`): an ID from the platform
   id would tie the catalog to the old ids. **Provider ID:** `uuid5(NAMESPACE, "<provider slug>")` (sheet `providers`).
 - **No old ids:** the catalog leaves out the ids of platforms, brands and sources (game_uid, game_id, core ids, launch
-  and start ids, the UUID of SA...). `game_identities.parquet` keeps the link from each game_uid to its Whizdom Game ID,
+  and start ids, the UUID of the Slot Catalog URL file...). `game_identities.parquet` keeps the link from each game_uid to its Whizdom Game ID,
   to join the activity. A change in `slugify()` or in `providers.yaml` can change IDs, so every run
   compares them with the last one (sheet `id changes`).
 - **Flags:** `match_status` (exact, review, no_match against the raw JSON), `no_url`, `missing_data`,
-  `provider_check` (the provider has a look-alike name not merged in `providers.yaml`), `id_shared` and
+  `similar_provider` (another provider has almost the same name, not merged in `providers.yaml`; the sheet `providers`
+  shows it in `similar_to`), `id_shared` and
   `same_platform_conflict` (one game with two game_uid on the same platform, so far always the same game).
-  `status` and `rtp` are ref_games, else the Client Area.
-- **Final file:** `output/master/master_catalog.xlsx`. Sheets: `read me`, `catalog` (one row per Whizdom Game ID, every
-  column of every source except the old ids; a game on several platforms shows the row with the best match), `columns`
-  (source and meaning of each column, from `master_columns.yaml` and `columns.yaml`), `providers` (Provider ID, names
-  seen, games), `flags`, `review` (only `match_status = review`) and `no name`. Columns that are empty in every row are left out. The IDs that changed against the last run are counted in `read me`.
+  `status` is ref_games, else the Client Area.
+- **Final columns and full file:** the sheet `catalog` of `master_catalog.xlsx` has the 39 columns to read (ID, name, GGR, first and last seen, vertical,
+  provider, status, the unified attributes with one fixed value each, `theme`, `features`, URL and checks). When the sources
+  disagree, the value is the one that most of them give (a tie goes to the first in the order).
+  `master_catalog_full.xlsx` has the same rows with every column of every source (also the `_source` columns).
+- **Themes and features:** one column each (`theme`, `features`), the words of every source joined, each word once
+  (`ml.unify_terms`: Free Spins = FreeSpins, Animals = Animal, Fruit theme = Fruit; `Gold` and `Gold-color` stay apart).
+- **Final file:** `output/master/master_catalog.xlsx`, for the team. The sheet `read me` says what each sheet is and what
+  to expect in it: `catalog`, `columns`, `order of preference`, `sources`, `coverage 99%`, `pending unmatched`,
+  `providers`, `flags`, `review` and `no name`. Columns that are empty in every row are left out.
+- **No names and no local files in the Excel:** the texts name the files that the team has (the Slot Catalog JSON, the
+  Excels, the Client Area export, `games_matched_final.xlsx`), never a person, `.py`, `.yaml`, `.ipynb`, `.parquet` or
+  `output/` file. The batches of games matched are `batch 1`, `batch 2` and `batch 3` (alphabetical order of their
+  name). The last cell stops before writing if `ml.forbidden_cells` finds one of these words.
 - **Other outputs** in `output/master/`: `master_games.parquet` (the catalog), `game_identities.parquet` (every
   game_uid and its ID) and `raw_sources.parquet` (every raw JSON, whole, also the games that are not in ref_games).
+- **games matched and games_enriched (version 1):** `games_enriched` is joined by game id (`ge_` columns; `in_games_enriched`). games matched
+  joins by `game_uid` (`gm_` columns): its status, its links and one clean value per attribute (`check_games_matched_final/unify.ipynb`, with the
+  source and a flag for what was read from a sentence). The texts of third party websites stay out until the team decides. The review of the
+  batches is not joined yet (it waits for my check). `attributes_from` says which file gives the attributes of each game; the sheet
+  `coverage 99%` counts it on the 99% list, and `pending unmatched` lists the games of games matched with no match yet, most GGR first.
+- **Unified attributes:** RTP, volatility, minimum and maximum bet, max win, hit frequency, layout, release date, buy bonus and free spins have one
+  value, its source (`<attribute>_source`) and a conflict mark (`<attribute>_conflict`). The sheet `order of preference` lists the sources of
+  each one in order, why, and when two sources are a conflict. The order of the sources comes from comparing them:
+  games_enriched, ref_games and the Client Area agree 100% with each other (they are the casino: the variant that is played), and games matched and
+  Slot Catalog agree with each other but only 80 to 88% with the casino (they describe the base game, so in a `94 Low Rtp` variant their RTP is
+  the base one). So the casino first, then games matched, then Slot Catalog. The release date goes the other way (games matched, Slot Catalog, then the
+  platform), because the date of the casino is when the game was added, and agrees with Slot Catalog in only 24% of the games.
+  `game_type`, theme and features are not unified: the casino and Slot Catalog use different lists of words.
+- **games_enriched wins:** a game that is in games_enriched and also in games matched (the same game with another game_uid) stays
+  `games_enriched` in `attributes_from`, and `also_in_games_matched` marks it.
 - Cells marked MANUAL read ClickHouse or S3. The notebook needs `output/master/ref_games.parquet`: run the MANUAL cell
-  once to export it. The final file of Navid is pending (`navid_final` in `config.yaml`).
+  once to export it. games matched is `navid_final` in `config.yaml`.
