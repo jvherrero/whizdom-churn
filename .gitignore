@@ -67,3 +67,5 @@ signal_audit/runs/*/
 signal_audit/informe/*.aux
 signal_audit/informe/*.log
 signal_audit/informe/*.out
+
+catalog_project/
